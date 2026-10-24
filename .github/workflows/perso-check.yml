@@ -1,0 +1,54 @@
+# Quick check for work in progress: analysis and tests, no APK.
+name: Verif perso
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [perso-wip]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.2'
+
+      - run: flutter pub get
+
+      - name: Analyse
+        run: |
+          set +e
+          flutter analyze --no-fatal-infos --no-fatal-warnings lib test > analyze.txt 2>&1
+          status=$?
+          grep -E "^ *(error|warning) " analyze.txt | grep -v "^ *warning .*\(deprecated\|unused_import\)" | head -60 | while IFS= read -r line; do
+            echo "::error::$line"
+          done
+          tail -5 analyze.txt
+          exit $status
+
+      # The analysis above leaves out unused imports, too many in the
+      # upstream code to read. In what this fork added, every one is shown.
+      - name: Code mort dans les ajouts
+        if: always()
+        run: |
+          grep -E "unused_import|unused_element|unused_field|unused_local_variable|dead_code|unnecessary_non_null_assertion" analyze.txt \
+            | grep -E "lib/(data/services/(trakt|betaseries|wikidata|chart_cards|french_box_office|home_highlights|home_row_tidy|home_row_cache_store|seerr/(seed_recommendations|taste_extras|for_you_ranker|for_you_service|abandoned|seerr_age_gate|upcoming_picks))|preference/(trakt_preferences|home_section_config)|ui/screens/settings/trakt_account_tile|ui/screens/home/home_view_model|di/modules/app_module)" \
+            | while IFS= read -r line; do echo "::warning::$line"; done
+          true
+
+      - name: Tests
+        if: always()
+        run: |
+          set +e
+          flutter test test/data/services/tonight_test.dart test/data/services/taste_quiz_test.dart test/data/services/taste_check_in_test.dart test/data/services/for_you_ranker_test.dart test/data/services/home_highlights_test.dart test/data/services/home_row_tidy_test.dart test/data/services/seerr_age_gate_test.dart test/data/services/upcoming_picks_test.dart test/data/services/home_row_cache_store_test.dart test/data/services/trakt_test.dart test/data/services/betaseries_test.dart test/data/services/chart_cards_test.dart test/data/services/seed_recommendations_test.dart test/data/services/film_awards_test.dart test/data/services/french_box_office_test.dart test/preference/top10_sections_test.dart test/data/services/my_requests_test.dart test/data/services/taste_profile_test.dart test/data/services/saga_test.dart test/ui/layout/screen_form_test.dart test/ui/widgets/bottom_nav/fold_nav_test.dart test/ui/widgets/bottom_nav/bottom_navbar_test.dart test/ui/screens/home/home_row_image_type_test.dart test/ui/kids_mode_test.dart --reporter expanded > tests.txt 2>&1
+          status=$?
+          if [ $status -ne 0 ]; then
+            grep -E -A4 "\[E\]|Expected:|Actual:|Which:|EXCEPTION|was thrown|Error: |test/.*\.dart [0-9]+:[0-9]+" tests.txt | grep -v "package:flutter_test\|dart:async\|^--$\|^ *$" | head -24 | while IFS= read -r line; do
+              echo "::error::$line"
+            done
+          fi
+          tail -5 tests.txt
+          exit $status

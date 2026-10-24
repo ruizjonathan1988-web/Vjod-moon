@@ -1,0 +1,142 @@
+# Builds the personal APKs for a fork: one for the TV, one for the phone.
+# Both install next to the Play Store version instead of replacing it.
+name: APK perso
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [perso]
+
+permissions:
+  contents: write
+
+# A newer push replaces the run under way, so an older build can never
+# publish over a newer one.
+concurrency:
+  group: perso-apk
+  cancel-in-progress: true
+
+jobs:
+  phone:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # One fixed key for every build, so a new APK installs over the last.
+      - name: Signature perso
+        run: |
+          cp .github/perso-signing/perso.keystore android/app/release.keystore
+          cp .github/perso-signing/keystore.properties android/keystore.properties
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.2'
+
+      - run: flutter pub get
+
+      # Only errors stop the build: the upstream code has infos and warnings
+      # of its own.
+      - name: Analyse
+        run: |
+          set +e
+          flutter analyze --no-fatal-infos --no-fatal-warnings lib test > analyze.txt 2>&1
+          status=$?
+          grep -E "^ *error " analyze.txt | head -40 | while IFS= read -r line; do
+            echo "::error::$line"
+          done
+          tail -5 analyze.txt
+          exit $status
+
+      - name: Tests des ajouts
+        run: |
+          set +e
+          flutter test test/data/services/tonight_test.dart test/data/services/taste_quiz_test.dart test/data/services/taste_check_in_test.dart test/data/services/for_you_ranker_test.dart test/data/services/home_highlights_test.dart test/data/services/home_row_tidy_test.dart test/data/services/seerr_age_gate_test.dart test/data/services/upcoming_picks_test.dart test/data/services/home_row_cache_store_test.dart test/data/services/trakt_test.dart test/data/services/betaseries_test.dart test/data/services/chart_cards_test.dart test/data/services/seed_recommendations_test.dart test/data/services/film_awards_test.dart test/data/services/french_box_office_test.dart test/preference/top10_sections_test.dart test/data/services/my_requests_test.dart test/data/services/taste_profile_test.dart test/data/services/saga_test.dart test/ui/layout/screen_form_test.dart test/ui/widgets/bottom_nav/fold_nav_test.dart test/ui/widgets/bottom_nav/bottom_navbar_test.dart test/ui/screens/home/home_row_image_type_test.dart test/ui/kids_mode_test.dart > tests.txt 2>&1
+          status=$?
+          if [ $status -ne 0 ]; then
+            grep -E "Error|Expected|Actual|FAILED|\.dart:[0-9]+" tests.txt | head -40 | while IFS= read -r line; do
+              echo "::error::$line"
+            done
+          fi
+          tail -5 tests.txt
+          exit $status
+
+      # "Moonfin Beta" on the phone.
+      - name: APK telephone
+        run: |
+          set +e
+          flutter build apk --release --flavor mobile-beta --dart-define=DISTRIBUTION_CHANNEL=apk > build-phone.txt 2>&1
+          status=$?
+          if [ $status -ne 0 ]; then
+            grep -E "Error|error:|\.dart:[0-9]+|FAILURE|What went wrong" -A2 build-phone.txt | head -40 | while IFS= read -r line; do echo "::error::$line"; done
+          fi
+          tail -5 build-phone.txt
+          exit $status
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: moonfin-fold
+          path: build/app/outputs/flutter-apk/*-release.apk
+
+      # Direct download link, no GitHub sign-in: the release keeps the latest build.
+      - name: Publier la release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp build/app/outputs/flutter-apk/*-release.apk moonfin-fold.apk
+          gh release create perso-latest --repo "$GITHUB_REPOSITORY" --title "Dernière version perso" --notes "APK de la dernière compilation de la branche perso." --prerelease || true
+          gh release upload perso-latest moonfin-fold.apk --repo "$GITHUB_REPOSITORY" --clobber
+
+  tv:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # One fixed key for every build, so a new APK installs over the last.
+      - name: Signature perso
+        run: |
+          cp .github/perso-signing/perso.keystore android/app/release.keystore
+          cp .github/perso-signing/keystore.properties android/keystore.properties
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.2'
+
+      - run: flutter pub get
+
+      # "Moonfin Test" on the TV: the real TV build under its own id.
+      - name: APK TV
+        env:
+          MOONFIN_TEST_ID_SUFFIX: .perso
+        run: |
+          set +e
+          flutter build apk --release --flavor androidTv --dart-define=MOONFIN_FORCE_TV=true --dart-define=DISTRIBUTION_CHANNEL=android_tv_apk > build-tv.txt 2>&1
+          status=$?
+          if [ $status -ne 0 ]; then
+            grep -E "Error|error:|\.dart:[0-9]+|FAILURE|What went wrong" -A2 build-tv.txt | head -40 | while IFS= read -r line; do echo "::error::$line"; done
+          fi
+          tail -5 build-tv.txt
+          exit $status
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: moonfin-tv
+          path: build/app/outputs/flutter-apk/*-release.apk
+
+      # Direct download link, no GitHub sign-in: the release keeps the latest build.
+      - name: Publier la release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp build/app/outputs/flutter-apk/*-release.apk moonfin-tv.apk
+          gh release create perso-latest --repo "$GITHUB_REPOSITORY" --title "Dernière version perso" --notes "APK de la dernière compilation de la branche perso." --prerelease || true
+          gh release upload perso-latest moonfin-tv.apk --repo "$GITHUB_REPOSITORY" --clobber
