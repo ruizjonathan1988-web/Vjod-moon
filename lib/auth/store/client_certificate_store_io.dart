@@ -1,0 +1,78 @@
+import 'dart:convert';
+
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
+import 'client_certificate_store_base.dart';
+
+class ClientCertificateStoreImpl implements ClientCertificateStore {
+  // macOS's data protection keychain refuses writes from an app signed
+  // without a keychain access group, so this keeps to the file based one.
+  final FlutterSecureStorage _storage = const FlutterSecureStorage(
+    mOptions: MacOsOptions(usesDataProtectionKeychain: false),
+  );
+  bool _unavailable = false;
+
+  @override
+  bool consumeSecureStorageUnavailable() {
+    final value = _unavailable;
+    _unavailable = false;
+    return value;
+  }
+
+  String _key(String host) => '${ClientCertificateStore.keyPrefix}$host';
+
+  @override
+  Future<void> save(StoredClientCertificate certificate) async {
+    try {
+      await _storage.write(
+        key: _key(certificate.host),
+        value: jsonEncode(certificate.toJson()),
+      );
+    } on Exception {
+      _unavailable = true;
+    }
+  }
+
+  @override
+  Future<StoredClientCertificate?> get(String host) async {
+    try {
+      final raw = await _storage.read(key: _key(host));
+      if (raw == null) return null;
+      return StoredClientCertificate.fromJson(
+        host,
+        jsonDecode(raw) as Map<String, dynamic>,
+      );
+    } on Exception {
+      return null;
+    }
+  }
+
+  @override
+  Future<List<StoredClientCertificate>> getAll() async {
+    try {
+      final all = await _storage.readAll();
+      return [
+        for (final entry in all.entries)
+          if (entry.key.startsWith(ClientCertificateStore.keyPrefix))
+            StoredClientCertificate.fromJson(
+              entry.key.substring(ClientCertificateStore.keyPrefix.length),
+              jsonDecode(entry.value) as Map<String, dynamic>,
+            ),
+      ];
+    } on Exception {
+      return const [];
+    }
+  }
+
+  @override
+  Future<void> remove(String host) async {
+    try {
+      await _storage.delete(key: _key(host));
+    } on Exception {
+      _unavailable = true;
+    }
+  }
+}
+
+ClientCertificateStore createClientCertificateStore() =>
+    ClientCertificateStoreImpl();
