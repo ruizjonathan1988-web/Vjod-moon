@@ -1,0 +1,51 @@
+name: Correctif ambiance
+
+on:
+  push:
+    branches: [perso]
+    paths: ['.github/workflows/correctif-ambiance.yml']
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Garde l'ambiance propre a chaque appareil
+        shell: python
+        run: |
+          p = "lib/data/services/plugin_sync_service.dart"
+          s = open(p, encoding="utf-8").read()
+          if "_localAmbianceKeys" in s:
+              print("Deja corrige")
+              raise SystemExit(0)
+          loop = "      for (final field in syncedFields) {\n        _applySyncedField(resolved, field);\n"
+          assert s.count(loop) == 1, "boucle introuvable"
+          s = s.replace(loop, "      for (final field in syncedFields) {\n        // L'ambiance reste propre a cet appareil : un Moonfin officiel ou le\n        // web Moonbase ne connait pas VJOD ni Ecrin et renvoie le theme Moonfin.\n        if (_localAmbianceKeys.contains(field.serverKey)) continue;\n        _applySyncedField(resolved, field);\n")
+          call = "    _applyMediaBarMode(resolved);\n"
+          assert s.count(call) == 1, "appel introuvable"
+          s = s.replace(call, "")
+          fn = "  void _applyMediaBarMode(Map<String, dynamic> data) {"
+          assert s.count(fn) == 1, "fonction introuvable"
+          s = s.replace(fn, "  // ignore: unused_element\n" + fn)
+          head = "  Future<void> _applyServerSettingsUnbatched("
+          assert s.count(head) == 1, "methode introuvable"
+          s = s.replace(head, "  /// Reglages choisis par l'ambiance : jamais repris du serveur.\n  static const _localAmbianceKeys = {\n    'visualTheme',\n    'customThemeId',\n    'mediaBarSourceType',\n    'mediaBarTrailerPreview',\n  };\n\n" + head)
+          open(p, "w", encoding="utf-8").write(s)
+          print("Corrige")
+
+      - name: Enregistre et relance l'APK et le web
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Ambiance : plus jamais remplacee par le theme Moonfin venu du serveur"
+          git push
+          gh workflow run perso-apk.yml --ref perso
+          gh workflow run deploy-web-pages.yml --ref perso
