@@ -1,0 +1,46 @@
+name: Correctif ambiance 2
+
+on:
+  push:
+    branches: [perso]
+    paths: ['.github/workflows/correctif-ambiance-2.yml']
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Garde aussi l'horloge, le lecteur et les apercus
+        shell: python
+        run: |
+          p = "lib/data/services/plugin_sync_service.dart"
+          s = open(p, encoding="utf-8").read()
+          if "'use24HourClock'," in s:
+              print("Deja corrige")
+              raise SystemExit(0)
+          old = "    'mediaBarTrailerPreview',\n  };"
+          assert s.count(old) == 1, "liste introuvable : lancer d'abord correctif-ambiance"
+          keys = ["mediaBarTrailerPreview", "mediaBarTrailerAudio", "previewAudioEnabled",
+                  "episodePreviewEnabled", "detailShowTechnicalDetails", "use24HourClock",
+                  "playbackTimeAboveLeft", "playbackTimeAboveCenter", "playbackTimeAboveRight",
+                  "playbackTimeBelowLeft", "playbackTimeBelowCenter", "playbackTimeBelowRight"]
+          s = s.replace(old, "".join("    '%s',\n" % k for k in keys) + "  };")
+          open(p, "w", encoding="utf-8").write(s)
+          print("Corrige")
+
+      - name: Enregistre et relance l'APK et le web
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Ambiance : horloge, lecteur et apercus ne sont plus ecrases par le serveur"
+          git push
+          gh workflow run perso-apk.yml --ref perso
+          gh workflow run deploy-web-pages.yml --ref perso
