@@ -23,6 +23,7 @@ import '../../preference/user_preferences.dart';
 import '../../util/audio_artwork_url.dart';
 import '../../util/clock_format.dart';
 import '../../util/game_library.dart';
+import '../../util/secondary_library.dart';
 import '../../util/live_tv_library.dart';
 import '../../util/overlay_color_palette.dart';
 import '../../util/platform_detection.dart';
@@ -883,29 +884,18 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
     return (width / 1280).clamp(0.6, 1.2);
   }
 
-  static bool _isSecondaryLibrary(AggregatedLibrary lib) {
-    final name = lib.name.toLowerCase();
-    return name.contains('russ') || name.contains('рус');
-  }
-
-  /// The main library of this type: the first one that isn't Russian.
+  /// The main library of this type: the first one that isn't a Russian
+  /// version, or the only one there is. The others are a chip away on the
+  /// library page.
   AggregatedLibrary? _libraryOfType(String type) {
+    AggregatedLibrary? fallback;
     for (final lib in _navLibraries) {
-      if (lib.collectionType.toLowerCase() == type &&
-          !_isSecondaryLibrary(lib)) {
-        return lib;
-      }
+      if (lib.collectionType.toLowerCase() != type) continue;
+      if (!isSecondaryLibraryName(lib.name)) return lib;
+      fallback ??= lib;
     }
-    return null;
+    return fallback;
   }
-
-  /// The Russian libraries of this type, each with a tab of its own.
-  List<AggregatedLibrary> _secondaryLibrariesOfType(String type) => [
-    for (final lib in _navLibraries)
-      if (lib.collectionType.toLowerCase() == type &&
-          _isSecondaryLibrary(lib))
-        lib,
-  ];
 
   void _openLibrary(AggregatedLibrary? lib) {
     if (lib == null) {
@@ -978,18 +968,6 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
           },
         ),
       ],
-      for (final lib in _secondaryLibrariesOfType('movies'))
-        VjodNavItem(
-          label: 'Films RU',
-          icon: Icons.movie_filter_outlined,
-          onTap: () => _openLibrary(lib),
-        ),
-      for (final lib in _secondaryLibrariesOfType('tvshows'))
-        VjodNavItem(
-          label: 'Séries RU',
-          icon: Icons.live_tv_rounded,
-          onTap: () => _openLibrary(lib),
-        ),
     ];
     // On a narrow screen the tabs go to the bottom bar, which the layout
     // draws from what is published here.

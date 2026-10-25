@@ -44,6 +44,7 @@ import '../../navigation/home_refresh_bus.dart';
 import '../../navigation/app_router.dart';
 import '../../navigation/playback_launcher.dart';
 import 'detail_buttons.dart';
+import '../../../util/audio_languages.dart';
 import '../../../data/models/upcoming_episode_info.dart';
 import '../../../preference/detail_metadata_layout.dart';
 import '../../../preference/detail_section_layout.dart';
@@ -7003,10 +7004,11 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
               : null,
         ),
       if (isPlayableVideo &&
-          audioStreams.length > 1 &&
+          (audioStreams.length > 1 ||
+              audioLanguagesLabel(audioStreams) != null) &&
           shows(DetailButton.audio))
         DetailButton.audio: _DetailActionButton(
-          label: l10n.audio,
+          label: audioLanguagesLabel(audioStreams) ?? l10n.audio,
           icon: Icons.audiotrack,
           onPressed: () => _showAudioSelector(context, audioStreams),
         ),

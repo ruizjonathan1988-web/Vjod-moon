@@ -36,6 +36,7 @@ import '../../widgets/focus/context_menu_sheet.dart';
 import '../../widgets/focus/focusable_toolbar_button.dart';
 import '../../widgets/focus/request_initial_focus.dart';
 import '../../widgets/media_card.dart';
+import '../../widgets/vjod/library_sibling_switcher.dart';
 import '../../widgets/overlay_sheet.dart';
 import '../../widgets/quick_return_wrapper.dart';
 import '../../widgets/rating_display.dart';
@@ -1238,7 +1239,10 @@ class _LibraryBrowseScreenState extends State<LibraryBrowseScreen>
                 ),
               ),
             ),
-          content,
+          LibrarySiblingSwitcher(
+            libraryId: widget.libraryId,
+            child: content,
+          ),
           if (showDockedBar)
             Positioned(
               left: kDockedBarMargin + padding.left,

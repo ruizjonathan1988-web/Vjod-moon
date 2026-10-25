@@ -319,6 +319,7 @@ class MainActivity : AudioServiceActivity(), GamepadsCompatibleActivity {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        if (PersoApkInstaller.handle(this, intent)) return
         setIntent(intent)
         deepLinkFrom(intent)?.let { watchNextChannel?.invokeMethod("onDeepLink", it) }
     }
@@ -387,6 +388,23 @@ class MainActivity : AudioServiceActivity(), GamepadsCompatibleActivity {
             flutterEngine.dartExecutor.binaryMessenger,
             MediaStoreHelper.CHANNEL,
         ).setMethodCallHandler(MediaStoreHelper(this))
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            PersoApkInstaller.CHANNEL,
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "installApk" -> {
+                    val path = call.argument<String>("path")
+                    if (path != null) {
+                        PersoApkInstaller.install(this, path, result)
+                    } else {
+                        result.error("no_path", "path missing", null)
+                    }
+                }
+                "lastUpdateTime" -> result.success(PersoApkInstaller.lastUpdateTime(this))
+                else -> result.notImplemented()
+            }
+        }
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             DeviceStorageHelper.CHANNEL,

@@ -1,5 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/services.dart';
 import 'package:get_it/get_it.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -50,7 +52,7 @@ Future<void> showAppUpdateDialog(
     builder: (ctx) => Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (!PlatformDetection.isTV)
+        if (!PlatformDetection.isTV || _installsApkInApp(update))
           _UpdateOption(
             icon: Icons.download_rounded,
             label: l10n.download,
@@ -66,6 +68,11 @@ Future<void> showAppUpdateDialog(
   );
 
   if (choice == null || !context.mounted) return;
+
+  if (choice == 'download' && _installsApkInApp(update)) {
+    await _downloadAndInstallWindowsUpdate(context, update);
+    return;
+  }
 
   if (choice == 'download' &&
       Platform.isWindows &&
@@ -147,7 +154,11 @@ Future<void> _downloadAndInstallWindowsUpdate(
 
   try {
     final tempDir = await getTemporaryDirectory();
-    final file = File('${tempDir.path}${Platform.pathSeparator}moonfin_updater.exe');
+    final apk = _installsApkInApp(update);
+    final file = File(
+      '${tempDir.path}${Platform.pathSeparator}'
+      '${apk ? 'vjod_update.apk' : 'moonfin_updater.exe'}',
+    );
     if (await file.exists()) {
       await file.delete();
     }
@@ -180,6 +191,17 @@ Future<void> _downloadAndInstallWindowsUpdate(
       client.close();
     }
 
+    if (apk) {
+      // Android shows its own install screen over the app; this dialog stays
+      // behind it with a way out if the install is refused.
+      await _apkChannel.invokeMethod<bool>('installApk', {'path': file.path});
+      errorNotifier.value =
+          'Installation lancée. Si rien ne s’affiche, autorisez VJOD à '
+          'installer des applis inconnues dans les réglages Android, '
+          'puis recommencez.';
+      return;
+    }
+
     await Process.start(
       file.path,
       [],
@@ -191,6 +213,16 @@ Future<void> _downloadAndInstallWindowsUpdate(
     errorNotifier.value = l10n.updateDownloadFailed;
   }
 }
+
+const _apkChannel = MethodChannel('org.moonfin.androidtv/perso_update');
+
+/// An Android APK this app can download and hand to the system installer
+/// itself, so a TV without a browser can update too.
+bool _installsApkInApp(DesktopUpdateInfo update) =>
+    !kIsWeb &&
+    Platform.isAndroid &&
+    update.downloadUri.isScheme('https') &&
+    update.downloadUri.path.toLowerCase().endsWith('.apk');
 
 class _UpdateOption extends StatelessWidget {
   final IconData icon;

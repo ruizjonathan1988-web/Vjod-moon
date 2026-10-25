@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/services.dart';
 import 'package:jellyfin_preference/jellyfin_preference.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -48,6 +49,16 @@ class AppUpdateService {
 
   static const _latestReleaseHost = 'api.github.com';
   static const _latestReleasePath = '/repos/Moonfin-Client/Moonfin-Core/releases/latest';
+
+  /// This fork's Android builds look for updates on its own release, which
+  /// keeps one APK per device under a fixed name, not on Moonfin's.
+  static const _persoReleasePath =
+      '/repos/ruizjonathan1988-web/Vjod-moon/releases/tags/perso-latest';
+  static const _persoChannel = MethodChannel('org.moonfin.androidtv/perso_update');
+
+  static bool get isPersoBuild =>
+      AppDistribution.channel == DistributionChannel.apk ||
+      AppDistribution.channel == DistributionChannel.androidTvApk;
   static const _checkCooldown = Duration(hours: 24);
 
   static const _lastCheckMsKey = 'app_update_last_check_ms';
@@ -136,11 +147,17 @@ class AppUpdateService {
 
     await _store.setInt(_lastCheckMsKey, now.millisecondsSinceEpoch);
 
-    final release = await _fetchLatestRelease();
+    final release = await _fetchLatestRelease(
+      isPersoBuild ? _persoReleasePath : _latestReleasePath,
+    );
     if (release == null) {
       return const DesktopUpdateCheckResult(
         status: DesktopUpdateCheckStatus.checkFailed,
       );
+    }
+
+    if (isPersoBuild) {
+      return _persoResult(release, suppressIfAlreadyNotified);
     }
 
     final currentVersion = await _currentAppVersion();
@@ -168,6 +185,55 @@ class AppUpdateService {
         downloadUri: asset != null
             ? Uri.parse(asset.downloadUrl)
             : Uri.parse(release.releaseNotesUrl),
+        releaseNotesUrl: release.releaseNotesUrl,
+      ),
+    );
+  }
+
+  /// The perso APK is newer when it was published after this copy was
+  /// installed: the release keeps a single file per device, so its upload
+  /// time is its version.
+  Future<DesktopUpdateCheckResult> _persoResult(
+    _LatestRelease release,
+    bool suppressIfAlreadyNotified,
+  ) async {
+    final asset = _selectAsset(release.assets);
+    final published = DateTime.tryParse(asset?.updatedAt ?? '');
+    DateTime? installed;
+    try {
+      final ms = await _persoChannel.invokeMethod<int>('lastUpdateTime');
+      if (ms != null && ms > 0) {
+        installed = DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true);
+      }
+    } catch (_) {}
+    if (asset == null ||
+        published == null ||
+        installed == null ||
+        !published.isAfter(installed.add(const Duration(minutes: 2)))) {
+      return const DesktopUpdateCheckResult(
+        status: DesktopUpdateCheckStatus.upToDate,
+      );
+    }
+
+    final local = published.toLocal();
+    String two(int n) => n.toString().padLeft(2, '0');
+    // Shown as "v2026.10.25-2241": the day and time the build was published.
+    final version =
+        '${local.year}.${two(local.month)}.${two(local.day)}'
+        '-${two(local.hour)}${two(local.minute)}';
+    final lastNotified = _store.getString(_lastNotifiedVersionKey);
+    if (suppressIfAlreadyNotified && lastNotified == version) {
+      return const DesktopUpdateCheckResult(
+        status: DesktopUpdateCheckStatus.alreadyNotified,
+      );
+    }
+    await _store.setString(_lastNotifiedVersionKey, version);
+
+    return DesktopUpdateCheckResult(
+      status: DesktopUpdateCheckStatus.updateAvailable,
+      update: DesktopUpdateInfo(
+        version: version,
+        downloadUri: Uri.parse(asset.downloadUrl),
         releaseNotesUrl: release.releaseNotesUrl,
       ),
     );
@@ -201,13 +267,13 @@ class AppUpdateService {
     return '0.0.0';
   }
 
-  Future<_LatestRelease?> _fetchLatestRelease() async {
+  Future<_LatestRelease?> _fetchLatestRelease(String path) async {
     final client = HttpClient()
       ..userAgent = 'MoonfinUpdateChecker/1.0'
       ..connectionTimeout = const Duration(seconds: 10);
 
     try {
-      final request = await client.getUrl(Uri.https(_latestReleaseHost, _latestReleasePath));
+      final request = await client.getUrl(Uri.https(_latestReleaseHost, path));
       request.headers.set(HttpHeaders.acceptHeader, 'application/vnd.github+json');
 
       final response = await request.close().timeout(const Duration(seconds: 10));
@@ -242,7 +308,13 @@ class AppUpdateService {
           if (name == null || name.isEmpty || downloadUrl == null || downloadUrl.isEmpty) {
             continue;
           }
-          assets.add(_ReleaseAsset(name: name, downloadUrl: downloadUrl));
+          assets.add(
+            _ReleaseAsset(
+              name: name,
+              downloadUrl: downloadUrl,
+              updatedAt: asset['updated_at']?.toString(),
+            ),
+          );
         }
       }
 
@@ -378,6 +450,11 @@ class _LatestRelease {
 class _ReleaseAsset {
   final String name;
   final String downloadUrl;
+  final String? updatedAt;
 
-  const _ReleaseAsset({required this.name, required this.downloadUrl});
+  const _ReleaseAsset({
+    required this.name,
+    required this.downloadUrl,
+    this.updatedAt,
+  });
 }
