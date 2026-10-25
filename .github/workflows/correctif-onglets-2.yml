@@ -1,0 +1,57 @@
+name: Correctif ordre des onglets
+
+on:
+  push:
+    branches: [perso]
+    paths: ['.github/workflows/correctif-onglets-2.yml']
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Onglets RU a la fin, apres Bientot et En route
+        shell: python
+        run: |
+          p = "lib/ui/widgets/top_toolbar.dart"
+          s = open(p, encoding="utf-8").read()
+          assert "_secondaryLibrariesOfType" in s, "installez d'abord correctif-onglets.yml"
+          film = ("      for (final lib in _secondaryLibrariesOfType('movies'))\n"
+                  "        VjodNavItem(\n"
+                  "          label: 'Films RU',\n"
+                  "          icon: Icons.movie_filter_outlined,\n"
+                  "          onTap: () => _openLibrary(lib),\n"
+                  "        ),\n")
+          serie = ("      for (final lib in _secondaryLibrariesOfType('tvshows'))\n"
+                   "        VjodNavItem(\n"
+                   "          label: 'S\u00e9ries RU',\n"
+                   "          icon: Icons.live_tv_rounded,\n"
+                   "          onTap: () => _openLibrary(lib),\n"
+                   "        ),\n")
+          fin = ("    ];\n"
+                 "    // On a narrow screen the tabs go to the bottom bar")
+          if film in s and s.index(film) > s.index("l10n.enRouteTitle"):
+              print("Deja corrige")
+              raise SystemExit(0)
+          assert film in s and serie in s and fin in s, "blocs introuvables"
+          s = s.replace(film, "").replace(serie, "")
+          s = s.replace(fin, film + serie + fin, 1)
+          open(p, "w", encoding="utf-8").write(s)
+          print("corrige")
+
+      - name: Enregistre et relance l'APK et le web
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet; then echo "Deja corrige"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git commit -am "VJOD : onglets RU apres Bientot et En route"
+          git push
+          gh workflow run perso-apk.yml --ref perso
+          gh workflow run deploy-web-pages.yml --ref perso
