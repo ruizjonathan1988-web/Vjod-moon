@@ -1,0 +1,112 @@
+name: Correctif bouton russe
+
+on:
+  push:
+    branches: [perso]
+    paths: ['.github/workflows/correctif-russe.yml']
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Remplace "4K" par "russe" dans les demandes Seerr
+        shell: python
+        run: |
+          import re
+
+          def remplace(chemin, paires):
+              s = open(chemin, encoding="utf-8").read()
+              n = 0
+              for old, new in paires:
+                  n += s.count(old)
+                  s = s.replace(old, new)
+              open(chemin, "w", encoding="utf-8").write(s)
+              print(chemin, ":", n, "remplacement(s)")
+              return n
+
+          total = 0
+
+          # Francais
+          fr = [
+              ('"uhd4k": "4K"', '"uhd4k": "Russe"'),
+              ("uhd4k => '4K'", "uhd4k => 'Russe'"),
+              ("Demander davantage en 4K", "Demander davantage en russe"),
+              ("Demander en 4K : ", "Demander en russe : "),
+              ("Demander en 4K", "Demander en russe"),
+              ("Demande 4K envoyée", "Demande en russe envoyée"),
+              ("Annuler la demande 4K", "Annuler la demande en russe"),
+          ]
+          for p in ["lib/l10n/app_fr.arb", "lib/l10n/app_localizations_fr.dart"]:
+              total += remplace(p, fr)
+
+          # Anglais (sert aussi de secours pour les langues non traduites, dont le russe)
+          en = [
+              ('"uhd4k": "4K"', '"uhd4k": "Russian"'),
+              ("uhd4k => '4K'", "uhd4k => 'Russian'"),
+              ("Request More in 4K", "Request More in Russian"),
+              ("Request 4K", "Request Russian"),
+              ("4K Requested", "Russian Requested"),
+              ("Cancel 4K Request", "Cancel Russian Request"),
+          ]
+          for p in ["lib/l10n/app_en.arb", "lib/l10n/app_en_GB.arb",
+                    "lib/l10n/app_localizations_en.dart"]:
+              total += remplace(p, en)
+
+          # Russe : le libelle "4К" et les textes de demande passent en russe
+          ru_dart = "lib/l10n/app_localizations_ru.dart"
+          ru = [
+              ("uhd4k => '4К'", "uhd4k => 'Русский'"),
+              ("requestMore4k => 'Request More in 4K'", "requestMore4k => 'Запросить ещё на русском'"),
+              ("request4k => 'Request 4K'", "request4k => 'Запросить на русском'"),
+              ("requested4k => '4K Requested'", "requested4k => 'Запрошено на русском'"),
+              ("cancelRequest4k => 'Cancel 4K Request'", "cancelRequest4k => 'Отменить запрос на русском'"),
+              ("return 'Request 4K $type';", "return 'Запросить на русском: $type';"),
+          ]
+          total += remplace(ru_dart, ru)
+
+          ru_arb = "lib/l10n/app_ru.arb"
+          s = open(ru_arb, encoding="utf-8").read()
+          s = s.replace('"uhd4k": "4К"', '"uhd4k": "Русский"')
+          ajouts = {
+              "requestMore4k": "Запросить ещё на русском",
+              "request4k": "Запросить на русском",
+              "requested4k": "Запрошено на русском",
+              "cancelRequest4k": "Отменить запрос на русском",
+              "requestSeriesOrMovie4k": "Запросить на русском: {type}",
+          }
+          lignes = "".join(
+              f'    "{k}": "{v}",\n' for k, v in ajouts.items() if f'"{k}"' not in s
+          )
+          s = re.sub(r'("@@locale": "ru",\n)', lambda m: m.group(1) + lignes, s, count=1)
+          open(ru_arb, "w", encoding="utf-8").write(s)
+
+          # Badge de la page Demandes : le "4K" ecrit en dur suit la traduction
+          p = "lib/ui/screens/seerr/seerr_requests_screen.dart"
+          total += remplace(p, [(
+              "suffix: request.is4k ? '4K' : null,",
+              "suffix: request.is4k ? l10n.uhd4k : null,",
+          )])
+
+          print("total :", total)
+          if total == 0:
+              print("Deja corrige")
+          else:
+              assert total >= 20, "textes 4K introuvables, rien n'a ete modifie correctement"
+
+      - name: Enregistre et relance l'APK et le web
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet; then echo "Deja corrige"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Seerr : les demandes 4K s'affichent comme demandes en russe"
+          git push
+          gh workflow run perso-apk.yml --ref perso
+          gh workflow run deploy-web-pages.yml --ref perso
