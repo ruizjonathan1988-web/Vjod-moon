@@ -1390,6 +1390,14 @@ class PluginSyncService extends ChangeNotifier {
     } catch (_) {}
   }
 
+  /// Reglages choisis par l'ambiance : jamais repris du serveur.
+  static const _localAmbianceKeys = {
+    'visualTheme',
+    'customThemeId',
+    'mediaBarSourceType',
+    'mediaBarTrailerPreview',
+  };
+
   Future<void> _applyServerSettingsUnbatched(
     Map<String, dynamic> resolved,
   ) async {
@@ -1405,12 +1413,14 @@ class PluginSyncService extends ChangeNotifier {
       // the send and receive directions can't drift apart. The settings that need
       // real logic follow below.
       for (final field in syncedFields) {
+        // L'ambiance reste propre a cet appareil : un Moonfin officiel ou le
+        // web Moonbase ne connait pas VJOD ni Ecrin et renvoie le theme Moonfin.
+        if (_localAmbianceKeys.contains(field.serverKey)) continue;
         _applySyncedField(resolved, field);
       }
     }
 
     _applySinceYouWatchedNumRows(resolved);
-    _applyMediaBarMode(resolved);
     _applyMediaBarContentType(resolved);
     _applyHomeRowImageTypes(resolved);
     if (resolved['mdblistRatingSources'] is List) {
@@ -1981,6 +1991,7 @@ class PluginSyncService extends ChangeNotifier {
     }
   }
 
+  // ignore: unused_element
   void _applyMediaBarMode(Map<String, dynamic> data) {
     final modeFromServer = _readString(data, 'mediaBarMode');
     if (modeFromServer != null && modeFromServer.trim().isNotEmpty) {
