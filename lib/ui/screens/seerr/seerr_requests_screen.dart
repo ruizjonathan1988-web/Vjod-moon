@@ -1598,7 +1598,7 @@ class _RequestCardState extends State<_RequestCard> with FocusStateMixin {
                   left: 8 * scale,
                   child: SeerrMediaTypeBadge(
                     mediaType: request.type,
-                    suffix: request.is4k ? '4K' : null,
+                    suffix: request.is4k ? l10n.uhd4k : null,
                     scale: scale,
                   ),
                 ),
@@ -1693,7 +1693,7 @@ class _RequestCardState extends State<_RequestCard> with FocusStateMixin {
                   left: 6 * scale,
                   child: SeerrMediaTypeBadge(
                     mediaType: request.type,
-                    suffix: request.is4k ? '4K' : null,
+                    suffix: request.is4k ? l10n.uhd4k : null,
                     scale: scale,
                   ),
                 ),

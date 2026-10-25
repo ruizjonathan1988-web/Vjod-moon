@@ -7468,7 +7468,7 @@
   "@requestMore": {
     "description": "Button to request more seasons"
   },
-  "requestMore4k": "Request More in 4K",
+  "requestMore4k": "Request More in Russian",
   "@requestMore4k": {
     "description": "Button to request more seasons in 4K, shown next to the non-4K Request More button"
   },
@@ -7476,11 +7476,11 @@
   "@request": {
     "description": "Button to submit a media request"
   },
-  "request4k": "Request 4K",
+  "request4k": "Request Russian",
   "@request4k": {
     "description": "Button to submit a 4K media request, shown next to the non-4K Request button"
   },
-  "requested4k": "4K Requested",
+  "requested4k": "Russian Requested",
   "@requested4k": {
     "description": "Disabled label shown when a 4K request already exists and the user cannot cancel it"
   },
@@ -7488,7 +7488,7 @@
   "@cancelRequest": {
     "description": "Button/dialog title to cancel a media request"
   },
-  "cancelRequest4k": "Cancel 4K Request",
+  "cancelRequest4k": "Cancel Russian Request",
   "@cancelRequest4k": {
     "description": "Button/dialog title to cancel a 4K media request"
   },
@@ -7609,7 +7609,7 @@
       }
     }
   },
-  "requestSeriesOrMovie4k": "Request 4K {type}",
+  "requestSeriesOrMovie4k": "Request Russian {type}",
   "@requestSeriesOrMovie4k": {
     "description": "Bottom sheet title for requesting media in 4K",
     "placeholders": {
@@ -8559,7 +8559,7 @@
   "sessionNext": "Next",
   "sessionVolumeDown": "Vol \u2013",
   "sessionVolumeUp": "Vol +",
-  "uhd4k": "4K",
+  "uhd4k": "Russian",
   "nowPlaying": "Now Playing",
   "volume": "Volume",
   "actions": "Actions",

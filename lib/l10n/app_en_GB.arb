@@ -4670,7 +4670,7 @@
     "sessionNext": "Next",
     "sessionVolumeDown": "Vol –",
     "sessionVolumeUp": "Vol +",
-    "uhd4k": "4K",
+    "uhd4k": "Russian",
     "nowPlaying": "Now Playing",
     "volume": "Volume",
     "actions": "Actions",
@@ -8379,19 +8379,19 @@
     "@seerrImportingStatus": {
         "description": "Label when a Seerr download has finished and is importing"
     },
-    "requestMore4k": "Request More in 4K",
+    "requestMore4k": "Request More in Russian",
     "@requestMore4k": {
         "description": "Button to request more seasons in 4K, shown next to the non-4K Request More button"
     },
-    "request4k": "Request 4K",
+    "request4k": "Request Russian",
     "@request4k": {
         "description": "Button to submit a 4K media request, shown next to the non-4K Request button"
     },
-    "requested4k": "4K Requested",
+    "requested4k": "Russian Requested",
     "@requested4k": {
         "description": "Disabled label shown when a 4K request already exists and the user cannot cancel it"
     },
-    "cancelRequest4k": "Cancel 4K Request",
+    "cancelRequest4k": "Cancel Russian Request",
     "@cancelRequest4k": {
         "description": "Button/dialog title to cancel a 4K media request"
     },
@@ -8407,7 +8407,7 @@
     "@onWatchlist": {
         "description": "Details screen button label when the title is already on the Seerr watchlist"
     },
-    "requestSeriesOrMovie4k": "Request 4K {type}",
+    "requestSeriesOrMovie4k": "Request Russian {type}",
     "@requestSeriesOrMovie4k": {
         "description": "Bottom sheet title for requesting media in 4K",
         "placeholders": {

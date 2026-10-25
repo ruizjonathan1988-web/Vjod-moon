@@ -5587,22 +5587,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String get requestMore => 'Request More';
 
   @override
-  String get requestMore4k => 'Request More in 4K';
+  String get requestMore4k => 'Request More in Russian';
 
   @override
   String get request => 'Request';
 
   @override
-  String get request4k => 'Request 4K';
+  String get request4k => 'Request Russian';
 
   @override
-  String get requested4k => '4K Requested';
+  String get requested4k => 'Russian Requested';
 
   @override
   String get cancelRequest => 'Cancel Request';
 
   @override
-  String get cancelRequest4k => 'Cancel 4K Request';
+  String get cancelRequest4k => 'Cancel Russian Request';
 
   @override
   String get playInMoonfin => 'Play in Moonfin';
@@ -5677,7 +5677,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String requestSeriesOrMovie4k(String type) {
-    return 'Request 4K $type';
+    return 'Request Russian $type';
   }
 
   @override
@@ -7694,7 +7694,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sessionVolumeUp => 'Vol +';
 
   @override
-  String get uhd4k => '4K';
+  String get uhd4k => 'Russian';
 
   @override
   String get nowPlaying => 'Now Playing';
@@ -20119,22 +20119,22 @@ class AppLocalizationsEnGb extends AppLocalizationsEn {
   String get requestMore => 'Request More';
 
   @override
-  String get requestMore4k => 'Request More in 4K';
+  String get requestMore4k => 'Request More in Russian';
 
   @override
   String get request => 'Request';
 
   @override
-  String get request4k => 'Request 4K';
+  String get request4k => 'Request Russian';
 
   @override
-  String get requested4k => '4K Requested';
+  String get requested4k => 'Russian Requested';
 
   @override
   String get cancelRequest => 'Cancel Request';
 
   @override
-  String get cancelRequest4k => 'Cancel 4K Request';
+  String get cancelRequest4k => 'Cancel Russian Request';
 
   @override
   String get playInMoonfin => 'Play in Moonfin';
@@ -20209,7 +20209,7 @@ class AppLocalizationsEnGb extends AppLocalizationsEn {
 
   @override
   String requestSeriesOrMovie4k(String type) {
-    return 'Request 4K $type';
+    return 'Request Russian $type';
   }
 
   @override
@@ -20816,7 +20816,7 @@ class AppLocalizationsEnGb extends AppLocalizationsEn {
   String get sessionVolumeUp => 'Vol +';
 
   @override
-  String get uhd4k => '4K';
+  String get uhd4k => 'Russian';
 
   @override
   String get nowPlaying => 'Now Playing';

@@ -5669,22 +5669,22 @@ class AppLocalizationsFr extends AppLocalizations {
   String get requestMore => 'Demander plus';
 
   @override
-  String get requestMore4k => 'Demander davantage en 4K';
+  String get requestMore4k => 'Demander davantage en russe';
 
   @override
   String get request => 'Demander';
 
   @override
-  String get request4k => 'Demander en 4K';
+  String get request4k => 'Demander en russe';
 
   @override
-  String get requested4k => 'Demande 4K envoyée';
+  String get requested4k => 'Demande en russe envoyée';
 
   @override
   String get cancelRequest => 'Annuler la demande';
 
   @override
-  String get cancelRequest4k => 'Annuler la demande 4K';
+  String get cancelRequest4k => 'Annuler la demande en russe';
 
   @override
   String get playInMoonfin => 'Lire dans Moonfin';
@@ -5761,7 +5761,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String requestSeriesOrMovie4k(String type) {
-    return 'Demander en 4K : $type';
+    return 'Demander en russe : $type';
   }
 
   @override
@@ -7780,7 +7780,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get sessionVolumeUp => 'Vol +';
 
   @override
-  String get uhd4k => '4K';
+  String get uhd4k => 'Russe';
 
   @override
   String get nowPlaying => 'Lecture en cours';

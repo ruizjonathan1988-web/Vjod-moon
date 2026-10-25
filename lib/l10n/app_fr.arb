@@ -6388,7 +6388,7 @@
     "@episodesLabel": {
         "description": "Stat label for number of episodes"
     },
-    "uhd4k": "4K",
+    "uhd4k": "Russe",
     "adminPasswordReset": "Réinitialisation du mot de passe",
     "adminPasswordUpdated": "Mot de passe mis à jour",
     "adminUserSettings": "Paramètres utilisateur",
@@ -9184,23 +9184,23 @@
     "@seerrNotifyNewMediaSubtitle": {
         "description": "Subtitle for the new media notifications toggle"
     },
-    "requestMore4k": "Demander davantage en 4K",
+    "requestMore4k": "Demander davantage en russe",
     "@requestMore4k": {
         "description": "Button to request more seasons in 4K, shown next to the non-4K Request More button"
     },
-    "request4k": "Demander en 4K",
+    "request4k": "Demander en russe",
     "@request4k": {
         "description": "Button to submit a 4K media request, shown next to the non-4K Request button"
     },
-    "requested4k": "Demande 4K envoyée",
+    "requested4k": "Demande en russe envoyée",
     "@requested4k": {
         "description": "Disabled label shown when a 4K request already exists and the user cannot cancel it"
     },
-    "cancelRequest4k": "Annuler la demande 4K",
+    "cancelRequest4k": "Annuler la demande en russe",
     "@cancelRequest4k": {
         "description": "Button/dialog title to cancel a 4K media request"
     },
-    "requestSeriesOrMovie4k": "Demander en 4K : {type}",
+    "requestSeriesOrMovie4k": "Demander en russe : {type}",
     "@requestSeriesOrMovie4k": {
         "description": "Bottom sheet title for requesting media in 4K",
         "placeholders": {

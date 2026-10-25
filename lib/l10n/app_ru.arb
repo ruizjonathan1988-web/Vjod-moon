@@ -1,5 +1,10 @@
 {
     "@@locale": "ru",
+    "requestMore4k": "Запросить ещё на русском",
+    "request4k": "Запросить на русском",
+    "requested4k": "Запрошено на русском",
+    "cancelRequest4k": "Отменить запрос на русском",
+    "requestSeriesOrMovie4k": "Запросить на русском: {type}",
     "appTitle": "Moonfin",
     "@appTitle": {
         "description": "The application title"
@@ -4674,7 +4679,7 @@
     "sessionNext": "Следующий",
     "sessionVolumeDown": "Том –",
     "sessionVolumeUp": "Том +",
-    "uhd4k": "4К",
+    "uhd4k": "Русский",
     "nowPlaying": "Сейчас играет",
     "volume": "Громкость",
     "actions": "Действия",
