@@ -5859,6 +5859,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
     tooltip: button.tooltip,
     onPressed: button.onPressed,
     onRightBoundary: onRightBoundary,
+    pill: button.pill,
     child: button.child,
   );
 
