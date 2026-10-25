@@ -1,0 +1,95 @@
+name: Correctif onglets Films et Series
+
+on:
+  push:
+    branches: [perso]
+    paths: ['.github/workflows/correctif-onglets.yml']
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Onglets distincts pour les bibliotheques principales et russes
+        shell: python
+        run: |
+          p = "lib/ui/widgets/top_toolbar.dart"
+          s = open(p, encoding="utf-8").read()
+          if "_isSecondaryLibrary" in s:
+              print("Deja corrige")
+              raise SystemExit(0)
+
+          old1 = ("  AggregatedLibrary? _libraryOfType(String type) {\n"
+                  "    for (final lib in _navLibraries) {\n"
+                  "      if (lib.collectionType.toLowerCase() == type) return lib;\n"
+                  "    }\n"
+                  "    return null;\n"
+                  "  }\n")
+          new1 = ("  static bool _isSecondaryLibrary(AggregatedLibrary lib) {\n"
+                  "    final name = lib.name.toLowerCase();\n"
+                  "    return name.contains('russ') || name.contains('\u0440\u0443\u0441');\n"
+                  "  }\n\n"
+                  "  /// The main library of this type: the first one that isn't Russian.\n"
+                  "  AggregatedLibrary? _libraryOfType(String type) {\n"
+                  "    for (final lib in _navLibraries) {\n"
+                  "      if (lib.collectionType.toLowerCase() == type &&\n"
+                  "          !_isSecondaryLibrary(lib)) {\n"
+                  "        return lib;\n"
+                  "      }\n"
+                  "    }\n"
+                  "    return null;\n"
+                  "  }\n\n"
+                  "  /// The Russian libraries of this type, each with a tab of its own.\n"
+                  "  List<AggregatedLibrary> _secondaryLibrariesOfType(String type) => [\n"
+                  "    for (final lib in _navLibraries)\n"
+                  "      if (lib.collectionType.toLowerCase() == type &&\n"
+                  "          _isSecondaryLibrary(lib))\n"
+                  "        lib,\n"
+                  "  ];\n")
+          assert old1 in s, "bloc _libraryOfType introuvable"
+          s = s.replace(old1, new1)
+
+          old2 = ("          label: l10n.vjodTabMovies,\n"
+                  "          icon: Icons.movie_outlined,\n"
+                  "          onTap: () => _openLibrary(movies),\n"
+                  "        ),\n")
+          new2 = old2 + ("      for (final lib in _secondaryLibrariesOfType('movies'))\n"
+                  "        VjodNavItem(\n"
+                  "          label: 'Films RU',\n"
+                  "          icon: Icons.movie_filter_outlined,\n"
+                  "          onTap: () => _openLibrary(lib),\n"
+                  "        ),\n")
+          assert old2 in s, "onglet Films introuvable"
+          s = s.replace(old2, new2)
+
+          old3 = ("          label: l10n.vjodTabSeries,\n"
+                  "          icon: Icons.tv_rounded,\n"
+                  "          onTap: () => _openLibrary(series),\n"
+                  "        ),\n")
+          new3 = old3 + ("      for (final lib in _secondaryLibrariesOfType('tvshows'))\n"
+                  "        VjodNavItem(\n"
+                  "          label: 'S\u00e9ries RU',\n"
+                  "          icon: Icons.live_tv_rounded,\n"
+                  "          onTap: () => _openLibrary(lib),\n"
+                  "        ),\n")
+          assert old3 in s, "onglet Series introuvable"
+          s = s.replace(old3, new3)
+          open(p, "w", encoding="utf-8").write(s)
+          print("corrige")
+
+      - name: Enregistre et relance l'APK et le web
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet; then echo "Deja corrige"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git commit -am "VJOD : les onglets Films et Series ouvrent la bibliotheque principale"
+          git push
+          gh workflow run perso-apk.yml --ref perso
+          gh workflow run deploy-web-pages.yml --ref perso
