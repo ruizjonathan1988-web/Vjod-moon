@@ -1396,6 +1396,17 @@ class PluginSyncService extends ChangeNotifier {
     'customThemeId',
     'mediaBarSourceType',
     'mediaBarTrailerPreview',
+    'mediaBarTrailerAudio',
+    'previewAudioEnabled',
+    'episodePreviewEnabled',
+    'detailShowTechnicalDetails',
+    'use24HourClock',
+    'playbackTimeAboveLeft',
+    'playbackTimeAboveCenter',
+    'playbackTimeAboveRight',
+    'playbackTimeBelowLeft',
+    'playbackTimeBelowCenter',
+    'playbackTimeBelowRight',
   };
 
   Future<void> _applyServerSettingsUnbatched(
