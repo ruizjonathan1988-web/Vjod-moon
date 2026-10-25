@@ -883,12 +883,29 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
     return (width / 1280).clamp(0.6, 1.2);
   }
 
+  static bool _isSecondaryLibrary(AggregatedLibrary lib) {
+    final name = lib.name.toLowerCase();
+    return name.contains('russ') || name.contains('рус');
+  }
+
+  /// The main library of this type: the first one that isn't Russian.
   AggregatedLibrary? _libraryOfType(String type) {
     for (final lib in _navLibraries) {
-      if (lib.collectionType.toLowerCase() == type) return lib;
+      if (lib.collectionType.toLowerCase() == type &&
+          !_isSecondaryLibrary(lib)) {
+        return lib;
+      }
     }
     return null;
   }
+
+  /// The Russian libraries of this type, each with a tab of its own.
+  List<AggregatedLibrary> _secondaryLibrariesOfType(String type) => [
+    for (final lib in _navLibraries)
+      if (lib.collectionType.toLowerCase() == type &&
+          _isSecondaryLibrary(lib))
+        lib,
+  ];
 
   void _openLibrary(AggregatedLibrary? lib) {
     if (lib == null) {
@@ -935,11 +952,23 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
           icon: Icons.movie_outlined,
           onTap: () => _openLibrary(movies),
         ),
+      for (final lib in _secondaryLibrariesOfType('movies'))
+        VjodNavItem(
+          label: 'Films RU',
+          icon: Icons.movie_filter_outlined,
+          onTap: () => _openLibrary(lib),
+        ),
       if (series != null)
         VjodNavItem(
           label: l10n.vjodTabSeries,
           icon: Icons.tv_rounded,
           onTap: () => _openLibrary(series),
+        ),
+      for (final lib in _secondaryLibrariesOfType('tvshows'))
+        VjodNavItem(
+          label: 'Séries RU',
+          icon: Icons.live_tv_rounded,
+          onTap: () => _openLibrary(lib),
         ),
       if (seerr) ...[
         VjodNavItem(
