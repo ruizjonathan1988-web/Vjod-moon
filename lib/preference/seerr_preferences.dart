@@ -125,6 +125,19 @@ class SeerrPreferences {
   Future<void> setVjodVotesJson(String value) =>
       _store.setString(_userKey('vjod_votes'), value);
 
+  /// This profile's saved TV sources (legal M3U/Xtream links), as
+  /// `TvPlaylists.encode` wrote them. Each profile keeps its own.
+  String? get vjodTvPlaylistsJson =>
+      _store.getString(_userKey('vjod_tv_playlists'));
+  Future<void> setVjodTvPlaylistsJson(String value) =>
+      _store.setString(_userKey('vjod_tv_playlists'), value);
+
+  /// Which external player the TV tab opens (a [TvApp] id). Empty means the
+  /// default.
+  String get vjodTvApp => _store.getString(_userKey('vjod_tv_app')) ?? '';
+  Future<void> setVjodTvApp(String value) =>
+      _store.setString(_userKey('vjod_tv_app'), value);
+
   /// Forgets what VJOD learned by itself: the journal of sittings, the
   /// "not interested", the votes and today's mood. The questionnaire's
   /// answers stay; they were given on purpose.

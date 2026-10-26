@@ -1001,6 +1001,17 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
           icon: Icons.tv_rounded,
           onTap: () => _openLibrary(series),
         ),
+      // Live TV through an external player (TiviMate and the like). No Seerr
+      // needed; it is the viewer's own IPTV source.
+      VjodNavItem(
+        label: l10n.vjodTvTab,
+        icon: Icons.live_tv_rounded,
+        selected: _isActive(Destinations.tv),
+        onTap: () {
+          if (_isActive(Destinations.tv)) return;
+          context.navigateTopLevel(Destinations.tv);
+        },
+      ),
       if (seerr) ...[
         // Explorer: every collection, what the server holds and what can be
         // asked for. On a phone Bientôt lives inside it, to keep five tabs.
@@ -1036,8 +1047,16 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
       ],
     ];
     // On a narrow screen the tabs go to the bottom bar, which the layout
-    // draws from what is published here.
-    final published = narrow ? tabs : const <VjodNavItem>[];
+    // draws from what is published here. Five fit at the bottom: when the TV
+    // tab pushes past that, En route steps aside into the avatar menu, where
+    // it keeps its badge.
+    var published = narrow ? tabs : const <VjodNavItem>[];
+    if (narrow && published.length > 5) {
+      published = [
+        for (final t in published)
+          if (t.label != l10n.enRouteTitle) t,
+      ];
+    }
     if (!_sameTabs(TopToolbar.vjodBottomTabs.value, published)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) TopToolbar.vjodBottomTabs.value = published;
@@ -1144,6 +1163,12 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
             if (seerr)
               entry(Icons.rule_rounded, l10n.vjodMenuRequests,
                   () => go(Destinations.seerrRequests)),
+            // En route sits here on a phone, where the bottom bar made room
+            // for the TV tab; on a wide screen it stays a tab and this is a
+            // harmless shortcut.
+            if (seerr && TopToolbar.vjodNarrow(host))
+              entry(Icons.downloading_rounded, l10n.enRouteTitle,
+                  () => go(Destinations.enRoute)),
           ],
           settings: entry(
             Icons.settings_outlined,
