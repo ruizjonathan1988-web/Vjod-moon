@@ -8,7 +8,8 @@
  * into a regular Escape key the app understands, hide the mouse cursor
  * while the arrows drive the app, and, on a browser that turns the arrows
  * into a cursor of its own (a box's, often), scroll when that cursor is
- * pushed against an edge of the screen.
+ * pushed against an edge of the screen: each push is an arrow press, so
+ * every screen moves the way it does with the TV app's remote.
  *
  * On a computer, a phone or a tablet it stops at once and changes nothing.
  * `?tv=1` / `?tv=0` in the address forces TV mode on or off (remembered).
@@ -92,60 +93,67 @@
     showHint();
   }, true);
 
+  // Arrows pressed on a remote that reaches the app, as opposed to the ones
+  // this script sends on its behalf.
+  var sending = false, lastArrow = 0;
   window.addEventListener('keydown', function (e) {
-    if (e.key && e.key.indexOf('Arrow') === 0) {
-      root.classList.add('vjod-keys');
-      lastMove = 0;
-    }
+    if (sending || !e.key || e.key.indexOf('Arrow') !== 0) return;
+    root.classList.add('vjod-keys');
+    lastMove = 0;
+    lastArrow = Date.now();
   }, true);
 
-  // How close to an edge counts as pushing against it, and how fast it
-  // scrolls: a little faster the longer it is held.
-  var EDGE = 0.045, STEP = 22, MAX_STEP = 70, held = 0;
-
-  function wheel(x, y, dx, dy) {
-    var target = document.elementFromPoint(x, y);
-    if (!target) return;
-    target.dispatchEvent(new WheelEvent('wheel', {
-      clientX: x, clientY: y, screenX: x, screenY: y,
-      deltaX: dx, deltaY: dy, deltaMode: 0,
-      bubbles: true, cancelable: true, composed: true
-    }));
+  // A push against an edge becomes an arrow press, so every screen moves
+  // exactly as it does with the TV app's remote: the highlight goes to the
+  // next item and the screen follows it, wherever that is.
+  var ARROWS = {
+    up: ['ArrowUp', 38], down: ['ArrowDown', 40],
+    left: ['ArrowLeft', 37], right: ['ArrowRight', 39]
+  };
+  var lastPress = 0;
+  function press(dir, held) {
+    var now = Date.now();
+    // About four steps a second, a little quicker while held.
+    if (now - lastPress < (held > 6 ? 150 : 240)) return;
+    lastPress = now;
+    var k = ARROWS[dir];
+    var target = document.activeElement || document.body;
+    sending = true;
+    try {
+      ['keydown', 'keyup'].forEach(function (type) {
+        target.dispatchEvent(new KeyboardEvent(type, {
+          key: k[0], code: k[0], keyCode: k[1], which: k[1],
+          bubbles: true, cancelable: true, composed: true
+        }));
+      });
+    } finally {
+      sending = false;
+    }
   }
 
+  // First way: the browser tells the page where its cursor is. Holding it
+  // against an edge keeps pressing that way.
+  var EDGE = 0.045, held = 0;
   setInterval(function () {
     // Only while the cursor is in use, and not long after it stopped.
     if (mouseX < 0 || Date.now() - lastMove > 15000) { held = 0; return; }
     var w = window.innerWidth, h = window.innerHeight;
-    var dx = 0, dy = 0;
-    if (mouseY >= h * (1 - EDGE)) dy = 1;
-    else if (mouseY <= h * EDGE) dy = -1;
-    if (mouseX >= w * (1 - EDGE)) dx = 1;
-    else if (mouseX <= w * EDGE) dx = -1;
-    if (!dx && !dy) { held = 0; return; }
+    var dir = null;
+    if (mouseY >= h * (1 - EDGE)) dir = 'down';
+    else if (mouseY <= h * EDGE) dir = 'up';
+    else if (mouseX >= w * (1 - EDGE)) dir = 'right';
+    else if (mouseX <= w * EDGE) dir = 'left';
+    if (!dir) { held = 0; return; }
     held++;
-    var step = Math.min(MAX_STEP, STEP + held * 2);
-    if (dy) {
-      // The whole screen: the list under the middle of the screen.
-      wheel(w / 2, h / 2, 0, dy * step);
-    } else {
-      // A row: the one at the cursor's height, scrolled sideways.
-      wheel(w / 2, mouseY, dx * step, 0);
-    }
+    press(dir, held);
   }, 40);
 
-  // Second way for cursor browsers, for those that don't tell the page
-  // where their cursor is: they scroll the page themselves when the cursor
-  // is pushed against an edge. The app draws on a fixed canvas, so the page
-  // has nothing to scroll. Give it something: an invisible area three
-  // screens high and wide behind the app. Whatever the browser scrolls it
-  // by is handed to the app as a wheel turn, and the area is put back in
-  // the middle, ready for the next push.
-  var lastArrow = 0;
-  window.addEventListener('keydown', function (e) {
-    if (e.key && e.key.indexOf('Arrow') === 0) lastArrow = Date.now();
-  }, true);
-
+  // Second way, for browsers that keep their cursor to themselves: they
+  // scroll the page when the cursor is pushed against an edge. The app
+  // draws on a fixed surface, so the page has nothing to scroll. Give it
+  // something: an invisible area three screens high and wide behind the
+  // app. Each scroll of it becomes an arrow press, and the area is put back
+  // in the middle, ready for the next push.
   function setUpScrollProxy() {
     var spacer = document.createElement('div');
     spacer.setAttribute('aria-hidden', 'true');
@@ -160,7 +168,7 @@
       'flutter-view, flt-glass-pane { position: fixed !important; }';
     document.head.appendChild(css);
 
-    var cx = 0, cy = 0, resetting = false;
+    var cx = 0, cy = 0, resetting = false, streak = 0, lastScroll = 0;
     function centre() {
       cx = window.innerWidth;
       cy = window.innerHeight;
@@ -174,12 +182,14 @@
     window.addEventListener('scroll', function () {
       var dx = window.scrollX - cx, dy = window.scrollY - cy;
       if (resetting || (!dx && !dy)) return;
-      // Arrows that reach the app move its highlight; any scroll they cause
-      // on the way is not a push against an edge.
-      if (Date.now() - lastArrow > 400) {
-        var w = window.innerWidth, h = window.innerHeight;
-        if (dy) wheel(w / 2, h / 2, 0, dy);
-        if (dx) wheel(w / 2, mouseY >= 0 ? mouseY : h / 2, dx, 0);
+      var now = Date.now();
+      streak = now - lastScroll < 400 ? streak + 1 : 0;
+      lastScroll = now;
+      // Arrows that reach the app already move it; a scroll they cause on
+      // the way is not a push against an edge.
+      if (now - lastArrow > 400) {
+        if (Math.abs(dy) >= Math.abs(dx)) press(dy > 0 ? 'down' : 'up', streak);
+        else press(dx > 0 ? 'right' : 'left', streak);
       }
       centre();
     }, { passive: true });
