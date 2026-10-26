@@ -3091,12 +3091,12 @@ class HomeViewModel extends ChangeNotifier {
     try {
       final mdb = GetIt.instance<MdbListRepository>();
       await Future.wait([
-        for (final pick in picks.take(15))
+        for (final pick in picks.take(10))
           mdb
               .getRatings(tmdbId: '${pick.item.id}', mediaType: pick.mediaType)
               .then((r) => ratings[pick.key] = r)
               .catchError((Object _) => null),
-      ]).timeout(const Duration(seconds: 4));
+      ]).timeout(const Duration(seconds: 2));
     } catch (_) {
       // MDBList is a bonus: what came back in time counts, the rest is 1.
     }

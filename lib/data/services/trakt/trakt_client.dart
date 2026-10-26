@@ -203,6 +203,25 @@ class TraktClient {
     String mediaType,
     int tmdbId, {
     int limit = 15,
+  }) {
+    final key = '$mediaType:$tmdbId';
+    return _related.putIfAbsent(
+      key,
+      () => _fetchRelated(mediaType, tmdbId, limit: limit)
+          .timeout(const Duration(seconds: 4))
+          .catchError((Object _) {
+            _related.remove(key);
+            return const <int>[];
+          }),
+    );
+  }
+
+  final Map<String, Future<List<int>>> _related = {};
+
+  Future<List<int>> _fetchRelated(
+    String mediaType,
+    int tmdbId, {
+    int limit = 15,
   }) async {
     final type = mediaType == 'tv' ? 'show' : 'movie';
     final search = await _dio.get<Object?>(

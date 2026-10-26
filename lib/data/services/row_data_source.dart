@@ -2606,24 +2606,38 @@ class RowDataSource {
 
   /// Films the library holds and the viewer hasn't seen, best rated first:
   /// VJOD's two "ready to play" rows. [short] keeps those under 1 h 40.
+  ({String serverId, DateTime at, Future<List<AggregatedItem>> items})?
+  _vjodDraw;
+
   Future<List<AggregatedItem>> loadVjodReady(
     String serverId, {
     bool short = false,
   }) async {
     try {
-      final draw = await _searchVisibleLibraryItems(
-        serverId,
-        const ['Movie'],
-        (parentId) => _getItemsWithFallback(
-          parentId: parentId,
-          includeItemTypes: const ['Movie'],
-          filters: const ['IsUnplayed'],
-          sortBy: 'CommunityRating,SortName',
-          sortOrder: 'Descending',
-          recursive: true,
-          limit: 200,
-        ),
-      );
+      // Both "ready tonight" rows read the same 200 films: asked once.
+      final cached = _vjodDraw;
+      final Future<List<AggregatedItem>> drawing;
+      if (cached != null &&
+          cached.serverId == serverId &&
+          DateTime.now().difference(cached.at) < const Duration(minutes: 5)) {
+        drawing = cached.items;
+      } else {
+        drawing = _searchVisibleLibraryItems(
+          serverId,
+          const ['Movie'],
+          (parentId) => _getItemsWithFallback(
+            parentId: parentId,
+            includeItemTypes: const ['Movie'],
+            filters: const ['IsUnplayed'],
+            sortBy: 'CommunityRating,SortName',
+            sortOrder: 'Descending',
+            recursive: true,
+            limit: 200,
+          ),
+        );
+        _vjodDraw = (serverId: serverId, at: DateTime.now(), items: drawing);
+      }
+      final draw = await drawing;
       double rating(AggregatedItem item) =>
           (item.rawData['CommunityRating'] as num?)?.toDouble() ?? 0;
       int minutes(AggregatedItem item) =>

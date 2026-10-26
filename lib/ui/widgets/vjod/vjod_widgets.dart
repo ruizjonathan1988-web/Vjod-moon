@@ -397,8 +397,9 @@ class VjodNavBar extends StatelessWidget {
           if (leading != null) SizedBox(width: 12 * scale),
           VjodLogo(scale: scale),
           SizedBox(width: 18 * scale),
-          if (tabs.isNotEmpty)
-          Flexible(
+          // The tabs take all the room the logo and buttons leave; a Flexible
+          // beside a Spacer gave them half of it.
+          Expanded(
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
@@ -413,7 +414,7 @@ class VjodNavBar extends StatelessWidget {
               ),
             ),
           ),
-          const Spacer(),
+          SizedBox(width: 12 * scale),
           VjodRoundButton(
             size: 48 * scale,
             background: vjodButton,
