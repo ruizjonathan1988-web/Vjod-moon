@@ -50,6 +50,9 @@ import '../../../playback/media3_player_backend.dart';
 import '../../../playback/mpv_client_certificate.dart';
 import '../../../preference/home_section_config.dart';
 import '../../../data/services/vjod/vjod_collections.dart';
+import '../../widgets/offline_aware_image.dart';
+import '../../../data/services/seerr/seerr_api_models.dart';
+import '../../../data/services/vjod/vjod_collection_service.dart';
 import '../../../preference/preference_constants.dart';
 import '../../../preference/user_preferences.dart';
 import '../../widgets/exit_confirmation_dialog.dart';
@@ -766,6 +769,44 @@ class _ContentRowsState extends State<_ContentRows>
       FocusNode(debugLabel: 'vjodExplore_${f.name}'),
   ];
 
+  /// Three posters per Explorer family, from its first collection, for the
+  /// band's tiles. Asked once, from the collections' own half-hour cache.
+  final Map<VjodFamily, List<String>> _vjodBandPosters = {};
+  bool _vjodBandPostersAsked = false;
+
+  Future<void> _loadVjodBandPosters() async {
+    if (_vjodBandPostersAsked) return;
+    _vjodBandPostersAsked = true;
+    try {
+      final repo = await GetIt.instance.getAsync<SeerrRepository>();
+      await repo.ensureInitialized();
+      if (!repo.isAvailable) return;
+      final now = DateTime.now();
+      await Future.wait([
+        for (final family in VjodFamily.values)
+          () async {
+            final collection = vjodCollections.firstWhereOrNull(
+              (c) => c.family == family && c.inSeason(now),
+            );
+            if (collection == null) return;
+            final page = await VjodCollectionService.fetchPage(
+              repo,
+              collection,
+            );
+            final posters = [
+              for (final item in page?.results ?? const <SeerrDiscoverItem>[])
+                if (item.posterPath case final path? when path.isNotEmpty)
+                  'https://image.tmdb.org/t/p/w185$path',
+            ].take(3).toList();
+            if (posters.isEmpty || !mounted) return;
+            setState(() => _vjodBandPosters[family] = posters);
+          }(),
+      ]);
+    } catch (e) {
+      debugPrint('[Home] Explorer band posters failed: $e');
+    }
+  }
+
   /// The mock-up closes Home with a band that leads to Explorer.
   bool get _showVjodExploreBand =>
       _vjodTheme && GetIt.instance<PluginSyncService>().seerrAvailable;
@@ -815,38 +856,28 @@ class _ContentRowsState extends State<_ContentRows>
       return KeyEventResult.ignored;
     }
 
-    final chips = [
+    unawaited(_loadVjodBandPosters());
+    final width = MediaQuery.sizeOf(context).width;
+    final narrow = width < 900;
+    // Two tiles a line on a phone, a fixed size on bigger screens.
+    final tileW = narrow
+        ? ((width - 2 * (_kHomeRowLabelInset + 16) - 60 * scale - 12) / 2)
+              .clamp(120.0, 400.0)
+        : 230 * scale;
+    final tileH = tileW * 0.62;
+    final tiles = [
       for (var i = 0; i < families.length; i++)
         VjodFocusable(
           focusNode: _vjodExploreFocus[i],
           onTap: openExplorer,
           onKeyEvent: (_, event) => onKey(i, event),
-          // Sized to its label: an alignment here would stretch each chip
-          // to the whole width on a narrow screen.
-          builder: (context, focused) => AnimatedContainer(
-            duration: const Duration(milliseconds: 120),
-            padding: EdgeInsets.symmetric(
-              horizontal: 20 * scale,
-              vertical: 11 * scale,
-            ),
-            decoration: BoxDecoration(
-              color: focused ? vjodInk : Colors.transparent,
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(
-                color: focused
-                    ? vjodInk
-                    : vjodInk.withValues(alpha: 0.35),
-                width: 2,
-              ),
-            ),
-            child: Text(
-              vjodFamilyTitle(families[i], french),
-              style: TextStyle(
-                color: focused ? const Color(0xFF0B0B0D) : vjodInk,
-                fontSize: 17 * scale,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+          builder: (context, focused) => _VjodFamilyTile(
+            title: vjodFamilyTitle(families[i], french),
+            posters: _vjodBandPosters[families[i]] ?? const [],
+            width: tileW,
+            height: tileH,
+            scale: scale,
+            focused: focused,
           ),
         ),
     ];
@@ -872,7 +903,6 @@ class _ContentRowsState extends State<_ContentRows>
       ],
     );
 
-    final narrow = MediaQuery.sizeOf(context).width < 900;
     return Padding(
       padding: EdgeInsets.fromLTRB(
         _kHomeRowLabelInset + (PlatformDetection.useMobileUi ? 0 : 16),
@@ -895,16 +925,15 @@ class _ContentRowsState extends State<_ContentRows>
                 children: [
                   heading,
                   SizedBox(height: 18 * scale),
-                  Wrap(spacing: 10, runSpacing: 10, children: chips),
+                  Wrap(spacing: 12, runSpacing: 12, children: tiles),
                 ],
               )
-            : Row(
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   heading,
-                  SizedBox(width: 30 * scale),
-                  Expanded(
-                    child: Wrap(spacing: 10, runSpacing: 10, children: chips),
-                  ),
+                  SizedBox(height: 22 * scale),
+                  Wrap(spacing: 16, runSpacing: 16, children: tiles),
                 ],
               ),
       ),
@@ -7281,6 +7310,100 @@ class _PreviewCardShell extends StatelessWidget {
                 ),
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One family of the Explorer band: its name over a fan of three posters
+/// from it, so the end of Home shows something to watch rather than a menu.
+class _VjodFamilyTile extends StatelessWidget {
+  final String title;
+  final List<String> posters;
+  final double width;
+  final double height;
+  final double scale;
+  final bool focused;
+
+  const _VjodFamilyTile({
+    required this.title,
+    required this.posters,
+    required this.width,
+    required this.height,
+    required this.scale,
+    required this.focused,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final posterH = height * 0.78;
+    final posterW = posterH * 2 / 3;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 120),
+      width: width,
+      height: height,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: const Color(0xFF24252B),
+        borderRadius: BorderRadius.circular(6),
+        boxShadow: vjodFocusRing(scale, on: focused),
+      ),
+      child: Stack(
+        children: [
+          // The posters lean in from the right, the last one on top.
+          for (var i = 0; i < posters.length; i++)
+            Positioned(
+              right: 10 * scale + (posters.length - 1 - i) * posterW * 0.42,
+              top: (height - posterH) / 2,
+              child: Transform.rotate(
+                angle: (i - (posters.length - 1) / 2) * 0.09,
+                child: Container(
+                  width: posterW,
+                  height: posterH,
+                  clipBehavior: Clip.antiAlias,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(4),
+                    boxShadow: const [
+                      BoxShadow(color: Color(0x99000000), blurRadius: 8),
+                    ],
+                  ),
+                  child: OfflineAwareImage(
+                    imageUrl: posters[i],
+                    fit: BoxFit.cover,
+                    errorWidget: (_, _, _) =>
+                        const ColoredBox(color: Color(0xFF2D2E35)),
+                  ),
+                ),
+              ),
+            ),
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                  colors: [
+                    const Color(0xFF16171B),
+                    const Color(0xFF16171B).withValues(alpha: 0.75),
+                    const Color(0x0016171B),
+                  ],
+                  stops: const [0.0, 0.45, 0.8],
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            left: 14 * scale,
+            right: width * 0.35,
+            bottom: 12 * scale,
+            child: Text(
+              title.toUpperCase(),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: vjodDisplay(22 * scale).copyWith(height: 1.05),
+            ),
+          ),
         ],
       ),
     );

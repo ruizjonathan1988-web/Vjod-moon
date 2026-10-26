@@ -191,71 +191,85 @@ class HomeSectionConfig {
   /// above in the media bar. Every other row is here, switched off, to turn
   /// on in the settings.
   static List<HomeSectionConfig> defaults() => const [
-    HomeSectionConfig(type: HomeSectionType.vjodMood, enabled: true, order: 0),
-    HomeSectionConfig(type: HomeSectionType.resume, enabled: true, order: 1),
-    HomeSectionConfig(type: HomeSectionType.nextUp, enabled: true, order: 2),
-    // These need Seerr: for the charts, the suggestions and the requests.
-    // VJOD's own rows sit between the others, so Home reads like one
-    // catalogue: what is ready to play first, then everything to explore.
+    HomeSectionConfig(
+      type: HomeSectionType.vjodMood,
+      enabled: true,
+      order: 0,
+    ),
+    HomeSectionConfig(
+      type: HomeSectionType.resume,
+      enabled: true,
+      order: 1,
+    ),
+    HomeSectionConfig(
+      type: HomeSectionType.nextUp,
+      enabled: true,
+      order: 2,
+    ),
+    // The recommended layout, also what the reset button brings back: the
+    // evening's mood under the banner, then what to resume and the
+    // requests that came in (the two rows looked at most), then a dozen
+    // rows that alternate between personal picks, what's new, the charts
+    // and a few moods. The other moods wait in Explorer.
     HomeSectionConfig(
       type: HomeSectionType.vjodUnwatchedGems,
       enabled: true,
-      order: 3,
+      order: 6,
     ),
     HomeSectionConfig(
       type: HomeSectionType.top10Movies,
       enabled: true,
-      order: 4,
+      order: 7,
     ),
     HomeSectionConfig(
       type: HomeSectionType.vjodMindBenders,
-      enabled: true,
+      enabled: false,
       order: 5,
     ),
     HomeSectionConfig(
       type: HomeSectionType.vjodThemeOfDay,
       enabled: true,
-      order: 6,
+      order: 10,
     ),
     HomeSectionConfig(
       type: HomeSectionType.vjodMiniSeries,
       enabled: true,
-      order: 7,
+      order: 14,
     ),
     HomeSectionConfig(
       type: HomeSectionType.seerrForYou,
       enabled: true,
-      order: 8,
+      order: 4,
     ),
     HomeSectionConfig(
       type: HomeSectionType.vjodShortGems,
       enabled: true,
-      order: 9,
+      order: 13,
     ),
     HomeSectionConfig(
       type: HomeSectionType.vjodFeelGood,
-      enabled: true,
+      enabled: false,
       order: 10,
     ),
     HomeSectionConfig(
       type: HomeSectionType.vjodEpic,
-      enabled: true,
+      enabled: false,
       order: 11,
     ),
     HomeSectionConfig(
       type: HomeSectionType.vjodOutsideHabits,
       enabled: true,
-      order: 12,
+      order: 16,
     ),
     HomeSectionConfig(
       type: HomeSectionType.vjodBinge,
-      enabled: true,
+      enabled: false,
       order: 13,
     ),
     HomeSectionConfig(
       type: HomeSectionType.frenchMovies,
       enabled: true,
-      order: 14,
+      order: 12,
     ),
     HomeSectionConfig(
       type: HomeSectionType.top10Series,
@@ -277,21 +291,25 @@ class HomeSectionConfig {
       enabled: false,
       order: 5,
     ),
-    HomeSectionConfig(type: HomeSectionType.surprise, enabled: false, order: 5),
     HomeSectionConfig(
-      type: HomeSectionType.seerrMyRequests,
+      type: HomeSectionType.surprise,
       enabled: false,
       order: 5,
+    ),
+    HomeSectionConfig(
+      type: HomeSectionType.seerrMyRequests,
+      enabled: true,
+      order: 3,
     ),
     HomeSectionConfig(
       type: HomeSectionType.seerrBecause,
-      enabled: false,
-      order: 5,
+      enabled: true,
+      order: 8,
     ),
     HomeSectionConfig(
       type: HomeSectionType.seerrSagas,
-      enabled: false,
-      order: 5,
+      enabled: true,
+      order: 9,
     ),
     HomeSectionConfig(
       type: HomeSectionType.seerrGems,
@@ -310,7 +328,7 @@ class HomeSectionConfig {
     ),
     HomeSectionConfig(
       type: HomeSectionType.latestMedia,
-      enabled: false,
+      enabled: true,
       order: 5,
     ),
     HomeSectionConfig(
@@ -318,7 +336,11 @@ class HomeSectionConfig {
       enabled: false,
       order: 4,
     ),
-    HomeSectionConfig(type: HomeSectionType.liveTv, enabled: false, order: 5),
+    HomeSectionConfig(
+      type: HomeSectionType.liveTv,
+      enabled: false,
+      order: 5,
+    ),
     HomeSectionConfig(
       type: HomeSectionType.libraryButtons,
       enabled: false,
@@ -384,7 +406,11 @@ class HomeSectionConfig {
       enabled: false,
       order: 18,
     ),
-    HomeSectionConfig(type: HomeSectionType.genres, enabled: false, order: 19),
+    HomeSectionConfig(
+      type: HomeSectionType.genres,
+      enabled: false,
+      order: 19,
+    ),
     HomeSectionConfig(
       type: HomeSectionType.playlists,
       enabled: false,
@@ -407,8 +433,8 @@ class HomeSectionConfig {
     ),
     HomeSectionConfig(
       type: HomeSectionType.seerrWatchlist,
-      enabled: false,
-      order: 22,
+      enabled: true,
+      order: 11,
     ),
     HomeSectionConfig(
       type: HomeSectionType.seerrRecentlyAdded,
@@ -505,8 +531,8 @@ class HomeSectionConfig {
     ),
     HomeSectionConfig(
       type: HomeSectionType.seasonal,
-      enabled: false,
-      order: 46,
+      enabled: true,
+      order: 15,
     ),
     HomeSectionConfig(
       type: HomeSectionType.onNow,

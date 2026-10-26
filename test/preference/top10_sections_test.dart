@@ -14,26 +14,29 @@ List<HomeSectionType> ordered(List<HomeSectionConfig> sections) => [
 
 void main() {
   test('a fresh install opens on the VJOD rows, one Top 10 for both', () {
-    final on = [
+    final enabled = [
       for (final c in HomeSectionConfig.defaults())
-        if (c.enabled) c.type,
-    ];
+        if (c.enabled) c,
+    ]..sort((a, b) => a.order.compareTo(b.order));
+    final on = [for (final c in enabled) c.type];
     expect(on, [
       HomeSectionType.vjodMood,
       HomeSectionType.resume,
       HomeSectionType.nextUp,
+      HomeSectionType.seerrMyRequests,
+      HomeSectionType.seerrForYou,
+      HomeSectionType.latestMedia,
       HomeSectionType.vjodUnwatchedGems,
       HomeSectionType.top10Movies,
-      HomeSectionType.vjodMindBenders,
+      HomeSectionType.seerrBecause,
+      HomeSectionType.seerrSagas,
       HomeSectionType.vjodThemeOfDay,
-      HomeSectionType.vjodMiniSeries,
-      HomeSectionType.seerrForYou,
-      HomeSectionType.vjodShortGems,
-      HomeSectionType.vjodFeelGood,
-      HomeSectionType.vjodEpic,
-      HomeSectionType.vjodOutsideHabits,
-      HomeSectionType.vjodBinge,
+      HomeSectionType.seerrWatchlist,
       HomeSectionType.frenchMovies,
+      HomeSectionType.vjodShortGems,
+      HomeSectionType.vjodMiniSeries,
+      HomeSectionType.seasonal,
+      HomeSectionType.vjodOutsideHabits,
     ]);
     // Off rather than gone, so the settings can bring it back.
     expect(
@@ -111,7 +114,7 @@ void main() {
     }
   });
 
-  test('the VJOD rows join a saved layout where they belong, switched on', () {
+  test('the VJOD rows join a saved layout where they belong', () {
     final sections = load([
       {'type': 'resume', 'enabled': true, 'order': 0},
       {'type': 'nextup', 'enabled': true, 'order': 1},
@@ -128,8 +131,15 @@ void main() {
       types.indexOf(HomeSectionType.vjodBinge),
       greaterThan(types.indexOf(HomeSectionType.vjodOutsideHabits)),
     );
+    // Each VJOD row arrives as the recommended layout has it: the main
+    // ones on, the extra moods off but ready in the settings.
+    final recommended = {
+      for (final c in HomeSectionConfig.defaults()) c.type: c.enabled,
+    };
     for (final c in sections) {
-      if (c.type.isVjodRow) expect(c.enabled, isTrue, reason: '${c.type}');
+      if (c.type.isVjodRow) {
+        expect(c.enabled, recommended[c.type], reason: '${c.type}');
+      }
     }
   });
 }
