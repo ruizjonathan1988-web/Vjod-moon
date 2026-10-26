@@ -5,7 +5,8 @@
  * same remote-friendly layout as the Android TV app: arrows, OK and focus
  * are handled there. This file only does what Flutter can't: turn the
  * remote's Back button, which Samsung and LG send under codes of their own,
- * into a regular Escape key the app understands.
+ * into a regular Escape key the app understands, and hide the mouse
+ * cursor so the screen looks like the TV app.
  *
  * On a computer, a phone or a tablet it stops at once and changes nothing.
  * `?tv=1` / `?tv=0` in the address forces TV mode on or off (remembered).
@@ -39,6 +40,12 @@
   }
 
   if (!isTvBrowser()) return;
+
+  // Like the TV app: no mouse cursor on screen, the remote's arrows move a
+  // highlight from one item to the next. A pointer remote can still click.
+  var style = document.createElement('style');
+  style.textContent = 'html, body, flutter-view, flt-glass-pane, * { cursor: none !important; }';
+  document.head.appendChild(style);
 
   // Samsung Tizen: 10009. LG webOS: 461.
   var BACK_CODES = [10009, 461];
