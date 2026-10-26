@@ -110,15 +110,68 @@
     up: ['ArrowUp', 38], down: ['ArrowDown', 40],
     left: ['ArrowLeft', 37], right: ['ArrowRight', 39]
   };
+  // Where the app listens: its own element on the page. Events sent
+  // anywhere else (the page's body, or a video or frame the app shows above
+  // itself) may never reach it.
+  function appElement() {
+    return document.querySelector('flutter-view') ||
+      document.querySelector('flt-glass-pane') || document.body;
+  }
+  function keyTarget() {
+    var app = appElement();
+    var active = document.activeElement;
+    return active && active !== document.body && app.contains(active)
+      ? active : app;
+  }
+
   function wheel(x, y, dx, dy) {
-    var target = document.elementFromPoint(x, y);
-    if (!target) return;
-    target.dispatchEvent(new WheelEvent('wheel', {
+    var target = appElement();
+    var free = target.dispatchEvent(new WheelEvent('wheel', {
       clientX: x, clientY: y, screenX: x, screenY: y,
       deltaX: dx, deltaY: dy, deltaMode: 0,
       bubbles: true, cancelable: true, composed: true
     }));
+    diag.wheels++;
+    // The app cancels a wheel turn it scrolled with.
+    if (!free) diag.wheelsTaken++;
+    showDiag();
   }
+
+  // With ?tvdebug=1 (remembered, ?tvdebug=0 to stop): a panel saying what
+  // this script sent and what the app did with it, readable on a photo.
+  var diag = { pushes: 0, wheels: 0, wheelsTaken: 0, keys: 0, keysTaken: 0,
+    target: '-' };
+  var diagOn = false;
+  try {
+    var asked = new URLSearchParams(window.location.search).get('tvdebug');
+    if (asked === '1' || asked === '0') {
+      window.localStorage.setItem('vjod_tv_debug', asked);
+    }
+    diagOn = window.localStorage.getItem('vjod_tv_debug') === '1';
+  } catch (e) {}
+  var diagEl = null;
+  function showDiag() {
+    if (!diagOn) return;
+    if (!diagEl) {
+      diagEl = document.createElement('div');
+      diagEl.style.cssText =
+        'position:fixed;left:12px;top:12px;z-index:2147483647;' +
+        'pointer-events:none;background:rgba(0,0,0,.88);color:#7FD6A8;' +
+        'font:15px/1.4 monospace;padding:10px 12px;white-space:pre;';
+      document.body.appendChild(diagEl);
+    }
+    var a = document.activeElement;
+    diagEl.textContent =
+      'Poussees ' + diag.pushes +
+      '\nMolette ' + diag.wheels + ' / prise par l\'app ' + diag.wheelsTaken +
+      '\nFleches ' + diag.keys + ' / prises par l\'app ' + diag.keysTaken +
+      '\nCible ' + diag.target +
+      '\nActif ' + (a ? a.tagName.toLowerCase() : '-') +
+      '\nApp ' + (document.querySelector('flutter-view') ? 'flutter-view'
+        : (document.querySelector('flt-glass-pane') ? 'flt-glass-pane'
+        : 'introuvable'));
+  }
+  if (diagOn) setInterval(showDiag, 1000);
 
   // A small arrow at the edge being pushed, so the viewer sees the push
   // was felt.
@@ -168,19 +221,27 @@
         dir === 'right' ? amount : -amount, 0);
     }
     flash(dir);
+    diag.pushes++;
     var k = ARROWS[dir];
-    var target = document.activeElement || document.body;
+    var target = keyTarget();
+    diag.target = target.tagName.toLowerCase();
     sending = true;
     try {
       ['keydown', 'keyup'].forEach(function (type) {
-        target.dispatchEvent(new KeyboardEvent(type, {
+        var free = target.dispatchEvent(new KeyboardEvent(type, {
           key: k[0], code: k[0], keyCode: k[1], which: k[1],
           bubbles: true, cancelable: true, composed: true
         }));
+        if (type === 'keydown') {
+          diag.keys++;
+          // The app cancels a key it acted on.
+          if (!free) diag.keysTaken++;
+        }
       });
     } finally {
       sending = false;
     }
+    showDiag();
   }
 
   // First way: the browser tells the page where its cursor is. Holding it
@@ -341,7 +402,7 @@
   var KNOWN_BACK = ['Escape', 'GoBack', 'BrowserBack', 'Backspace'];
 
   function relay(type, original) {
-    var target = document.activeElement || document.body;
+    var target = keyTarget();
     var ev = new KeyboardEvent(type, {
       key: 'Escape',
       code: 'Escape',
