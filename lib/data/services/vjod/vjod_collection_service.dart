@@ -11,6 +11,33 @@ abstract final class VjodCollectionService {
     SeerrRepository repo,
     VjodCollection collection, {
     int page = 1,
+  }) {
+    // Home draws a dozen of these at once and again at every refresh: the
+    // same page is asked of Seerr once per half hour.
+    final key = '${collection.id}#$page';
+    final hit = _cache[key];
+    if (hit != null && DateTime.now().difference(hit.at) < _lifetime) {
+      return hit.page;
+    }
+    final future = _fetchPage(repo, collection, page: page);
+    _cache[key] = (at: DateTime.now(), page: future);
+    future.then<void>((value) {
+      if (value == null) _cache.remove(key);
+    }, onError: (Object _) => _cache.remove(key));
+    return future;
+  }
+
+  static const _lifetime = Duration(minutes: 30);
+  static final Map<String, ({DateTime at, Future<SeerrDiscoverPage?> page})>
+  _cache = {};
+
+  /// Forgets what was kept, so the next read asks Seerr again.
+  static void clearCache() => _cache.clear();
+
+  static Future<SeerrDiscoverPage?> _fetchPage(
+    SeerrRepository repo,
+    VjodCollection collection, {
+    int page = 1,
   }) async {
     final q = collection.query;
     int? keywordId;
