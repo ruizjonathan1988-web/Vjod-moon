@@ -821,11 +821,14 @@ class _ContentRowsState extends State<_ContentRows>
           focusNode: _vjodExploreFocus[i],
           onTap: openExplorer,
           onKeyEvent: (_, event) => onKey(i, event),
+          // Sized to its label: an alignment here would stretch each chip
+          // to the whole width on a narrow screen.
           builder: (context, focused) => AnimatedContainer(
             duration: const Duration(milliseconds: 120),
-            height: 46 * scale,
-            padding: EdgeInsets.symmetric(horizontal: 20 * scale),
-            alignment: Alignment.center,
+            padding: EdgeInsets.symmetric(
+              horizontal: 20 * scale,
+              vertical: 11 * scale,
+            ),
             decoration: BoxDecoration(
               color: focused ? vjodInk : Colors.transparent,
               borderRadius: BorderRadius.circular(999),

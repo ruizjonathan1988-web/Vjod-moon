@@ -389,7 +389,21 @@ class VjodNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
+    // A veil of the page colour behind the bar, so the tabs stay readable
+    // when posters scroll up underneath them.
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14 * scale),
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            vjodPage.withValues(alpha: 0.88),
+            vjodPage.withValues(alpha: 0.7),
+          ],
+        ),
+      ),
+      child: SizedBox(
       height: 60 * scale,
       child: Row(
         children: [
@@ -443,6 +457,7 @@ class VjodNavBar extends StatelessWidget {
           ),
         ],
       ),
+    ),
     );
   }
 }
