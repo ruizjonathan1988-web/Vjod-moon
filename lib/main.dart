@@ -59,6 +59,7 @@ import 'util/device_performance.dart';
 import 'ui/navigation/app_router.dart';
 import 'ui/screensaver/screensaver_controller.dart';
 import 'util/platform_detection.dart';
+import 'util/web_tv_detect.dart';
 import 'util/process_exit_reporter.dart';
 import 'util/system_ui.dart';
 import 'util/tv_image_cache_stub.dart'
@@ -311,6 +312,12 @@ Future<void> _readPerformanceModeOverride() async {
 Future<void> _detectAndSetTvMode() async {
   if (const bool.fromEnvironment('MOONFIN_FORCE_TV')) {
     PlatformDetection.setTvMode(true);
+    return;
+  }
+  // A TV's own browser gets the same remote-friendly layout as the TV app;
+  // a computer's browser keeps the desktop one.
+  if (PlatformDetection.isWeb) {
+    PlatformDetection.setTvMode(isWebTvBrowser());
     return;
   }
   if (!PlatformDetection.isAndroid) return;

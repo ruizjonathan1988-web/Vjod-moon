@@ -1,101 +1,69 @@
 /**
- * VJOD - TV Navigation Helper (tv_navigation.js)
- * S'active uniquement sur les navigateurs de Smart TV (Tizen, webOS, etc.)
- * pour permettre une navigation fluide par télécommande (D-Pad).
+ * VJOD - remote control help for TV browsers (tv_navigation.js)
+ *
+ * The app itself (Flutter) now recognises a TV browser and switches to the
+ * same remote-friendly layout as the Android TV app: arrows, OK and focus
+ * are handled there. This file only does what Flutter can't: turn the
+ * remote's Back button, which Samsung and LG send under codes of their own,
+ * into a regular Escape key the app understands.
+ *
+ * On a computer, a phone or a tablet it stops at once and changes nothing.
+ * `?tv=1` / `?tv=0` in the address forces TV mode on or off (remembered).
  */
 (function () {
   'use strict';
 
-  // 1. Détection automatique des environnements TV
+  var markers = [
+    'smart-tv', 'smarttv', 'tizen', 'web0s', 'webos', 'netcast', 'nettv',
+    'hbbtv', 'vidaa', 'bravia', 'googletv', 'android tv', 'crkey', 'aftb',
+    'aftm', 'afts', 'aftt', 'aftka', 'aftmm', 'appletv', 'philipstv',
+    'viera', 'roku', 'operatv'
+  ];
+
   function isTvBrowser() {
-    const ua = navigator.userAgent.toLowerCase();
-    return (
-      ua.includes('smart-tv') ||
-      ua.includes('smarttv') ||
-      ua.includes('googletv') ||
-      ua.includes('netcast') || // LG webOS
-      ua.includes('tizen') ||    // Samsung Tizen
-      ua.includes('hbbtv') ||
-      ua.includes('appletv')
-    );
+    try {
+      var forced = new URLSearchParams(window.location.search).get('tv');
+      if (forced === '1') return true;
+      if (forced === '0') return false;
+    } catch (e) {}
+    try {
+      var saved = window.localStorage.getItem('vjod_tv_mode');
+      if (saved === '1') return true;
+      if (saved === '0') return false;
+    } catch (e) {}
+    var ua = (navigator.userAgent || '').toLowerCase();
+    for (var i = 0; i < markers.length; i++) {
+      if (ua.indexOf(markers[i]) !== -1) return true;
+    }
+    return false;
   }
 
-  // SÉCURITÉ ABSOLUE : Si ce n'est pas une TV, le script s'arrête net ici.
-  // Zéro impact, zéro modification sur PC, tablettes et smartphones.
-  if (!isTvBrowser()) {
-    return;
+  if (!isTvBrowser()) return;
+
+  // Samsung Tizen: 10009. LG webOS: 461.
+  var BACK_CODES = [10009, 461];
+  var KNOWN_BACK = ['Escape', 'GoBack', 'BrowserBack', 'Backspace'];
+
+  function relay(type, original) {
+    var target = document.activeElement || document.body;
+    var ev = new KeyboardEvent(type, {
+      key: 'Escape',
+      code: 'Escape',
+      keyCode: 27,
+      which: 27,
+      bubbles: true,
+      cancelable: true
+    });
+    target.dispatchEvent(ev);
+    original.preventDefault();
+    original.stopImmediatePropagation();
   }
 
-  // 2. Injection automatique des styles de focus pour grand écran
-  const style = document.createElement('style');
-  style.textContent = `
-    body.tv-mode *:focus,
-    body.tv-mode .focusable-card:focus,
-    body.tv-mode button:focus,
-    body.tv-mode a:focus {
-      outline: 4px solid #3b82f6 !important;
-      outline-offset: 4px !important;
-      transform: scale(1.04);
-      transition: transform 0.15s ease-in-out, outline 0.15s ease-in-out;
-      z-index: 9999 !important;
-    }
-  `;
-  document.head.appendChild(style);
-  document.body.classList.add('tv-mode');
-
-  // 3. Gestionnaire des touches de la télécommande (D-Pad)
-  window.addEventListener('keydown', function (e) {
-    const supportedKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter'];
-    if (!supportedKeys.includes(e.key)) return;
-
-    // Empêche le comportement natif erratique (scroll de page non désiré) sur la TV
-    e.preventDefault();
-
-    // Récupère les éléments interactifs de la page
-    const focusables = Array.from(
-      document.querySelectorAll('button, a, input, select, [tabindex="0"], [role="button"], .focusable-card')
-    );
-    
-    if (focusables.length === 0) return;
-
-    const current = document.activeElement;
-    let index = focusables.indexOf(current);
-
-    // Si aucun élément n'a le focus, on sélectionne le premier par défaut
-    if (index === -1) {
-      focusables[0].focus();
-      return;
-    }
-
-    // Estimation du nombre de colonnes pour les grilles de médias
-    const columnsEstimate = 4;
-
-    switch (e.key) {
-      case 'ArrowRight':
-        index = Math.min(focusables.length - 1, index + 1);
-        break;
-      case 'ArrowLeft':
-        index = Math.max(0, index - 1);
-        break;
-      case 'ArrowDown':
-        index = Math.min(focusables.length - 1, index + columnsEstimate);
-        break;
-      case 'ArrowUp':
-        index = Math.max(0, index - columnsEstimate);
-        break;
-      case 'Enter':
-        if (current && typeof current.click === 'function') {
-          current.click();
-        }
-        return;
-    }
-
-    const target = focusables[index];
-    if (target) {
-      target.focus();
-      target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
-    }
-  }, true);
-
-  console.info('VJOD TV Navigation initialized successfully.');
+  ['keydown', 'keyup'].forEach(function (type) {
+    window.addEventListener(type, function (e) {
+      if (BACK_CODES.indexOf(e.keyCode) === -1) return;
+      if (KNOWN_BACK.indexOf(e.key) !== -1) return;
+      relay(type, e);
+    }, true);
+  });
 })();
