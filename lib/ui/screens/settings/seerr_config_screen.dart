@@ -24,6 +24,7 @@ import '../../../util/focus/dpad_keys.dart';
 import '../../../util/platform_detection.dart';
 import 'package:moonfin_design/moonfin_design.dart';
 
+import '../../navigation/home_refresh_bus.dart';
 import '../../util/home_row_title_localizer.dart';
 import '../../widgets/focus/request_initial_focus.dart';
 import '../../widgets/settings/clean_settings_typography.dart';
@@ -251,6 +252,53 @@ class _SeerrConfigScreenState extends State<SeerrConfigScreen> {
     }
     await _seerrPrefs.setRowsConfig(_rows);
     await _pushSync();
+  }
+
+  bool get _french =>
+      AppLocalizations.of(context).localeName.startsWith('fr');
+
+  Future<void> _setVjodPersonalize(bool value) async {
+    await _seerrPrefs.setVjodPersonalize(value);
+    homeRefreshBus.requestAfterNavigation();
+    if (!mounted) return;
+    setState(() {});
+  }
+
+  Future<void> _resetVjodLearning() async {
+    final french = _french;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(french ? 'Repartir de zéro ?' : 'Start from scratch?'),
+        content: Text(
+          french
+              ? 'VJOD oubliera vos séances, vos « Pas intéressé » et vos votes. '
+                    'Vos réponses au questionnaire restent.'
+              : 'VJOD will forget your sittings, "Not interested" and votes. '
+                    'Your questionnaire answers stay.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(french ? 'Annuler' : 'Cancel'),
+          ),
+          TextButton(
+            autofocus: true,
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(french ? 'Tout oublier' : 'Forget it all'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await _seerrPrefs.resetVjodLearning();
+    homeRefreshBus.requestAfterNavigation();
+    if (!mounted) return;
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      SnackBar(
+        content: Text(french ? 'C\'est reparti de zéro.' : 'Starting afresh.'),
+      ),
+    );
   }
 
   Future<void> _setBlockNsfw(bool value) async {
@@ -549,6 +597,75 @@ class _SeerrConfigScreenState extends State<SeerrConfigScreen> {
               ),
               trailing: const Icon(Icons.chevron_right_rounded),
               onTap: () => openTasteQuestionnaire(context),
+            ),
+          ),
+        if (showSeerrSettings)
+          TvFocusHighlight(
+            builder: (context, focused) => SwitchListTile.adaptive(
+              secondary: Icon(
+                Icons.auto_awesome_outlined,
+                color: focused ? AppColors.black.withValues(alpha: 0.54) : null,
+              ),
+              title: Text(
+                _french ? 'Personnalisation VJOD' : 'VJOD personalization',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: focused
+                      ? AppColors.black.withValues(alpha: 0.87)
+                      : AppColorScheme.onSurface,
+                ),
+              ),
+              subtitle: Text(
+                _french
+                    ? 'Les rangées suivent vos goûts, vos séances récentes et '
+                          'votre humeur, avec toujours un tiers de découvertes. '
+                          'Éteinte : le catalogue dans son ordre.'
+                    : 'Rows follow your taste, recent sittings and mood, '
+                          'always a third of discoveries. Off: the catalogue '
+                          'in its own order.',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: focused
+                      ? AppColors.black.withValues(alpha: 0.54)
+                      : AppColorScheme.onSurface.withValues(alpha: 0.7),
+                ),
+              ),
+              value: _seerrPrefs.vjodPersonalize,
+              onChanged: _setVjodPersonalize,
+            ),
+          ),
+        if (showSeerrSettings)
+          TvFocusHighlight(
+            builder: (context, focused) => ListTile(
+              leading: Icon(
+                Icons.restart_alt_rounded,
+                color: focused ? AppColors.black.withValues(alpha: 0.54) : null,
+              ),
+              title: Text(
+                _french ? 'Repartir de zéro' : 'Start from scratch',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: focused
+                      ? AppColors.black.withValues(alpha: 0.87)
+                      : AppColorScheme.onSurface,
+                ),
+              ),
+              subtitle: Text(
+                _french
+                    ? 'Oublie ce que VJOD a appris (séances, « Pas intéressé », '
+                          '« J\'ai aimé / Bof », humeur). Le questionnaire reste.'
+                    : 'Forgets what VJOD learned (sittings, "Not interested", '
+                          'votes, mood). The questionnaire stays.',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: focused
+                      ? AppColors.black.withValues(alpha: 0.54)
+                      : AppColorScheme.onSurface.withValues(alpha: 0.7),
+                ),
+              ),
+              onTap: _resetVjodLearning,
             ),
           ),
         if (showSeerrSettings)

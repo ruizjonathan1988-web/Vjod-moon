@@ -18,11 +18,21 @@ void main() {
       for (final c in HomeSectionConfig.defaults())
         if (c.enabled) c.type,
     ];
-    expect(on.take(5), [
+    expect(on, [
+      HomeSectionType.vjodMood,
       HomeSectionType.resume,
       HomeSectionType.nextUp,
+      HomeSectionType.vjodUnwatchedGems,
       HomeSectionType.top10Movies,
+      HomeSectionType.vjodMindBenders,
+      HomeSectionType.vjodThemeOfDay,
+      HomeSectionType.vjodMiniSeries,
       HomeSectionType.seerrForYou,
+      HomeSectionType.vjodShortGems,
+      HomeSectionType.vjodFeelGood,
+      HomeSectionType.vjodEpic,
+      HomeSectionType.vjodOutsideHabits,
+      HomeSectionType.vjodBinge,
       HomeSectionType.frenchMovies,
     ]);
     // Off rather than gone, so the settings can bring it back.
@@ -42,7 +52,9 @@ void main() {
     ]);
     final types = ordered(sections);
     final films = types.indexOf(HomeSectionType.top10Movies);
-    expect(films, 1);
+    // The VJOD mood comes first, above what was saved.
+    expect(types.first, HomeSectionType.vjodMood);
+    expect(films, 2);
     expect(types[films + 1], HomeSectionType.top10Series);
     expect(types.indexOf(HomeSectionType.nextUp), greaterThan(films + 1));
   });
@@ -96,6 +108,28 @@ void main() {
       HomeSectionType.frenchClassics,
     ]) {
       expect(sections.firstWhere((c) => c.type == type).enabled, isFalse);
+    }
+  });
+
+  test('the VJOD rows join a saved layout where they belong, switched on', () {
+    final sections = load([
+      {'type': 'resume', 'enabled': true, 'order': 0},
+      {'type': 'nextup', 'enabled': true, 'order': 1},
+      {'type': 'top10_movies', 'enabled': true, 'order': 2},
+      {'type': 'seerr_for_you', 'enabled': false, 'order': 3},
+    ]);
+    final types = ordered(sections);
+    expect(types.first, HomeSectionType.vjodMood);
+    expect(
+      types[types.indexOf(HomeSectionType.nextUp) + 1],
+      HomeSectionType.vjodUnwatchedGems,
+    );
+    expect(
+      types.indexOf(HomeSectionType.vjodBinge),
+      greaterThan(types.indexOf(HomeSectionType.vjodOutsideHabits)),
+    );
+    for (final c in sections) {
+      if (c.type.isVjodRow) expect(c.enabled, isTrue, reason: '${c.type}');
     }
   });
 }

@@ -197,6 +197,39 @@ class TraktClient {
     return parseTraktTitles(response.data, mediaType: mediaType);
   }
 
+  /// The TMDB ids Trakt's members tie to the title [tmdbId], closest first.
+  /// Public: no account needed. Empty when Trakt doesn't know the title.
+  Future<List<int>> related(
+    String mediaType,
+    int tmdbId, {
+    int limit = 15,
+  }) async {
+    final type = mediaType == 'tv' ? 'show' : 'movie';
+    final search = await _dio.get<Object?>(
+      '/search/tmdb/$tmdbId',
+      queryParameters: {'type': type},
+    );
+    int? traktId;
+    final hits = search.data;
+    if (hits is List) {
+      for (final hit in hits) {
+        final title = hit is Map ? hit[type] : null;
+        final ids = title is Map ? title['ids'] : null;
+        final id = ids is Map ? ids['trakt'] : null;
+        if (id is int) {
+          traktId = id;
+          break;
+        }
+      }
+    }
+    if (traktId == null) return const [];
+    final response = await _dio.get<Object?>(
+      '/${_kind(mediaType)}/$traktId/related',
+      queryParameters: {'limit': limit},
+    );
+    return parseTraktTitles(response.data, mediaType: mediaType);
+  }
+
   static String _kind(String mediaType) =>
       mediaType == 'tv' ? 'shows' : 'movies';
 

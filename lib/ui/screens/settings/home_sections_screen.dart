@@ -1854,6 +1854,14 @@ class _HomeSectionsScreenState extends State<HomeSectionsScreen>
           type.vjodCollectionId,
           l10n.localeName.startsWith('fr'),
         ),
+        HomeSectionType.vjodMood =>
+          l10n.localeName.startsWith('fr')
+              ? 'VJOD · Ce soir, plutôt…'
+              : 'VJOD · Tonight, rather…',
+        HomeSectionType.vjodOutsideHabits =>
+          l10n.localeName.startsWith('fr')
+              ? 'VJOD · Hors de vos habitudes'
+              : 'VJOD · Off your beaten track',
         HomeSectionType.seerrRecentRequests => l10n.recentRequests,
         HomeSectionType.seerrWatchlist => l10n.yourWatchlist,
         HomeSectionType.seerrRecentlyAdded => l10n.recentlyAdded,

@@ -607,6 +607,14 @@ enum HomeSectionType {
   vjodFeelGood('vjod_feel_good'),
   vjodEpic('vjod_epic'),
   vjodBinge('vjod_binge'),
+
+  /// "Ce soir, plutôt…": the evening's mood, picked under the banner. It
+  /// tints every VJOD row until the next morning.
+  vjodMood('vjod_mood'),
+
+  /// "Hors de vos habitudes": a collection away from the viewer's usual
+  /// genres, a different one each day.
+  vjodOutsideHabits('vjod_outside_habits'),
   none('none');
 
   const HomeSectionType(this.serializedName);
@@ -638,7 +646,16 @@ enum HomeSectionType {
   };
 
   bool get isVjodRow =>
-      vjodCollectionId != null || this == HomeSectionType.vjodThemeOfDay;
+      vjodCollectionId != null ||
+      this == HomeSectionType.vjodThemeOfDay ||
+      this == HomeSectionType.vjodMood ||
+      this == HomeSectionType.vjodOutsideHabits;
+
+  /// A VJOD row that reads the library alone, so shows without Seerr.
+  bool get isVjodLibraryRow =>
+      this == HomeSectionType.vjodUnwatchedGems ||
+      this == HomeSectionType.vjodShortGems ||
+      this == HomeSectionType.vjodMood;
 
   static HomeSectionType fromSerialized(String name) {
     if (name == 'watchlist') return HomeSectionType.playlists;

@@ -108,6 +108,35 @@ class SeerrPreferences {
   Future<void> setTonightBackfilled(bool value) =>
       _store.setBool(_userKey('tonight_backfilled'), value);
 
+  /// Whether VJOD shapes its rows to the viewer. On unless turned off.
+  bool get vjodPersonalize =>
+      _store.getBool(_userKey('vjod_personalize')) ?? true;
+  Future<void> setVjodPersonalize(bool value) =>
+      _store.setBool(_userKey('vjod_personalize'), value);
+
+  /// Tonight's mood picked on Home, as `VjodMoodStore.write` wrote it.
+  String? get vjodMood => _store.getString(_userKey('vjod_mood'));
+  Future<void> setVjodMood(String value) =>
+      _store.setString(_userKey('vjod_mood'), value);
+
+  /// "J'ai aimé" and "Bof" given at the end credits, as `VjodVotes.encode`
+  /// wrote them.
+  String? get vjodVotesJson => _store.getString(_userKey('vjod_votes'));
+  Future<void> setVjodVotesJson(String value) =>
+      _store.setString(_userKey('vjod_votes'), value);
+
+  /// Forgets what VJOD learned by itself: the journal of sittings, the
+  /// "not interested", the votes and today's mood. The questionnaire's
+  /// answers stay; they were given on purpose.
+  Future<void> resetVjodLearning() async {
+    await _store.setString(_userKey('tonight_journal'), '[]');
+    // The journal stays empty rather than refilled from the server's history.
+    await _store.setBool(_userKey('tonight_backfilled'), true);
+    await _store.setString(_userKey('taste_feedback'), '');
+    await _store.setString(_userKey('vjod_votes'), '');
+    await _store.setString(_userKey('vjod_mood'), '');
+  }
+
   /// The last answers given in the Tonight sheet.
   String? get tonightAnswersJson =>
       _store.getString(_userKey('tonight_answers'));

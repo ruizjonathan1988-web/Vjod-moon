@@ -49,6 +49,7 @@ import '../../../playback/inline_preview_engine.dart';
 import '../../../playback/media3_player_backend.dart';
 import '../../../playback/mpv_client_certificate.dart';
 import '../../../preference/home_section_config.dart';
+import '../../../data/services/vjod/vjod_collections.dart';
 import '../../../preference/preference_constants.dart';
 import '../../../preference/user_preferences.dart';
 import '../../widgets/exit_confirmation_dialog.dart';
@@ -4165,13 +4166,26 @@ class _ContentRowsState extends State<_ContentRows>
     );
   }
 
+  /// What a VJOD collection row is about, from its collection.
+  String? _vjodRowSubtitle(HomeRow row, AppLocalizations l10n) {
+    if (!row.id.startsWith('vjod_')) return null;
+    final type = HomeSectionType.fromSerialized(row.id);
+    final collection = vjodCollectionById(type.vjodCollectionId);
+    if (collection == null) return null;
+    final text = collection.subtitle(l10n.localeName.startsWith('fr'));
+    return text.isEmpty ? null : text;
+  }
+
   String? _rowSubtitle(HomeRow row, AppLocalizations l10n) {
     if (_vjodTheme) {
       // The mock-up says what a row is for, not where it comes from.
       return switch (row.id) {
         HomeViewModel.forYouRowId => l10n.vjodForYouSubtitle,
         'french_movies' => l10n.vjodFrenchSubtitle,
-        _ => null,
+        HomeViewModel.vjodMoodRowId => l10n.localeName.startsWith('fr')
+            ? 'Votre humeur colore les rangées jusqu\'à demain matin'
+            : 'Your mood tints the rows until tomorrow morning',
+        _ => _vjodRowSubtitle(row, l10n),
       };
     }
     if (row.id == 'merged_calendar' || row.id == 'radarr_calendar' || row.id == 'sonarr_calendar') {
@@ -4808,6 +4822,33 @@ class _ContentRowsState extends State<_ContentRows>
     );
   }
 
+  static bool _isVjodMoodTile(AggregatedItem item) =>
+      item.rawData[HomeViewModel.vjodMoodKey] is String;
+
+  static IconData _vjodMoodIcon(AggregatedItem item) =>
+      switch (item.rawData[HomeViewModel.vjodMoodKey]) {
+        'laugh' => Icons.sentiment_very_satisfied_rounded,
+        'chills' => Icons.dark_mode_outlined,
+        'escape' => Icons.rocket_launch_outlined,
+        'think' => Icons.psychology_outlined,
+        'comfort' => Icons.local_cafe_outlined,
+        _ => Icons.casino_outlined,
+      };
+
+  /// A mood tile picks tonight's mood; any other tile opens its library.
+  void _onLibraryButtonTap(AggregatedItem item) {
+    if (_isVjodMoodTile(item)) {
+      unawaited(
+        widget.viewModel.setVjodMood(
+          item.rawData[HomeViewModel.vjodMoodKey] as String?,
+          AppLocalizations.of(context),
+        ),
+      );
+      return;
+    }
+    _navigateToLibrary(context, item);
+  }
+
   Widget _buildLibraryButtonsRow(
     HomeRow row,
     Color focusColor,
@@ -4854,13 +4895,17 @@ class _ContentRowsState extends State<_ContentRows>
             isUp: isUp,
           ),
           onLeftEdge: _onRowLeftEdge,
-          onTap: (_, item) => _navigateToLibrary(context, item),
-          onLongPress: (_, item) =>
-              showContextMenu(context, item, onChanged: () => setState(() {})),
+          onTap: (_, item) => _onLibraryButtonTap(item),
+          onLongPress: (_, item) {
+            if (_isVjodMoodTile(item)) return;
+            showContextMenu(context, item, onChanged: () => setState(() {}));
+          },
           itemBuilder: (ctx, item, idx, isFocused) {
             final collectionType =
                 (item.rawData['CollectionType'] as String? ?? '').toLowerCase();
-            final icon = isGameLibrary(item.id, collectionType, item.name)
+            final icon = _isVjodMoodTile(item)
+                ? _vjodMoodIcon(item)
+                : isGameLibrary(item.id, collectionType, item.name)
                 ? gameLibraryIcon
                 : _iconForCollectionType(collectionType);
             return Align(
@@ -4875,17 +4920,21 @@ class _ContentRowsState extends State<_ContentRows>
                   focusColor: focusColor,
                   cardFocusExpansion: cardExpansion,
                   externalIsFocused: isFocused,
-                  onTap: () => _navigateToLibrary(context, item),
-                  onLongPress: () => showContextMenu(
-                    context,
-                    item,
-                    onChanged: () => setState(() {}),
-                  ),
-                  onSecondaryTap: () => showContextMenu(
-                    context,
-                    item,
-                    onChanged: () => setState(() {}),
-                  ),
+                  onTap: () => _onLibraryButtonTap(item),
+                  onLongPress: _isVjodMoodTile(item)
+                      ? null
+                      : () => showContextMenu(
+                          context,
+                          item,
+                          onChanged: () => setState(() {}),
+                        ),
+                  onSecondaryTap: _isVjodMoodTile(item)
+                      ? null
+                      : () => showContextMenu(
+                          context,
+                          item,
+                          onChanged: () => setState(() {}),
+                        ),
                 ),
               ),
             );
@@ -5332,7 +5381,11 @@ class _ContentRowsState extends State<_ContentRows>
             final userRating = item.rawData['UserRating'] as String? ?? '';
             final because =
                 item.rawData[HomeViewModel.forYouReasonKey] as String?;
-            if (_vjodTheme && because != null && because.isNotEmpty) {
+            final vjodWhy = item.rawData[HomeViewModel.vjodWhyKey] as String?;
+            if (_vjodTheme && vjodWhy != null && vjodWhy.isNotEmpty) {
+              // VJOD says why a title is in its row.
+              cardSubtitle = vjodWhy;
+            } else if (_vjodTheme && because != null && because.isNotEmpty) {
               // The mock-up says why under a suggestion, not its year.
               cardSubtitle = l10n.seerrForYouBecause(because);
             } else if (_vjodTheme &&

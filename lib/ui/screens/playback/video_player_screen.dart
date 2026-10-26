@@ -18,7 +18,10 @@ import 'package:screen_brightness_platform_interface/screen_brightness_platform_
 import 'package:volume_controller/volume_controller.dart';
 import 'package:window_manager/window_manager.dart';
 
+import '../../../data/services/seerr/taste_profile.dart';
+import '../../../data/services/vjod/vjod_votes.dart';
 import '../../../data/utils/chapter_markers.dart';
+import '../../../preference/seerr_preferences.dart';
 import '../../../data/utils/video_range_label.dart';
 import '../../../playback/subtitle_style.dart';
 import '../../../playback/subtitle_view_config.dart';
@@ -294,6 +297,12 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
   static bool get _vjodOsd =>
       ThemeRegistry.active.id == ThemeRegistry.vjodId ||
       ThemeRegistry.active.id == ThemeRegistry.ecrinId;
+
+  /// "J'ai aimé / Bof", asked once during a film's end credits, gone by
+  /// itself after a while.
+  bool _vjodVoteVisible = false;
+  String? _vjodVoteAskedId;
+  Timer? _vjodVoteTimer;
   Timer? _displayPlayingDebounce;
   Timer? _endsAtTicker;
   bool _isSeeking = false;
@@ -953,6 +962,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
 
   @override
   void dispose() {
+    _vjodVoteTimer?.cancel();
     Tabletop.forced.removeListener(_onTabletopChanged);
     if (kIsWeb) unawaited(BrowserContextMenu.enableContextMenu());
     _cancelPopAfterBackKeyUp?.call();
@@ -2429,6 +2439,145 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
     }
     _checkSegments(position);
     _checkNextUp(position);
+    _checkVjodVote(position);
+  }
+
+  /// A film's credits have started: in the outro segment when the server
+  /// knows it, or in the last few minutes otherwise.
+  void _checkVjodVote(Duration position) {
+    if (!_vjodOsd || _vjodVoteVisible || _isCurrentPreroll) return;
+    final item = _queue.currentItem;
+    final raw = _rawDataForQueueItem(item);
+    final id = _itemIdForQueueItem(item);
+    if (raw == null || id == null || raw['Type'] != 'Movie') return;
+    if (id == _vjodVoteAskedId) return;
+    final duration = _state.duration;
+    if (duration < const Duration(minutes: 40)) return;
+    final remaining = duration - position;
+    final inOutro =
+        _segmentService.activeSegment?.type == MediaSegmentType.outro;
+    final nearEnd =
+        position >= duration * 0.95 && remaining <= const Duration(minutes: 8);
+    if (!inOutro && !nearEnd) return;
+    _vjodVoteAskedId = id;
+    final prefs = GetIt.instance<SeerrPreferences>();
+    if (!prefs.vjodPersonalize) return;
+    final key = _vjodVoteKey(raw, id);
+    if (VjodVotes.decode(prefs.vjodVotesJson).voteFor(key) != null) return;
+    setState(() => _vjodVoteVisible = true);
+    _vjodVoteTimer?.cancel();
+    _vjodVoteTimer = Timer(const Duration(seconds: 20), () {
+      if (mounted) setState(() => _vjodVoteVisible = false);
+    });
+  }
+
+  static String _vjodVoteKey(Map<String, dynamic> raw, String id) {
+    final providers = raw['ProviderIds'];
+    final tmdb = providers is Map
+        ? (providers['Tmdb'] ?? providers['tmdb'] ?? providers['TMDB'])
+        : null;
+    return tmdb == null || '$tmdb'.isEmpty ? 'jellyfin:$id' : 'movie:$tmdb';
+  }
+
+  void _vjodVote(bool liked) {
+    _vjodVoteTimer?.cancel();
+    if (mounted) setState(() => _vjodVoteVisible = false);
+    final item = _queue.currentItem;
+    final raw = _rawDataForQueueItem(item);
+    final id = _itemIdForQueueItem(item);
+    if (raw == null || id == null) return;
+    final genres = raw['Genres'];
+    final prefs = GetIt.instance<SeerrPreferences>();
+    final votes = VjodVotes.decode(prefs.vjodVotesJson).record(
+      VjodVote(
+        key: _vjodVoteKey(raw, id),
+        title: raw['Name'] as String? ?? '',
+        genres: TasteGenre.fromNames([
+          if (genres is List)
+            for (final g in genres)
+              if (g is String) g,
+        ]),
+        liked: liked,
+        at: DateTime.now(),
+      ),
+    );
+    unawaited(prefs.setVjodVotesJson(votes.encode()));
+  }
+
+  Widget _buildVjodVotePrompt() {
+    final french = AppLocalizations.of(context).localeName.startsWith('fr');
+    final remote = PlatformDetection.isTV;
+    Widget pill(String label, IconData icon, bool liked) => Material(
+      color: Colors.white.withValues(alpha: liked ? 0.95 : 0.16),
+      borderRadius: BorderRadius.circular(22),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(22),
+        canRequestFocus: false,
+        onTap: () => _vjodVote(liked),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 18, color: liked ? Colors.black : Colors.white),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  color: liked ? Colors.black : Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    return Positioned(
+      top: MediaQuery.paddingOf(context).top + 24,
+      right: 24,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+        decoration: BoxDecoration(
+          color: const Color(0xE60B0B0D),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              french ? 'Alors, ce film ?' : 'So, that film?',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                pill(
+                  remote
+                      ? (french ? '▲ J\'ai aimé' : '▲ Loved it')
+                      : (french ? 'J\'ai aimé' : 'Loved it'),
+                  Icons.thumb_up_alt_rounded,
+                  true,
+                ),
+                const SizedBox(width: 8),
+                pill(
+                  remote ? '▼ Bof' : (french ? 'Bof' : 'Meh'),
+                  Icons.thumbs_up_down_outlined,
+                  false,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _syncAirPlayPlaybackState({Duration? position}) {
@@ -3664,6 +3813,24 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
       }
     }
 
+    // "J'ai aimé / Bof" during the credits: up for liked, down for bof,
+    // while nothing else on screen wants those keys.
+    if (_vjodVoteVisible &&
+        event is KeyDownEvent &&
+        !_controlsVisible &&
+        !_showNextUp &&
+        (PlatformDetection.isTV ||
+            GamepadKeySynthesizer.isRemote(event.physicalKey))) {
+      if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+        _vjodVote(true);
+        return KeyEventResult.handled;
+      }
+      if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+        _vjodVote(false);
+        return KeyEventResult.handled;
+      }
+    }
+
     final primaryFocus = FocusManager.instance.primaryFocus;
     final fromRemote = GamepadKeySynthesizer.isRemote(event.physicalKey);
     if (fromRemote &&
@@ -4175,6 +4342,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
                       _buildSkipIndicatorOverlay(),
                       if (_isOsdLocked && !hideOsdForPreroll)
                         _buildLockedOverlay(),
+                      if (_vjodVoteVisible) _buildVjodVotePrompt(),
                       if (_isSkipSegmentButtonVisible)
                         SkipSegmentOverlay(
                           segment: _skipSegment!,

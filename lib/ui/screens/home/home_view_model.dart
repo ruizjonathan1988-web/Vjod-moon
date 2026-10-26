@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui' show PlatformDispatcher;
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:moonfin_design/moonfin_design.dart' show ThemeRegistry;
 import 'package:path_provider/path_provider.dart';
@@ -14,6 +15,7 @@ import 'package:collection/collection.dart';
 import '../../../data/models/aggregated_item.dart';
 import '../../../data/models/aggregated_library.dart';
 import '../../../data/models/home_row.dart';
+import '../../../data/repositories/mdblist_repository.dart';
 import '../../../data/repositories/multi_server_repository.dart';
 import '../../../data/repositories/user_views_repository.dart';
 import '../../../data/utils/latest_media_row_normalizer.dart';
@@ -48,6 +50,10 @@ import '../../../data/services/chart_cards.dart';
 import '../../../data/services/trakt/trakt_client.dart';
 import '../../../data/services/vjod/vjod_collection_service.dart';
 import '../../../data/services/vjod/vjod_collections.dart';
+import '../../../data/services/vjod/vjod_personalizer.dart';
+import '../../../data/services/tonight/evening_journal.dart';
+import '../../../data/services/tonight/tonight_models.dart';
+import '../../../data/services/vjod/vjod_votes.dart';
 import '../../../data/services/wikidata/film_awards_client.dart';
 import '../../../data/services/french_box_office.dart';
 import '../../../data/services/home_highlights.dart';
@@ -587,9 +593,7 @@ class HomeViewModel extends ChangeNotifier {
                         c.type != HomeSectionType.frenchClassics &&
                         // The VJOD rows drawn from Seerr; the two "ready
                         // tonight" ones read the library alone.
-                        !(c.type.isVjodRow &&
-                            c.type != HomeSectionType.vjodUnwatchedGems &&
-                            c.type != HomeSectionType.vjodShortGems)) ||
+                        !(c.type.isVjodRow && !c.type.isVjodLibraryRow)) ||
                     showSeerrRows) &&
                 (!_isImdbSectionType(c.type) || (showImdbRows && _isImdbSectionEnabled(c.type))) &&
                 (!_isTmdbSectionType(c.type) || (showTmdbRows && _isTmdbSectionEnabled(c.type))) &&
@@ -1033,6 +1037,8 @@ class HomeViewModel extends ChangeNotifier {
       case HomeSectionType.vjodFeelGood:
       case HomeSectionType.vjodEpic:
       case HomeSectionType.vjodBinge:
+      case HomeSectionType.vjodMood:
+      case HomeSectionType.vjodOutsideHabits:
         return row.id == cfg.type.serializedName;
       case HomeSectionType.seerrUpcoming:
         return row.id == upcomingRowId;
@@ -1416,6 +1422,8 @@ class HomeViewModel extends ChangeNotifier {
       case HomeSectionType.vjodFeelGood:
       case HomeSectionType.vjodEpic:
       case HomeSectionType.vjodBinge:
+      case HomeSectionType.vjodMood:
+      case HomeSectionType.vjodOutsideHabits:
         return {type.serializedName};
       case HomeSectionType.seerrUpcoming:
         return const {'seerrUpcoming'};
@@ -1799,6 +1807,8 @@ class HomeViewModel extends ChangeNotifier {
       case HomeSectionType.vjodFeelGood:
       case HomeSectionType.vjodEpic:
       case HomeSectionType.vjodBinge:
+      case HomeSectionType.vjodMood:
+      case HomeSectionType.vjodOutsideHabits:
         return _loadVjodRow(section, l10n);
       case HomeSectionType.seerrUpcoming:
         return _loadUpcomingRow(l10n, forceRefresh: forceRefresh);
@@ -2300,6 +2310,8 @@ class HomeViewModel extends ChangeNotifier {
       case HomeSectionType.vjodFeelGood:
       case HomeSectionType.vjodEpic:
       case HomeSectionType.vjodBinge:
+      case HomeSectionType.vjodMood:
+      case HomeSectionType.vjodOutsideHabits:
         return null;
       case HomeSectionType.seerrForYou:
         return HomeRow(
@@ -3028,9 +3040,10 @@ class HomeViewModel extends ChangeNotifier {
         forceRefresh: forceRefresh,
       );
       _maybePromptTaste(taste.profile);
+      final ranked = await _vjodRerankForYou(picks);
 
       final items = <AggregatedItem>[];
-      for (final pick in picks) {
+      for (final pick in ranked) {
         // Same card shape and NSFW filtering as the other Seerr rows.
         final base = _seerrAggregatedItems([pick.item], null, blockNsfw);
         if (base.isEmpty) continue;
@@ -3060,6 +3073,74 @@ class HomeViewModel extends ChangeNotifier {
       debugPrint('[SeerrHomeRow] Failed to load For You row: $e');
       return [];
     }
+  }
+
+  /// For You, weighed once more by VJOD: how much the viewer trusts the
+  /// source that brought each pick (Trakt or TMDB, learned from "J'ai aimé"
+  /// and "Bof"), what the votes say of its genres, and what MDBList's critics
+  /// and audiences agree on. Titles several sources point at already lead,
+  /// from [ForYouRanker]. The sources shown are remembered, so a vote can be
+  /// traced back to the one that suggested it.
+  Future<List<ForYouPick>> _vjodRerankForYou(List<ForYouPick> picks) async {
+    final signals = _vjodSignalsNow();
+    if (!signals.enabled || picks.isEmpty) return picks;
+    String sourceOf(ForYouPick pick) =>
+        pick.because.source == TasteSource.trakt ? 'trakt' : 'tmdb';
+
+    final ratings = <String, Map<String, double>?>{};
+    try {
+      final mdb = GetIt.instance<MdbListRepository>();
+      await Future.wait([
+        for (final pick in picks.take(15))
+          mdb
+              .getRatings(tmdbId: '${pick.item.id}', mediaType: pick.mediaType)
+              .then((r) => ratings[pick.key] = r)
+              .catchError((Object _) => null),
+      ]).timeout(const Duration(seconds: 4));
+    } catch (_) {
+      // MDBList is a bonus: what came back in time counts, the rest is 1.
+    }
+
+    final scored = [
+      for (final (index, pick) in picks.indexed)
+        (
+          pick: pick,
+          score:
+              pick.score *
+              (signals.sourceWeights[sourceOf(pick)] ?? 1) *
+              VjodVotes.factorFor(
+                TasteGenre.of(pick.item.genreIds, pick.mediaType),
+                signals.genreBias,
+              ) *
+              VjodPersonalizer.ratingsFactor(ratings[pick.key]),
+          index: index,
+        ),
+    ]..sort((a, b) {
+        final byScore = b.score.compareTo(a.score);
+        return byScore != 0 ? byScore : a.index.compareTo(b.index);
+      });
+
+    _noteVjodShown({for (final pick in picks) pick.key: sourceOf(pick)});
+    return [for (final s in scored) s.pick];
+  }
+
+  final Map<String, String> _vjodShown = {};
+  Timer? _vjodShownFlush;
+
+  /// Remembers which source showed which titles, written once the rows of a
+  /// refresh are all in.
+  void _noteVjodShown(Map<String, String> bySource) {
+    if (bySource.isEmpty) return;
+    _vjodShown.addAll(bySource);
+    _vjodShownFlush?.cancel();
+    _vjodShownFlush = Timer(const Duration(seconds: 3), () {
+      final prefs = GetIt.instance<SeerrPreferences>();
+      final votes = VjodVotes.decode(
+        prefs.vjodVotesJson,
+      ).noteSuggested(Map.of(_vjodShown));
+      _vjodShown.clear();
+      unawaited(prefs.setVjodVotesJson(votes.encode()));
+    });
   }
 
   static const top10MoviesRowId = 'top10_movies';
@@ -3952,22 +4033,163 @@ class HomeViewModel extends ChangeNotifier {
     }
   }
 
+  /// The id of the "Ce soir, plutôt…" row.
+  static const vjodMoodRowId = 'vjod_mood';
+
+  /// The sentence a VJOD row says under a title: why it is there.
+  static const vjodWhyKey = 'VjodWhy';
+
+  /// Which mood a tile of the mood row stands for.
+  static const vjodMoodKey = 'VjodMood';
+
+  VjodSignals? _vjodSignals;
+  DateTime? _vjodSignalsAt;
+
+  /// What VJOD knows of the viewer, read at most once a minute: every VJOD
+  /// row of a refresh shares it.
+  VjodSignals _vjodSignalsNow() {
+    final now = DateTime.now();
+    final cached = _vjodSignals;
+    final at = _vjodSignalsAt;
+    if (cached != null &&
+        at != null &&
+        now.difference(at) < const Duration(minutes: 1)) {
+      return cached;
+    }
+    final prefs = GetIt.instance<SeerrPreferences>();
+    final signals = VjodSignals.build(
+      enabled: prefs.vjodPersonalize,
+      journal: EveningJournal.decode(prefs.tonightJournalJson),
+      profile: TasteProfile.decode(prefs.tasteProfileJson),
+      mood: VjodMoodStore.read(prefs.vjodMood),
+      votes: VjodVotes.decode(prefs.vjodVotesJson),
+      now: now,
+    );
+    _vjodSignals = signals;
+    _vjodSignalsAt = now;
+    return signals;
+  }
+
+  /// Days since VJOD began, so what changes daily changes at the same time
+  /// everywhere.
+  static int get _vjodDay => DateTime.now().difference(DateTime(2026)).inDays;
+
+  /// Picks tonight's mood, or drops it when it was already the one, then
+  /// redraws the VJOD rows with it.
+  Future<void> setVjodMood(String? moodName, AppLocalizations l10n) async {
+    final prefs = GetIt.instance<SeerrPreferences>();
+    final current = VjodMoodStore.read(prefs.vjodMood);
+    final picked = TonightMood.values.asNameMap()[moodName];
+    final next = picked == current ? null : picked;
+    await prefs.setVjodMood(next == null ? '' : VjodMoodStore.write(next));
+    await refreshVjodRows(l10n);
+  }
+
+  /// Redraws every VJOD row on screen, after the mood or the personalization
+  /// changed. The rows stay where they are; only what they hold moves.
+  Future<void> refreshVjodRows(AppLocalizations l10n) async {
+    _vjodSignals = null;
+    final ids = [
+      for (final row in _rows)
+        if (row.id.startsWith('vjod_')) row.id,
+    ];
+    await Future.wait([
+      for (final id in ids)
+        () async {
+          final type = HomeSectionType.fromSerialized(id);
+          if (!type.isVjodRow) return;
+          final rows = await _loadVjodRow(type, l10n);
+          if (rows.isNotEmpty) _replaceRowById(rows.first);
+        }(),
+    ]);
+  }
+
+  /// "Ce soir, plutôt…": six moods under the banner, today's one ticked.
+  List<HomeRow> _vjodMoodRow(bool french) {
+    final prefs = GetIt.instance<SeerrPreferences>();
+    if (!prefs.vjodPersonalize) return [];
+    final current = VjodMoodStore.read(prefs.vjodMood);
+    final title = french ? 'Ce soir, plutôt…' : 'Tonight, rather…';
+    return [
+      HomeRow(
+        id: vjodMoodRowId,
+        title: current == null
+            ? title
+            : '$title ${VjodPersonalizer.moodLabel(current, french: french)}',
+        rowType: HomeRowType.libraryTilesSmall,
+        items: [
+          for (final mood in TonightMood.values)
+            AggregatedItem(
+              id: 'vjod_mood_${mood.name}',
+              serverId: _serverId,
+              rawData: {
+                'Name': mood == current
+                    ? '✓ ${VjodPersonalizer.moodLabel(mood, french: french)}'
+                    : VjodPersonalizer.moodLabel(mood, french: french),
+                'Type': 'VjodMood',
+                'CollectionType': '',
+                vjodMoodKey: mood.name,
+              },
+            ),
+        ],
+        totalCount: TonightMood.values.length,
+      ),
+    ];
+  }
+
+  /// [item] with the sentence saying why it is in its row.
+  static AggregatedItem _vjodWithWhy(
+    AggregatedItem item,
+    VjodPlaced<Object?> placed,
+    VjodSignals signals,
+    bool french,
+  ) {
+    final text = VjodPersonalizer.whyText(
+      placed.why,
+      because: placed.because,
+      mood: signals.mood,
+      french: french,
+    );
+    if (text == null) return item;
+    return AggregatedItem(
+      id: item.id,
+      serverId: item.serverId,
+      rawData: {...item.rawData, vjodWhyKey: text},
+    );
+  }
+
   /// A VJOD row. The two ready ones read the library; the others are a VJOD
-  /// collection searched on Seerr, what the library holds first, ending on a
-  /// tile that opens the whole collection.
+  /// collection searched on Seerr, ending on a tile that opens the whole
+  /// collection. Each one is shaped to the viewer by [VjodPersonalizer],
+  /// which keeps a third of it for discoveries.
   Future<List<HomeRow>> _loadVjodRow(
     HomeSectionType type,
     AppLocalizations l10n,
   ) async {
     final french = l10n.localeName.startsWith('fr');
+    if (type == HomeSectionType.vjodMood) return _vjodMoodRow(french);
+    final signals = _vjodSignalsNow();
+    final now = DateTime.now();
+
+    if (type == HomeSectionType.vjodOutsideHabits) {
+      return _loadVjodOutsideRow(type, french, signals);
+    }
+
     final themeOfDay = type == HomeSectionType.vjodThemeOfDay;
     final collection = themeOfDay
-        ? vjodThemeOfDay(DateTime.now())
+        ? vjodThemeOfDay(now)
         : vjodCollectionById(type.vjodCollectionId);
     if (collection == null) return [];
-    final title = themeOfDay
-        ? '${french ? 'Thème du jour' : 'Theme of the day'} · ${collection.title(french)}'
-        : collection.title(french);
+    final String title;
+    if (!themeOfDay) {
+      title = collection.title(french);
+    } else if (collection.months.isNotEmpty) {
+      title = '${french ? 'De saison' : 'In season'} · ${collection.title(french)}';
+    } else {
+      title =
+          '${french ? 'Thème du jour' : 'Theme of the day'} · ${collection.title(french)}';
+    }
+    final seed = _vjodDay * 31 + type.index;
 
     if (collection.readyOnly) {
       try {
@@ -3975,14 +4197,32 @@ class HomeViewModel extends ChangeNotifier {
           _serverId,
           short: type == HomeSectionType.vjodShortGems,
         );
-        if (items.length < 4) return [];
+        final placed = VjodPersonalizer.arrange(
+          [
+            for (final item in items)
+              VjodCandidate(
+                item: item,
+                key: item.tmdbId == null
+                    ? 'jellyfin:${item.id}'
+                    : 'movie:${item.tmdbId}',
+                genres: TasteGenre.fromNames(item.genres),
+              ),
+          ],
+          // The library row only holds what was never played.
+          signals.withoutWatched(),
+          seed: seed,
+        );
+        if (placed.length < 4) return [];
+        final shown = [
+          for (final p in placed) _vjodWithWhy(p.item, p, signals, french),
+        ];
         return [
           HomeRow(
             id: type.serializedName,
             title: title,
             rowType: HomeRowType.pluginDynamic,
-            items: items,
-            totalCount: items.length,
+            items: shown,
+            totalCount: shown.length,
           ),
         ];
       } catch (e) {
@@ -3995,43 +4235,153 @@ class HomeViewModel extends ChangeNotifier {
       final repo = await GetIt.instance.getAsync<SeerrRepository>();
       await repo.ensureInitialized();
       if (!repo.isAvailable) return [];
-      final blockNsfw = GetIt.instance<SeerrPreferences>().blockNsfw;
-      final taste = _taste();
       final found = await VjodCollectionService.loadRow(
         repo,
         collection,
-        hidden: taste.feedback.hiddenKeys,
+        hidden: _taste().feedback.hiddenKeys,
       );
-      final items = [
-        for (final item in found)
-          if (_suggestionCard(
-                item,
-                collection.query.mediaType,
-                blockNsfw: blockNsfw,
-              )
-              case final card?)
-            card,
-      ];
-      if (items.length < 5) return [];
-      final cover = found.firstWhere(
-        (item) => (item.backdropPath ?? '').isNotEmpty,
-        orElse: () => found.first,
+      final row = await _vjodSeerrRow(
+        type,
+        title,
+        collection,
+        found,
+        signals,
+        french,
+        seed: seed,
       );
-      items.add(
-        vjodSeeAllCard(
-          collection,
-          french,
-          backdropPath: cover.backdropPath,
-          posterPath: cover.posterPath,
-        ),
-      );
-      return [
-        _seerrRow(type.serializedName, title, items, totalCount: items.length),
-      ];
+      return row == null ? [] : [row];
     } catch (e) {
       debugPrint('[VjodRow] Failed to load ${type.serializedName}: $e');
       return [];
     }
+  }
+
+  /// A row of Seerr titles from [collection], shaped to the viewer.
+  Future<HomeRow?> _vjodSeerrRow(
+    HomeSectionType type,
+    String title,
+    VjodCollection collection,
+    List<SeerrDiscoverItem> found,
+    VjodSignals signals,
+    bool french, {
+    required int seed,
+    bool allDiscovery = false,
+  }) async {
+    final blockNsfw = GetIt.instance<SeerrPreferences>().blockNsfw;
+    final taste = _taste();
+    final mediaType = collection.query.mediaType;
+    final placed = VjodPersonalizer.arrange(
+      [
+        for (final item in found)
+          VjodCandidate(
+            item: item,
+            key: '$mediaType:${item.id}',
+            genres: TasteGenre.of(item.genreIds, mediaType),
+            taste: signals.enabled ? taste.weigh(item, mediaType) : 1,
+          ),
+      ],
+      signals,
+      seed: seed,
+      allDiscovery: allDiscovery,
+    );
+    final items = [
+      for (final p in placed)
+        if (_suggestionCard(
+              p.item,
+              mediaType,
+              reason: p.why == VjodWhy.recent ? p.because : null,
+              blockNsfw: blockNsfw,
+            )
+            case final card?)
+          _vjodWithWhy(card, p, signals, french),
+    ];
+    if (items.length < 5) return null;
+    final shownItems = [for (final p in placed) p.item];
+    _noteVjodShown({
+      for (final item in shownItems) '$mediaType:${item.id}': 'vjod',
+    });
+    final cover = shownItems.firstWhere(
+      (item) => (item.backdropPath ?? '').isNotEmpty,
+      orElse: () => shownItems.first,
+    );
+    items.add(
+      vjodSeeAllCard(
+        collection,
+        french,
+        backdropPath: cover.backdropPath,
+        posterPath: cover.posterPath,
+      ),
+    );
+    return _seerrRow(
+      type.serializedName,
+      title,
+      items,
+      totalCount: items.length,
+    );
+  }
+
+  /// "Hors de vos habitudes": one collection a day, among those whose genres
+  /// the viewer rarely goes to, holding only what lies outside their usual
+  /// genres. With personalization off, it is a plain daily pick.
+  Future<List<HomeRow>> _loadVjodOutsideRow(
+    HomeSectionType type,
+    bool french,
+    VjodSignals signals,
+  ) async {
+    try {
+      final repo = await GetIt.instance.getAsync<SeerrRepository>();
+      await repo.ensureInitialized();
+      if (!repo.isAvailable) return [];
+      final now = DateTime.now();
+      final pool = [
+        for (final c in vjodCollections)
+          if (!c.readyOnly && c.inSeason(now))
+            if (!_vjodCollectionInComfort(c, signals.comfort)) c,
+      ];
+      if (pool.isEmpty) return [];
+      final start = _vjodDay % pool.length;
+      // A collection can come back thin once the usual genres are out: the
+      // next one gets its chance, three at most.
+      for (var i = 0; i < math.min(3, pool.length); i++) {
+        final collection = pool[(start + i) % pool.length];
+        final found = await VjodCollectionService.loadRow(
+          repo,
+          collection,
+          hidden: _taste().feedback.hiddenKeys,
+        );
+        final title =
+            '${french ? 'Hors de vos habitudes' : 'Off your beaten track'} · ${collection.title(french)}';
+        final row = await _vjodSeerrRow(
+          type,
+          title,
+          collection,
+          found,
+          signals,
+          french,
+          seed: _vjodDay * 31 + type.index,
+          allDiscovery: signals.enabled,
+        );
+        if (row != null) return [row];
+      }
+      return [];
+    } catch (e) {
+      debugPrint('[VjodRow] Failed to load ${type.serializedName}: $e');
+      return [];
+    }
+  }
+
+  /// Whether [collection] is about genres the viewer always watches.
+  static bool _vjodCollectionInComfort(
+    VjodCollection collection,
+    Set<TasteGenre> comfort,
+  ) {
+    final genre = collection.query.genre;
+    if (genre == null || comfort.isEmpty) return false;
+    final ids = [
+      for (final part in genre.split(RegExp('[,|]')))
+        if (int.tryParse(part.trim()) case final id?) id,
+    ];
+    return TasteGenre.of(ids, collection.query.mediaType).any(comfort.contains);
   }
 
   /// The tile closing a VJOD row: the whole collection, in the Seerr grid.

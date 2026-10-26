@@ -191,65 +191,71 @@ class HomeSectionConfig {
   /// above in the media bar. Every other row is here, switched off, to turn
   /// on in the settings.
   static List<HomeSectionConfig> defaults() => const [
-    HomeSectionConfig(type: HomeSectionType.resume, enabled: true, order: 0),
-    HomeSectionConfig(type: HomeSectionType.nextUp, enabled: true, order: 1),
+    HomeSectionConfig(type: HomeSectionType.vjodMood, enabled: true, order: 0),
+    HomeSectionConfig(type: HomeSectionType.resume, enabled: true, order: 1),
+    HomeSectionConfig(type: HomeSectionType.nextUp, enabled: true, order: 2),
     // These need Seerr: for the charts, the suggestions and the requests.
     // VJOD's own rows sit between the others, so Home reads like one
     // catalogue: what is ready to play first, then everything to explore.
     HomeSectionConfig(
       type: HomeSectionType.vjodUnwatchedGems,
       enabled: true,
-      order: 2,
+      order: 3,
     ),
     HomeSectionConfig(
       type: HomeSectionType.top10Movies,
       enabled: true,
-      order: 3,
+      order: 4,
     ),
     HomeSectionConfig(
       type: HomeSectionType.vjodMindBenders,
       enabled: true,
-      order: 4,
+      order: 5,
     ),
     HomeSectionConfig(
       type: HomeSectionType.vjodThemeOfDay,
       enabled: true,
-      order: 5,
+      order: 6,
     ),
     HomeSectionConfig(
       type: HomeSectionType.vjodMiniSeries,
       enabled: true,
-      order: 6,
+      order: 7,
     ),
     HomeSectionConfig(
       type: HomeSectionType.seerrForYou,
       enabled: true,
-      order: 7,
+      order: 8,
     ),
     HomeSectionConfig(
       type: HomeSectionType.vjodShortGems,
       enabled: true,
-      order: 8,
+      order: 9,
     ),
     HomeSectionConfig(
       type: HomeSectionType.vjodFeelGood,
       enabled: true,
-      order: 9,
+      order: 10,
     ),
     HomeSectionConfig(
       type: HomeSectionType.vjodEpic,
       enabled: true,
-      order: 10,
+      order: 11,
+    ),
+    HomeSectionConfig(
+      type: HomeSectionType.vjodOutsideHabits,
+      enabled: true,
+      order: 12,
     ),
     HomeSectionConfig(
       type: HomeSectionType.vjodBinge,
       enabled: true,
-      order: 11,
+      order: 13,
     ),
     HomeSectionConfig(
       type: HomeSectionType.frenchMovies,
       enabled: true,
-      order: 12,
+      order: 14,
     ),
     HomeSectionConfig(
       type: HomeSectionType.top10Series,
@@ -549,6 +555,13 @@ class HomeSectionConfig {
     var merged = List<HomeSectionConfig>.of(parsed);
     for (final def in defaults()) {
       if (!def.isBuiltin || presentTypes.contains(def.type)) continue;
+      if (def.type == HomeSectionType.vjodMood) {
+        // The mood sits right under the banner, above everything, without
+        // moving what the viewer placed.
+        final first = merged.fold<int>(1, (m, c) => c.order < m ? c.order : m);
+        merged.add(def.copyWith(order: first - 1));
+        continue;
+      }
       final leader = _followsSection[def.type];
       final leaderConfig = leader == null
           ? null
@@ -578,7 +591,8 @@ class HomeSectionConfig {
     HomeSectionType.vjodShortGems: HomeSectionType.seerrForYou,
     HomeSectionType.vjodFeelGood: HomeSectionType.vjodShortGems,
     HomeSectionType.vjodEpic: HomeSectionType.vjodFeelGood,
-    HomeSectionType.vjodBinge: HomeSectionType.vjodEpic,
+    HomeSectionType.vjodOutsideHabits: HomeSectionType.vjodEpic,
+    HomeSectionType.vjodBinge: HomeSectionType.vjodOutsideHabits,
   };
 
   /// [config] placed right after [leader], everything below moved down one.
