@@ -4172,6 +4172,9 @@ class _ContentRowsState extends State<_ContentRows>
     final type = HomeSectionType.fromSerialized(row.id);
     final collection = vjodCollectionById(type.vjodCollectionId);
     if (collection == null) return null;
+    if (collection.family == VjodFamily.ready) {
+      return l10n.localeName.startsWith('fr') ? 'Prêt à lancer' : 'Ready to play';
+    }
     final text = collection.subtitle(l10n.localeName.startsWith('fr'));
     return text.isEmpty ? null : text;
   }

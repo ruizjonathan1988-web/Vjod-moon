@@ -13,6 +13,8 @@ import '../../l10n/app_localizations.dart';
 import '../../auth/repositories/user_repository.dart';
 import '../../data/models/aggregated_library.dart';
 import '../../data/repositories/multi_server_repository.dart';
+import '../../data/repositories/seerr_repository.dart';
+import '../../data/services/seerr/my_requests.dart';
 import '../../data/repositories/user_views_repository.dart';
 import '../../data/services/achievements_service.dart';
 import '../../data/services/library_scope_service.dart';
@@ -115,6 +117,10 @@ class TopToolbar extends StatefulWidget {
   /// the toolbar for the layout to draw.
   static final vjodBottomTabs = ValueNotifier<List<VjodNavItem>>(const []);
 
+  /// How many of the viewer's requests are still on their way, for the
+  /// counter on the En route tab.
+  static final vjodEnRouteCount = ValueNotifier<int>(0);
+
   /// Whether VJOD's tabs go to the bottom: its look, on a phone-narrow screen.
   static bool vjodNarrow(BuildContext context) =>
       (ThemeRegistry.active.id == ThemeRegistry.vjodId ||
@@ -173,6 +179,12 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
   void initState() {
     super.initState();
     _currentTime = ValueNotifier<String>('');
+    TopToolbar.vjodEnRouteCount.addListener(_onEnRouteCount);
+    unawaited(_refreshEnRouteCount());
+    _enRouteTimer = Timer.periodic(
+      const Duration(minutes: 2),
+      (_) => unawaited(_refreshEnRouteCount()),
+    );
     // Guarded so a stale registration from a torn-down toolbar is a safe
     // no-op instead of focusing a disposed node.
     _focusNavbarCallback = () {
@@ -237,8 +249,50 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
     NavigationLayout.focusNavbarAvatarNotifier.value = _focusAvatarCallback;
   }
 
+  Timer? _enRouteTimer;
+
+  void _onEnRouteCount() {
+    if (mounted) setState(() {});
+  }
+
+  /// Counts the requests that haven't come through yet.
+  Future<void> _refreshEnRouteCount() async {
+    try {
+      if (_kidsMode || !GetIt.instance<PluginSyncService>().seerrAvailable) {
+        return;
+      }
+      final repo = await GetIt.instance.getAsync<SeerrRepository>();
+      await repo.ensureInitialized();
+      if (!repo.isAvailable) return;
+      final user = await repo.getCurrentUser();
+      final response = await repo.getRequests(
+        requestedBy: user.id,
+        sort: 'modified',
+        limit: 50,
+      );
+      final entries = myRequestEntries(
+        response.results,
+        now: DateTime.now(),
+        limit: 30,
+      );
+      final waiting = entries
+          .where(
+            (e) =>
+                e.state == MyRequestState.downloading ||
+                e.state == MyRequestState.approved ||
+                e.state == MyRequestState.pending,
+          )
+          .length;
+      TopToolbar.vjodEnRouteCount.value = waiting;
+    } catch (e) {
+      debugPrint('[Toolbar] En route count failed: $e');
+    }
+  }
+
   @override
   void dispose() {
+    _enRouteTimer?.cancel();
+    TopToolbar.vjodEnRouteCount.removeListener(_onEnRouteCount);
     if (_observedRoute != null) {
       routeLifecycleObserver.unsubscribe(this);
       _observedRoute = null;
@@ -907,8 +961,7 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
     );
   }
 
-  /// The mock-up's bar: logo, Accueil, Films, Séries, Explorer, Bientôt,
-  /// En route, search, and the avatar that opens everything else.
+  /// The mock-up's bar: logo, Accueil, Films, Séries, Explorer, Bientôt, En route, search, and the avatar that opens everything else.
   Widget _buildVjodBar() {
     final l10n = AppLocalizations.of(context);
     final s = _vjodScale;
@@ -972,6 +1025,7 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
           ),
         VjodNavItem(
           label: l10n.enRouteTitle,
+          badge: TopToolbar.vjodEnRouteCount.value,
           icon: Icons.downloading_rounded,
           selected: _isActive(Destinations.enRoute),
           onTap: () {
@@ -1014,7 +1068,9 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
   static bool _sameTabs(List<VjodNavItem> a, List<VjodNavItem> b) {
     if (a.length != b.length) return false;
     for (var i = 0; i < a.length; i++) {
-      if (a[i].label != b[i].label || a[i].selected != b[i].selected) {
+      if (a[i].label != b[i].label ||
+          a[i].selected != b[i].selected ||
+          a[i].badge != b[i].badge) {
         return false;
       }
     }
