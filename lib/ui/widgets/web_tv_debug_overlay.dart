@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../util/platform_detection.dart';
-import '../../util/web_tv_detect.dart';
 
 /// A small panel in the corner of the web app, shown only with `?tvdebug=1`
 /// in the address: what has the focus, the last key the app received and
@@ -14,8 +13,8 @@ import '../../util/web_tv_detect.dart';
 class WebTvDebugOverlay extends StatefulWidget {
   const WebTvDebugOverlay({super.key});
 
-  /// Read once, at start, while the address still holds `?tvdebug=1`.
-  static final bool enabled = webTvDebugEnabled();
+  static bool get enabled =>
+      PlatformDetection.isWeb && Uri.base.queryParameters['tvdebug'] == '1';
 
   @override
   State<WebTvDebugOverlay> createState() => _WebTvDebugOverlayState();

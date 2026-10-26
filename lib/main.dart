@@ -60,7 +60,6 @@ import 'ui/navigation/app_router.dart';
 import 'ui/screensaver/screensaver_controller.dart';
 import 'util/platform_detection.dart';
 import 'util/web_tv_detect.dart';
-import 'ui/widgets/web_tv_debug_overlay.dart';
 import 'util/process_exit_reporter.dart';
 import 'util/system_ui.dart';
 import 'util/tv_image_cache_stub.dart'
@@ -319,8 +318,6 @@ Future<void> _detectAndSetTvMode() async {
   // a computer's browser keeps the desktop one.
   if (PlatformDetection.isWeb) {
     PlatformDetection.setTvMode(isWebTvBrowser());
-    // Latched now, while the address still carries its query.
-    if (WebTvDebugOverlay.enabled) debugPrint('[WebTV] Diagnostic panel on');
     return;
   }
   if (!PlatformDetection.isAndroid) return;
