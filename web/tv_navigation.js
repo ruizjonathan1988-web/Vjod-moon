@@ -54,7 +54,7 @@
   var style = document.createElement('style');
   style.textContent =
     'html.vjod-keys, html.vjod-keys * { cursor: none !important; }' +
-    '#vjod-pointer-hint { position: fixed; left: 50%; bottom: 6%;' +
+    '#vjod-pointer-hint { position: fixed; left: 50%; bottom: 16%;' +
     ' transform: translateX(-50%); z-index: 2147483647;' +
     ' background: rgba(11,11,13,0.92); color: #EDEBE6;' +
     ' font: 600 22px/1.35 sans-serif; padding: 14px 26px; border-radius: 14px;' +
@@ -70,18 +70,18 @@
     if (hintShown) return;
     hintShown = true;
     try {
-      if (window.localStorage.getItem('vjod_pointer_hint') === '1') return;
-      window.localStorage.setItem('vjod_pointer_hint', '1');
+      if (window.localStorage.getItem('vjod_pointer_hint2') === '1') return;
+      window.localStorage.setItem('vjod_pointer_hint2', '1');
     } catch (e) {}
     var french = (navigator.language || 'fr').toLowerCase().indexOf('fr') === 0;
     var hint = document.createElement('div');
     hint.id = 'vjod-pointer-hint';
     hint.textContent = french
-      ? 'Poussez le curseur contre un bord de l\u2019\u00e9cran pour faire d\u00e9filer'
-      : 'Push the cursor against an edge of the screen to scroll';
+      ? 'Pour vous d\u00e9placer : poussez le curseur contre un bord de l\u2019\u00e9cran, ou cliquez sur les fl\u00e8ches en bas \u00e0 droite'
+      : 'To move: push the cursor against an edge of the screen, or click the arrows at the bottom right';
     document.body.appendChild(hint);
-    setTimeout(function () { hint.style.opacity = '0'; }, 6000);
-    setTimeout(function () { hint.remove(); }, 6600);
+    setTimeout(function () { hint.style.opacity = '0'; }, 9000);
+    setTimeout(function () { hint.remove(); }, 9600);
   }
 
   window.addEventListener('mousemove', function (e) {
@@ -253,10 +253,66 @@
     }, { passive: true });
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', setUpScrollProxy);
-  } else {
+  // Third way, which needs nothing from the browser but a click: a small
+  // pad of arrows in the corner, for the cursor to click (or hold). It goes
+  // away as soon as a real arrow key reaches the app, since that remote
+  // needs no help.
+  function setUpPad() {
+    var pad = document.createElement('div');
+    pad.id = 'vjod-pad';
+    pad.style.cssText =
+      'position:fixed;right:22px;bottom:22px;z-index:2147483646;' +
+      'display:grid;grid-template-columns:repeat(3,64px);' +
+      'grid-template-rows:repeat(3,64px);gap:6px;opacity:.82;';
+    var cells = [null, 'up', null, 'left', null, 'right', null, 'down', null];
+    var glyph = { up: '\u25B2', down: '\u25BC', left: '\u25C0', right: '\u25B6' };
+    cells.forEach(function (dir) {
+      var cell = document.createElement('div');
+      if (dir) {
+        cell.textContent = glyph[dir];
+        cell.style.cssText =
+          'width:64px;height:64px;border-radius:32px;display:flex;' +
+          'align-items:center;justify-content:center;cursor:pointer;' +
+          'font:700 26px sans-serif;color:#EDEBE6;' +
+          'background:rgba(11,11,13,0.85);' +
+          'box-shadow:0 0 0 2px rgba(237,235,230,0.35);user-select:none;';
+        var timer = 0, count = 0;
+        var stop = function () { clearInterval(timer); timer = 0; count = 0; };
+        var start = function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          stop();
+          lastPress = 0;
+          press(dir, 0);
+          timer = setInterval(function () { count++; press(dir, count); }, 120);
+        };
+        cell.addEventListener('mousedown', start);
+        cell.addEventListener('touchstart', start, { passive: false });
+        ['mouseup', 'mouseleave', 'touchend', 'touchcancel'].forEach(
+          function (t) { cell.addEventListener(t, stop); });
+        cell.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+        });
+      }
+      pad.appendChild(cell);
+    });
+    document.body.appendChild(pad);
+    window.addEventListener('keydown', function (e) {
+      if (!sending && e.key && e.key.indexOf('Arrow') === 0) {
+        pad.style.display = 'none';
+      }
+    }, true);
+  }
+
+  function setUp() {
     setUpScrollProxy();
+    setUpPad();
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setUp);
+  } else {
+    setUp();
   }
 
   // Samsung Tizen: 10009. LG webOS: 461.
