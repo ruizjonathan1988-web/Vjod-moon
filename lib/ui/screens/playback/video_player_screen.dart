@@ -2556,24 +2556,47 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
               ),
             ),
             const SizedBox(height: 10),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                pill(
-                  remote
-                      ? (french ? '▲ J\'ai aimé' : '▲ Loved it')
-                      : (french ? 'J\'ai aimé' : 'Loved it'),
-                  Icons.thumb_up_alt_rounded,
-                  true,
+            // On a remote the answers stack the way the arrows point: up
+            // for "J'ai aimé", down for "Bof".
+            if (remote) ...[
+              pill(
+                french ? '▲  J\'ai aimé' : '▲  Loved it',
+                Icons.thumb_up_alt_rounded,
+                true,
+              ),
+              const SizedBox(height: 8),
+              pill(
+                french ? '▼  Bof' : '▼  Meh',
+                Icons.thumbs_up_down_outlined,
+                false,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                french
+                    ? 'Flèche haut ou bas de la télécommande'
+                    : 'Up or down on the remote',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.6),
+                  fontSize: 13,
                 ),
-                const SizedBox(width: 8),
-                pill(
-                  remote ? '▼ Bof' : (french ? 'Bof' : 'Meh'),
-                  Icons.thumbs_up_down_outlined,
-                  false,
-                ),
-              ],
-            ),
+              ),
+            ] else
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  pill(
+                    french ? 'J\'ai aimé' : 'Loved it',
+                    Icons.thumb_up_alt_rounded,
+                    true,
+                  ),
+                  const SizedBox(width: 8),
+                  pill(
+                    french ? 'Bof' : 'Meh',
+                    Icons.thumbs_up_down_outlined,
+                    false,
+                  ),
+                ],
+              ),
           ],
         ),
       ),

@@ -100,6 +100,9 @@ class _ExplorerScreenState extends State<ExplorerScreen> {
   List<AggregatedItem> _palmares = const [];
   List<AggregatedItem> _sagas = const [];
 
+  /// Server sections opened in full with their Tout voir tile.
+  final Set<String> _expanded = {};
+
   @override
   void initState() {
     super.initState();
@@ -268,8 +271,14 @@ class _ExplorerScreenState extends State<ExplorerScreen> {
         );
     }
 
-    void serverSection(String title, List<AggregatedItem> items) {
-      if (items.isEmpty) return;
+    // A server can hold dozens of sagas: two lines of them, then a tile
+    // that opens the rest in place, so the remote isn't held down to reach
+    // the end of Explorer.
+    final shortList = columns * 2 - 1;
+    void serverSection(String title, List<AggregatedItem> all) {
+      if (all.isEmpty) return;
+      final expanded = _expanded.contains(title) || all.length <= shortList + 1;
+      final items = expanded ? all : all.take(shortList).toList();
       children
         ..add(sectionTitle(title))
         ..add(
@@ -286,6 +295,18 @@ class _ExplorerScreenState extends State<ExplorerScreen> {
                   title: item.name,
                   autofocus: takeFirst(),
                   onTap: () => _openServerCollection(item),
+                ),
+              if (!expanded)
+                _ExplorerTile(
+                  width: tileW,
+                  height: tileH,
+                  scale: s,
+                  color: const Color(0xFF24252B),
+                  title: french
+                      ? 'Tout voir (${all.length})'
+                      : 'See all (${all.length})',
+                  autofocus: false,
+                  onTap: () => setState(() => _expanded.add(title)),
                 ),
             ],
           ),

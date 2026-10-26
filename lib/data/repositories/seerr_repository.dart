@@ -2,6 +2,7 @@ import 'package:jellyfin_preference/jellyfin_preference.dart';
 import 'package:server_core/server_core.dart';
 
 import '../../auth/repositories/session_repository.dart';
+import '../services/seerr/for_you_service.dart';
 import '../services/seerr/seerr_api_models.dart';
 import '../services/home_highlights.dart';
 import '../services/seerr/seerr_age_gate.dart' show AgeInfo, parseAgeInfo;
@@ -783,8 +784,8 @@ class SeerrRepository {
     int? profileId,
     String? rootFolder,
     int? serverId,
-  }) => _withClient(
-    (c) async => SeerrRequest.fromJson(
+  }) => _withClient((c) async {
+    final request = SeerrRequest.fromJson(
       await c.createRequest(
         mediaId: mediaId,
         mediaType: mediaType,
@@ -795,8 +796,12 @@ class SeerrRepository {
         rootFolder: rootFolder,
         serverId: serverId,
       ),
-    ),
-  );
+    );
+    // Every card of this title, on Home and elsewhere, shows it as asked
+    // for at once, whichever screen the request came from.
+    ForYouService.instance.markRequested(mediaType, mediaId);
+    return request;
+  });
 
   Future<void> deleteRequest(int requestId) =>
       _withClient((c) => c.deleteRequest(requestId));

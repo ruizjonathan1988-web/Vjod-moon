@@ -53,6 +53,7 @@ import '../../../data/services/vjod/vjod_collections.dart';
 import '../../../data/services/vjod/vjod_personalizer.dart';
 import '../../../data/services/tonight/evening_journal.dart';
 import '../../../data/services/tonight/tonight_models.dart';
+import '../../../data/services/tonight/tonight_service.dart';
 import '../../../data/services/vjod/vjod_votes.dart';
 import '../../../data/services/wikidata/film_awards_client.dart';
 import '../../../data/services/french_box_office.dart';
@@ -418,12 +419,27 @@ class HomeViewModel extends ChangeNotifier {
        _ownerUserId = client.userId ?? '' {
     ForYouService.instance.requestedChanges.addListener(notifyListeners);
     _ageGate?.addListener(notifyListeners);
+    TonightService.instance.answersChanged.addListener(_onTonightAnswers);
+  }
+
+  /// One mood for the evening: a mood picked in the banner's "Ce soir" is
+  /// also the one the mood chips tick, and tints the rows the same way.
+  void _onTonightAnswers() {
+    final prefs = GetIt.instance<SeerrPreferences>();
+    if (!prefs.vjodPersonalize) return;
+    final mood = TonightService.instance.suggestAnswers().mood;
+    if (VjodMoodStore.read(prefs.vjodMood) == mood) return;
+    unawaited(() async {
+      await prefs.setVjodMood(VjodMoodStore.write(mood));
+      await refreshVjodRows(currentAppLocalizations());
+    }());
   }
 
   @override
   void dispose() {
     ForYouService.instance.requestedChanges.removeListener(notifyListeners);
     _ageGate?.removeListener(notifyListeners);
+    TonightService.instance.answersChanged.removeListener(_onTonightAnswers);
     super.dispose();
   }
 
@@ -676,7 +692,7 @@ class HomeViewModel extends ChangeNotifier {
         sectionsToLoad = [];
         for (final (index, cfg) in nonResumeEffectiveConfigs.indexed) {
           if (index >= _eagerSectionCount && _isDeferrable(cfg)) {
-            _deferredSections[cfg.stableId] = cfg;
+            _deferredSections[_deferKey(cfg)] = cfg;
           } else {
             sectionsToLoad.add(cfg);
           }
@@ -861,9 +877,18 @@ class HomeViewModel extends ChangeNotifier {
   }
 
   /// Single row sections, which a layout can hold hundreds of, and whose row
-  /// takes the section's id.
+  /// takes the section's id. VJOD's Seerr rows too: each is two Seerr pages,
+  /// so the ones below the screen wait until Home scrolls near them.
   static bool _isDeferrable(HomeSectionConfig cfg) =>
-      cfg.isPluginDynamic && (cfg.pluginSection?.isNotEmpty ?? false);
+      (cfg.isPluginDynamic && (cfg.pluginSection?.isNotEmpty ?? false)) ||
+      (cfg.isBuiltin && cfg.type.isVjodRow && !cfg.type.isVjodLibraryRow);
+
+  /// The key a deferred section waits under: the id of the row standing in
+  /// for it, which is what the screen reports when it nears that row.
+  String _deferKey(HomeSectionConfig cfg) =>
+      cfg.isPluginDynamic
+      ? cfg.stableId
+      : (_placeholderForSection(cfg.type)?.id ?? cfg.stableId);
 
   /// Repaints the watched ticks on the rows already built, without refetching
   /// them. The home screen drives this so the listener lives and dies with the
@@ -902,7 +927,7 @@ class HomeViewModel extends ChangeNotifier {
         // have loaded, and hiding it would keep Home from scrolling near it.
         if (hydratedFromCache &&
             !HomeRowCacheStore.isTimeBound(placeholder.rowType) &&
-            !_deferredSections.containsKey(cfg.stableId)) {
+            !_deferredSections.containsKey(_deferKey(cfg))) {
           _emptySectionIds.add(placeholder.id);
         }
         reconciledRows.add(placeholder);
@@ -4082,6 +4107,11 @@ class HomeViewModel extends ChangeNotifier {
     final picked = TonightMood.values.asNameMap()[moodName];
     final next = picked == current ? null : picked;
     await prefs.setVjodMood(next == null ? '' : VjodMoodStore.write(next));
+    // The banner's "Ce soir" follows, so the evening has a single mood.
+    if (next != null) {
+      final tonight = TonightService.instance;
+      await tonight.saveAnswers(tonight.suggestAnswers().copyWith(mood: next));
+    }
     await refreshVjodRows(l10n);
   }
 
@@ -4091,7 +4121,9 @@ class HomeViewModel extends ChangeNotifier {
     _vjodSignals = null;
     final ids = [
       for (final row in _rows)
-        if (row.id.startsWith('vjod_')) row.id,
+        // A row still waiting to be scrolled near loads with the mood anyway.
+        if (row.id.startsWith('vjod_') && !_deferredSections.containsKey(row.id))
+          row.id,
     ];
     await Future.wait([
       for (final id in ids)
