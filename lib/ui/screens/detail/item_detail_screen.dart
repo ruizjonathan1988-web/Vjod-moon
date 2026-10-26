@@ -6912,7 +6912,11 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
         playButtonLabel = l10n.play;
       } else {
         final nextUp = viewModel.nextUp;
-        if (nextUp != null) {
+        if (nextUp != null &&
+            nextUp.indexNumber != null &&
+            _DetailActionButtonState._vjodButtons) {
+          playButtonLabel = l10n.vjodResumeEpisode(nextUp.indexNumber!);
+        } else if (nextUp != null) {
           final s = nextUp.parentIndexNumber;
           final e = nextUp.indexNumber;
           if (s != null && e != null) {
@@ -6992,7 +6996,11 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
               ? !(boxSetAllWatched || boxSetAllUnwatched)
               : (hasProgress && !isPhoto)))
         DetailButton.restart: _DetailActionButton(
-          label: isBook ? l10n.startOver : l10n.restart,
+          label: isBook
+              ? l10n.startOver
+              : (_DetailActionButtonState._vjodButtons
+                    ? l10n.vjodFromStart
+                    : l10n.restart),
           icon: Icons.restart_alt,
           onPressed: () => _play(context, item),
           onLongPress: isVideo
@@ -7074,7 +7082,10 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
       if (shows(DetailButton.favorite))
         DetailButton.favorite: _DetailActionButton(
           label: item.isFavorite ? l10n.favorited : l10n.favorite,
-          icon: Icons.favorite,
+          // VJOD's "+" adds to the list, as in the mock-up.
+          icon: _DetailActionButtonState._vjodButtons
+              ? (item.isFavorite ? Icons.check : Icons.add)
+              : Icons.favorite,
           onPressed: viewModel.toggleFavorite,
           isActive: item.isFavorite,
           activeColor: const Color(0xFFFF4757),
@@ -7293,16 +7304,25 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
         !widget.nouveauStyle &&
         prefs.get(detailButtonLayout.orderPreference).isEmpty &&
         prefs.get(UserPreferences.detailButtonsMaxVisible) == 0) {
-      const keep = [
-        DetailButton.restart,
-        DetailButton.trailer,
-        DetailButton.favorite,
-        DetailButton.personalRating,
-        DetailButton.notForMe,
-        DetailButton.seerrRequest,
-        // Russian sits next to French, as in the mock-up, not behind More.
-        DetailButton.seerrRequest4k,
-      ];
+      // A series page carries Resume, From the start and +, a film page
+      // Play, Trailer, +, the thumb and Not for me. French and Russian
+      // requests stay beside them, as in the mock-up.
+      final keep = item.type == 'Series' || item.type == 'Season'
+          ? const [
+              DetailButton.restart,
+              DetailButton.favorite,
+              DetailButton.seerrRequest,
+              DetailButton.seerrRequest4k,
+            ]
+          : const [
+              DetailButton.restart,
+              DetailButton.trailer,
+              DetailButton.favorite,
+              DetailButton.personalRating,
+              DetailButton.notForMe,
+              DetailButton.seerrRequest,
+              DetailButton.seerrRequest4k,
+            ];
       final front = <Widget>[
         ?primaryAction,
         for (final button in _orderedButtons(prefs))
@@ -12200,8 +12220,13 @@ class _DetailActionButtonState extends State<_DetailActionButton>
     required bool isMobile,
     required bool showHighlight,
   }) {
-    final scale = _modernButtonScale(context);
-    final height = isMobile ? 48.0 : 52.0 * scale;
+    // Sized off the screen like the mock-up (drawn 1334 wide) on a TV or a
+    // wide screen; the phone keeps thumb-sized buttons.
+    final width = MediaQuery.sizeOf(context).width;
+    final u = isMobile ? 1.0 : (width / 1334).clamp(0.55, 1.4);
+    final height = isMobile ? 48.0 : 50.0 * u;
+    final fontSize = isMobile ? 16.0 : 19.0 * u;
+    final iconSize = isMobile ? 20.0 : 20.0 * u;
     final fullWidth =
         widget.isPrimary &&
         (context
@@ -12210,9 +12235,11 @@ class _DetailActionButtonState extends State<_DetailActionButton>
             false);
     final ink = AppColorScheme.onSurface;
     final page = AppColorScheme.background;
-    // The mock-up's small squares (+ and the thumb) and its plain-word
-    // "Not for me".
+    // The mock-up's small squares (+ and the thumb), its plain-word
+    // "Not for me", and words without icons for everything else.
     final squares = <IconData>{
+      Icons.add,
+      Icons.check,
       Icons.favorite,
       Icons.thumb_up,
       Icons.thumb_down,
@@ -12223,37 +12250,38 @@ class _DetailActionButtonState extends State<_DetailActionButton>
     final square = !widget.isPrimary && squares.contains(widget.icon);
     final ghost =
         !widget.isPrimary && widget.icon == Icons.thumb_down_alt_outlined;
-    final light = widget.isPrimary || showHighlight;
+    final light = widget.isPrimary || (showHighlight && !ghost);
     final fill = light
         ? ink
         : ghost
         ? Colors.transparent
-        : widget.isActive
-        ? (widget.activeColor ?? AppColorScheme.accent).withValues(alpha: 0.22)
         : AppColorScheme.buttonNormal;
-    final fg = light ? page : (ghost ? ink.withValues(alpha: 0.7) : ink);
-    final iconColor = (widget.icon == Icons.favorite && widget.isActive)
-        ? const Color(0xFFE50914)
-        : fg;
-    final icon = widget.iconBuilder != null
-        ? widget.iconBuilder!(22 * scale, iconColor)
-        : (widget.icon == null
-              ? null
-              : AdaptiveIcon(widget.icon!, color: iconColor, size: 22 * scale));
+    final fg = light ? page : (ghost ? ink.withValues(alpha: 0.6) : ink);
+    final showIcon = widget.isPrimary || square;
+    final Widget? icon;
+    if (!showIcon) {
+      icon = null;
+    } else if (widget.iconBuilder != null) {
+      icon = widget.iconBuilder!(iconSize, fg);
+    } else if (widget.icon == null) {
+      icon = null;
+    } else {
+      icon = AdaptiveIcon(widget.icon!, color: fg, size: iconSize);
+    }
     return AnimatedContainer(
       duration: const Duration(milliseconds: 120),
       height: height,
       width: fullWidth ? double.infinity : (square ? height : null),
       padding: square
           ? EdgeInsets.zero
-          : EdgeInsets.symmetric(horizontal: (isMobile ? 16 : 22) * scale),
+          : EdgeInsets.symmetric(horizontal: (isMobile ? 16 : 28) * u),
       decoration: BoxDecoration(
         color: fill,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(6 * u),
         boxShadow: showHighlight
             ? [
-                BoxShadow(color: page, spreadRadius: 3),
-                BoxShadow(color: ink, spreadRadius: 6),
+                BoxShadow(color: page, spreadRadius: 2.5 * u),
+                BoxShadow(color: ink, spreadRadius: 5 * u),
               ]
             : null,
       ),
@@ -12264,20 +12292,20 @@ class _DetailActionButtonState extends State<_DetailActionButton>
           if (square && icon != null)
             icon
           else ...[
-          if (icon != null && !ghost) ...[icon, SizedBox(width: 8 * scale)],
-          Flexible(
-            child: Text(
-              widget.label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              softWrap: false,
-              style: TextStyle(
-                color: fg,
-                fontWeight: FontWeight.w700,
-                fontSize: (isMobile ? 16 : 18) * scale,
+            if (icon != null) ...[icon, SizedBox(width: 10 * u)],
+            Flexible(
+              child: Text(
+                widget.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                softWrap: false,
+                style: TextStyle(
+                  color: fg,
+                  fontWeight: FontWeight.w700,
+                  fontSize: fontSize,
+                ),
               ),
             ),
-          ),
           ],
         ],
       ),

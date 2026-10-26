@@ -5164,6 +5164,38 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
     );
   }
 
+  /// VJOD's bar: time played on its left, time left on its right, one line,
+  /// whatever the slot settings say.
+  Widget _vjodInlineTimes({
+    required Duration position,
+    required Duration duration,
+    required bool use24Hour,
+    required Widget bar,
+  }) {
+    if (!_vjodOsd) return bar;
+    const style = TextStyle(
+      color: Colors.white,
+      fontSize: 17,
+      fontWeight: FontWeight.w500,
+      fontFeatures: [FontFeature.tabularFigures()],
+    );
+    String label(PlaybackTimeSlot slot) => _timeSlotLabel(
+      slot,
+      position: position,
+      duration: duration,
+      use24Hour: use24Hour,
+    );
+    return Row(
+      children: [
+        Text(label(PlaybackTimeSlot.elapsed), style: style),
+        const SizedBox(width: 14),
+        Expanded(child: bar),
+        const SizedBox(width: 14),
+        Text(label(PlaybackTimeSlot.timeRemaining), style: style),
+      ],
+    );
+  }
+
   Widget _buildTimeSlotRow({
     required String left,
     required String center,
@@ -5442,7 +5474,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
                           _buildSubtitleLoadingIndicator(),
                           const SizedBox(height: AppSpacing.spaceMd),
                         ],
-                        if (hasAboveRow)
+                        if (hasAboveRow && !_vjodOsd)
                           Padding(
                             padding: const EdgeInsets.only(
                               bottom: AppSpacing.spaceXs,
@@ -5505,7 +5537,11 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
                             },
                             child: ExcludeFocus(
                               excluding: PlatformDetection.isTV,
-                              child: Stack(
+                              child: _vjodInlineTimes(
+                                position: livePosition,
+                                duration: duration,
+                                use24Hour: use24Hour,
+                                bar: Stack(
                                 alignment: Alignment.center,
                                 children: [
                                   _buildSeekSlider(
@@ -5526,9 +5562,11 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
                                   ),
                                 ],
                               ),
+                              ),
                             ),
                           ),
                         ),
+                        if (!_vjodOsd)
                         _buildTimeSlotRow(
                           left: _timeSlotLabel(
                             belowLeftSlot,
@@ -5923,7 +5961,9 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
               const SizedBox(width: 4),
             ],
             _controlButton(
-              seekBackIcon(_prefs.get(UserPreferences.skipBackLength)),
+              _vjodOsd
+                  ? Icons.replay_rounded
+                  : seekBackIcon(_prefs.get(UserPreferences.skipBackLength)),
               onPressed: () =>
                   _seekRelative(-_prefs.get(UserPreferences.skipBackLength)),
               size: buttonIconSize,
@@ -5960,7 +6000,11 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
             ),
             const SizedBox(width: 8),
             _controlButton(
-              seekForwardIcon(_prefs.get(UserPreferences.skipForwardLength)),
+              _vjodOsd
+                  ? Icons.refresh_rounded
+                  : seekForwardIcon(
+                      _prefs.get(UserPreferences.skipForwardLength),
+                    ),
               onPressed: () =>
                   _seekRelative(_prefs.get(UserPreferences.skipForwardLength)),
               size: buttonIconSize,
@@ -6309,10 +6353,18 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
                       _manager.next,
                       icon: Icons.skip_next_rounded,
                     ),
-                  _vjodPill(
-                    _vjodOsdMore ? l10n.vjodLess : l10n.vjodMore,
-                    secondaryExtent,
-                    () => setState(() => _vjodOsdMore = !_vjodOsdMore),
+                  // The mock-up has no room for the rarer tools: they wait
+                  // behind a quiet disc at the end of the row.
+                  _controlButton(
+                    _vjodOsdMore
+                        ? Icons.close_rounded
+                        : Icons.more_horiz_rounded,
+                    onPressed: () =>
+                        setState(() => _vjodOsdMore = !_vjodOsdMore),
+                    size: secondaryIconSize,
+                    extent: secondaryExtent,
+                    fill: const Color(0x1FEDEBE6),
+                    tooltip: _vjodOsdMore ? l10n.vjodLess : l10n.vjodMore,
                   ),
                   if (_vjodOsdMore) ...iconButtons,
                 ]
@@ -6335,6 +6387,28 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
 
         final layoutBuilder = LayoutBuilder(
           builder: (context, constraints) {
+            // VJOD lines its words up on the right, as the mock-up does.
+            if (_vjodOsd && isLandscape) {
+              return SizedBox(
+                height: secondaryExtent,
+                child: Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (final button in orderedSecondaryButtons)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 10),
+                            child: button,
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }
             final canFitLandscapeRow =
                 isLandscape && estimatedWidth <= constraints.maxWidth;
 

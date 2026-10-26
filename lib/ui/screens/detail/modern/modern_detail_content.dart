@@ -4769,7 +4769,7 @@ class _ModernDetailContentState extends State<ModernDetailContent> {
                     style: _vjodTheme
                         ? TextStyle(
                             fontFamily: 'Anton',
-                            fontSize: _landscape ? 72 : 44,
+                            fontSize: _landscape ? 76 * _vjodU : 44,
                             height: 1.02,
                             color: _titleColor,
                           )
@@ -5130,6 +5130,8 @@ class _ModernDetailContentState extends State<ModernDetailContent> {
   Widget? _computeUpNext(BuildContext context, AggregatedItem item) {
     // Hidden reads the same as nothing up next, which every caller handles.
     if (!_sections.shows(DetailSection.upNext)) return null;
+    // The mock-up resumes from the Play button and the episode row instead.
+    if (_vjodTheme && item.type == 'Series') return null;
     const supported = {'Series', 'Season', 'BoxSet'};
     if (!supported.contains(item.type)) return null;
     final isBoxSet = item.type == 'BoxSet';
@@ -5450,7 +5452,8 @@ class _ModernDetailContentState extends State<ModernDetailContent> {
 
   /// Films and titles not here yet drop the tabs for the mock-up's sections.
   bool _vjodBelow(AggregatedItem item) =>
-      _vjodTheme && (item.type == 'Movie' || _vm.isSeerrOnly);
+      _vjodTheme &&
+      (item.type == 'Movie' || item.type == 'Series' || _vm.isSeerrOnly);
 
   bool _vjodMeta(AggregatedItem item) =>
       _vjodTheme &&
@@ -5467,7 +5470,10 @@ class _ModernDetailContentState extends State<ModernDetailContent> {
   Widget _vjodMetaRow(BuildContext context, AggregatedItem item) {
     final l10n = AppLocalizations.of(context);
     final muted = AppColorScheme.onSurface.withValues(alpha: 0.75);
-    final style = TextStyle(color: muted, fontSize: _landscape ? 18 : 15);
+    final style = TextStyle(
+      color: muted,
+      fontSize: _landscape ? 19 * _vjodU : 15,
+    );
     final ready = !_vm.isSeerrOnly;
     final runtime = item.type == 'Movie' ? item.runtime : null;
     final use24 = widget.prefs.get(UserPreferences.use24HourClock);
@@ -5681,7 +5687,7 @@ class _ModernDetailContentState extends State<ModernDetailContent> {
       text,
       style: TextStyle(
         color: AppColorScheme.onSurface,
-        fontSize: _landscape ? 20 : 17,
+        fontSize: _landscape ? 21 * _vjodU : 17,
         fontWeight: FontWeight.w700,
       ),
     ),
@@ -5692,10 +5698,11 @@ class _ModernDetailContentState extends State<ModernDetailContent> {
     final seerr = entry.serverId == 'seerr' || entry.id.startsWith('tmdb:');
     final l10n = AppLocalizations.of(context);
     final color = seerr ? AppColorScheme.accent : AppColorScheme.statusAvailable;
-    final w = _landscape ? 120.0 : 104.0;
+    final u = _vjodU;
+    final w = 108.0 * u;
     final url = _imageUrl(entry);
     return Padding(
-      padding: const EdgeInsets.only(right: 10),
+      padding: EdgeInsets.only(right: 11 * u),
       child: VjodFocusable(
         focusNode: focusNode,
         onTap: () => _vjodOpen(entry),
@@ -5829,14 +5836,336 @@ class _ModernDetailContentState extends State<ModernDetailContent> {
     ),
   );
 
+  /// Mock-up units: it is drawn 1334 wide, so a TV or a wide screen scales
+  /// from there; the phone keeps fixed sizes.
+  double get _vjodU => _landscape
+      ? (MediaQuery.sizeOf(context).width / 1334).clamp(0.55, 1.4)
+      : 0.8;
+
+  int? _vjodSeasonPick;
+
+  Widget _vjodChip({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+    FocusNode? focusNode,
+    Color? dot,
+  }) {
+    final u = _vjodU;
+    return Padding(
+      padding: EdgeInsets.only(right: 10 * u),
+      child: VjodFocusable(
+        focusNode: focusNode,
+        onTap: onTap,
+        builder: (context, focused) => AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          padding: EdgeInsets.symmetric(horizontal: 16 * u, vertical: 9 * u),
+          decoration: BoxDecoration(
+            color: selected ? vjodInk : AppColorScheme.buttonNormal,
+            borderRadius: BorderRadius.circular(999),
+            boxShadow: vjodFocusRing(u, on: focused),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (dot != null) ...[
+                Container(
+                  width: 7 * u,
+                  height: 7 * u,
+                  decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
+                ),
+                SizedBox(width: 7 * u),
+              ],
+              Text(
+                label,
+                style: TextStyle(
+                  color: selected ? vjodPage : vjodInk,
+                  fontSize: 19 * u,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// An episode as the mock-up draws it: a wide picture with its number,
+  /// "✓ Seen" when watched, a progress line, its title and what is left.
+  Widget _vjodEpisode(AggregatedItem ep, {FocusNode? focusNode}) {
+    final l10n = AppLocalizations.of(context);
+    final u = _vjodU;
+    final w = (_landscape ? 290.0 : 260.0) * u;
+    final url = _imageUrl(ep);
+    final played = ep.isPlayed;
+    final pct = (ep.playedPercentage ?? 0) / 100;
+    final runtime = ep.runtime;
+    String sub = runtime == null ? '' : _vjodLength(runtime);
+    if (!played && pct > 0 && runtime != null) {
+      final left = runtime * (1 - pct);
+      final end = _endsAt(
+        ep,
+        runtime,
+        use24Hour: widget.prefs.get(UserPreferences.use24HourClock),
+      );
+      sub = l10n.vjodLeftMinutesCap(left.inMinutes.clamp(1, 999));
+      if (end != null) sub = '$sub · ${l10n.vjodEndsAtShort(end)}';
+    }
+    final muted = AppColorScheme.onSurface.withValues(alpha: 0.6);
+    return Padding(
+      padding: EdgeInsets.only(right: 16 * u),
+      child: VjodFocusable(
+        focusNode: focusNode,
+        onTap: () => _vjodOpen(ep),
+        builder: (context, focused) => SizedBox(
+          width: w,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 120),
+                height: w * 0.56,
+                decoration: BoxDecoration(
+                  color: AppColorScheme.surface,
+                  borderRadius: BorderRadius.circular(4 * u),
+                  boxShadow: vjodFocusRing(u, on: focused),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (url != null)
+                      OfflineAwareImage(imageUrl: url, fit: BoxFit.cover),
+                    const DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.center,
+                          colors: [Color(0x99000000), Color(0x00000000)],
+                        ),
+                      ),
+                    ),
+                    if (ep.indexNumber != null)
+                      Positioned(
+                        left: 10 * u,
+                        top: 8 * u,
+                        child: Text(
+                          '${ep.indexNumber}',
+                          style: vjodDisplay(36 * u),
+                        ),
+                      ),
+                    if (played)
+                      Positioned(
+                        right: 8 * u,
+                        top: 8 * u,
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 7 * u,
+                            vertical: 3 * u,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xD90B0B0D),
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                          child: Text(
+                            '✓ ${l10n.vjodWatched}',
+                            style: TextStyle(
+                              color: AppColorScheme.statusAvailable,
+                              fontSize: 15 * u,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      height: 3 * u,
+                      child: ColoredBox(
+                        color: Colors.white.withValues(alpha: 0.18),
+                        child: FractionallySizedBox(
+                          alignment: Alignment.centerLeft,
+                          widthFactor: played ? 1 : pct.clamp(0.0, 1.0),
+                          child: const ColoredBox(color: vjodInk),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: 8 * u),
+              Text(
+                ep.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: AppColorScheme.onSurface,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 19 * u,
+                ),
+              ),
+              if (sub.isNotEmpty)
+                Text(sub, style: TextStyle(color: muted, fontSize: 16 * u)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// One face from the cast: a circle and the name under it.
+  Widget _vjodPerson(Map<String, dynamic> person, String? serverId,
+      {FocusNode? focusNode}) {
+    final u = _vjodU;
+    final name = person['Name'] as String? ?? '';
+    final personId = person['Id']?.toString();
+    final tag = person['PrimaryImageTag'] as String?;
+    final profilePath = person['ProfilePath'] as String?;
+    String? url;
+    if (personId != null && tag != null && serverId != 'seerr') {
+      url = _vm.imageApi.getPrimaryImageUrl(personId, maxHeight: 240, tag: tag);
+    } else if (profilePath != null && profilePath.isNotEmpty) {
+      url = 'https://image.tmdb.org/t/p/w185$profilePath';
+    }
+    final d = 75.0 * u;
+    return Padding(
+      padding: EdgeInsets.only(right: 12 * u),
+      child: VjodFocusable(
+        focusNode: focusNode,
+        onTap: personId == null
+            ? () {}
+            : () => context.push(
+                serverId == 'seerr'
+                    ? Destinations.seerrPerson(personId)
+                    : Destinations.item(personId, serverId: serverId),
+              ),
+        builder: (context, focused) => SizedBox(
+          width: 92 * u,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 120),
+                width: d,
+                height: d,
+                decoration: BoxDecoration(
+                  color: AppColorScheme.surface,
+                  shape: BoxShape.circle,
+                  boxShadow: vjodFocusRing(u, on: focused),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: url == null
+                    ? null
+                    : OfflineAwareImage(imageUrl: url, fit: BoxFit.cover),
+              ),
+              SizedBox(height: 8 * u),
+              Text(
+                name,
+                maxLines: 2,
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: AppColorScheme.onSurface,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 16 * u,
+                  height: 1.2,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Seasons as chips (the missing ones to request) and the chosen season's
+  /// episodes in a row.
+  Widget? _vjodSeriesSection(BuildContext context, AggregatedItem item,
+      {required FocusNode first}) {
+    final l10n = AppLocalizations.of(context);
+    final groups = <int, List<AggregatedItem>>{};
+    final eps = [..._vm.seriesEpisodes]..sort((a, b) {
+        final sa = a.parentIndexNumber ?? 0;
+        final sb = b.parentIndexNumber ?? 0;
+        if (sa != sb) return sa.compareTo(sb);
+        return (a.indexNumber ?? 0).compareTo(b.indexNumber ?? 0);
+      });
+    for (final e in eps) {
+      (groups[e.parentIndexNumber ?? 0] ??= []).add(e);
+    }
+    if (groups.isEmpty) return null;
+    final keys = groups.keys.toList();
+    final fallback = _vm.nextUp?.parentIndexNumber;
+    final current = keys.contains(_vjodSeasonPick)
+        ? _vjodSeasonPick!
+        : (fallback != null && keys.contains(fallback) ? fallback : keys.first);
+    final seerrState = _vm.seerr?.state;
+    final total = seerrState?.numberOfSeasons ?? 0;
+    final missing = [
+      for (var n = 1; n <= total; n++)
+        if (!keys.contains(n)) n,
+    ];
+    final shown = groups[current]!;
+    final nextUpId = _vm.nextUp?.id;
+    final focusIndex = shown.indexWhere((e) => e.id == nextUpId);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _vjodRow([
+          for (final (i, k) in keys.indexed)
+            _vjodChip(
+              label: l10n.vjodSeason(k),
+              selected: k == current,
+              focusNode: i == 0 ? first : null,
+              onTap: () => setState(() => _vjodSeasonPick = k),
+            ),
+          for (final n in missing)
+            _vjodChip(
+              label: l10n.vjodSeasonToRequest(n),
+              selected: false,
+              dot: AppColorScheme.accent,
+              onTap: () {
+                final tmdb = seerrState?.tmdbId ?? 0;
+                if (tmdb == 0) return;
+                context.push(
+                  Destinations.seerrMedia(
+                    '$tmdb',
+                    mediaType: 'tv',
+                    title: item.name,
+                  ),
+                );
+              },
+            ),
+        ]),
+        SizedBox(height: 18 * _vjodU),
+        _vjodRow([
+          for (final (i, e) in shown.indexed)
+            _vjodEpisode(
+              e,
+              focusNode: i == (focusIndex < 0 ? -1 : focusIndex)
+                  ? _vjodEpisodeFocus
+                  : null,
+            ),
+        ]),
+      ],
+    );
+  }
+
+  final FocusNode _vjodEpisodeFocus = FocusNode(debugLabel: 'vjodEpisode');
+
   /// What sits under the buttons in the mock-up, in place of the tabs.
   Widget _vjodBelowSections(BuildContext context, AggregatedItem item) {
     final l10n = AppLocalizations.of(context);
+    final u = _vjodU;
     if (_vm.isSeerrOnly) {
       final ready = _vm.readyNow;
       if (ready.isEmpty) return const SizedBox.shrink();
       return Padding(
-        padding: const EdgeInsets.only(top: 8),
+        padding: EdgeInsets.only(top: 8 * u),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -5849,8 +6178,13 @@ class _ModernDetailContentState extends State<ModernDetailContent> {
         ),
       );
     }
+    final isSeries = item.type == 'Series';
+    final series = isSeries
+        ? _vjodSeriesSection(context, item, first: _vjodBelowFirst)
+        : null;
     final actors = _vm.actors;
     final similar = _vm.similar;
+    final castFirst = series == null ? _vjodBelowFirst : null;
     final cast = actors.isEmpty
         ? null
         : Column(
@@ -5858,23 +6192,14 @@ class _ModernDetailContentState extends State<ModernDetailContent> {
             mainAxisSize: MainAxisSize.min,
             children: [
               _vjodSectionTitle(l10n.castMembers),
-              Focus(
-                canRequestFocus: false,
-                skipTraversal: true,
-                onKeyEvent: _vjodUpToButtons,
-                child: HorizontalScrollSection(
-                  title: '',
-                  contentSpacing: 0,
-                  builder: (context, controller) => DetailCastRow(
-                    people: actors.take(_landscape ? 4 : 8).toList(),
-                    imageApi: _vm.imageApi,
-                    serverId: item.serverId,
-                    scrollController: controller,
-                    firstItemFocusNode: _vjodBelowFirst,
-                    onNavigateUp: () => widget.initialFocusNode?.requestFocus(),
+              _vjodRow([
+                for (final (i, p) in actors.take(_landscape ? 4 : 10).indexed)
+                  _vjodPerson(
+                    p,
+                    item.serverId,
+                    focusNode: i == 0 ? castFirst : null,
                   ),
-                ),
-              ),
+              ]),
             ],
           );
     final same = similar.isEmpty
@@ -5888,33 +6213,43 @@ class _ModernDetailContentState extends State<ModernDetailContent> {
                 for (final (i, e) in similar.take(12).indexed)
                   _vjodPoster(
                     e,
-                    focusNode: cast == null && i == 0 ? _vjodBelowFirst : null,
+                    focusNode: series == null && cast == null && i == 0
+                        ? _vjodBelowFirst
+                        : null,
                   ),
               ]),
             ],
           );
-    if (cast == null && same == null) return const SizedBox.shrink();
-    if (_landscape && cast != null && same != null) {
-      return Padding(
-        padding: const EdgeInsets.only(top: 8),
-        child: Row(
+    Widget? pair;
+    if (cast != null || same != null) {
+      if (_landscape && cast != null && same != null) {
+        pair = Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(width: 440, child: cast),
-            const SizedBox(width: 40),
+            cast,
+            SizedBox(width: 50 * u),
             Expanded(child: same),
           ],
-        ),
-      );
+        );
+      } else {
+        pair = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ?cast,
+            if (cast != null && same != null) SizedBox(height: 24 * u),
+            ?same,
+          ],
+        );
+      }
     }
     return Padding(
-      padding: const EdgeInsets.only(top: 8),
+      padding: EdgeInsets.only(top: 24 * u),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          ?cast,
-          if (cast != null && same != null) const SizedBox(height: 20),
-          ?same,
+          if (series != null) series,
+          if (series != null && pair != null) SizedBox(height: 40 * u),
+          ?pair,
         ],
       ),
     );
