@@ -70,15 +70,15 @@
     if (hintShown) return;
     hintShown = true;
     try {
-      if (window.localStorage.getItem('vjod_pointer_hint2') === '1') return;
-      window.localStorage.setItem('vjod_pointer_hint2', '1');
+      if (window.localStorage.getItem('vjod_pointer_hint3') === '1') return;
+      window.localStorage.setItem('vjod_pointer_hint3', '1');
     } catch (e) {}
     var french = (navigator.language || 'fr').toLowerCase().indexOf('fr') === 0;
     var hint = document.createElement('div');
     hint.id = 'vjod-pointer-hint';
     hint.textContent = french
-      ? 'Pour vous d\u00e9placer : poussez le curseur contre un bord de l\u2019\u00e9cran, ou cliquez sur les fl\u00e8ches en bas \u00e0 droite'
-      : 'To move: push the cursor against an edge of the screen, or click the arrows at the bottom right';
+      ? 'Pour vous d\u00e9placer : poussez le curseur contre un bord de l\u2019\u00e9cran, ou amenez-le en bas \u00e0 droite pour des fl\u00e8ches \u00e0 cliquer'
+      : 'To move: push the cursor against an edge of the screen, or bring it to the bottom right corner for arrows to click';
     document.body.appendChild(hint);
     setTimeout(function () { hint.style.opacity = '0'; }, 9000);
     setTimeout(function () { hint.remove(); }, 9600);
@@ -257,16 +257,16 @@
   }
 
   // Third way, which needs nothing from the browser but a click: a small
-  // pad of arrows in the corner, for the cursor to click (or hold). It goes
-  // away as soon as a real arrow key reaches the app, since that remote
-  // needs no help.
+  // pad of arrows in the bottom right corner, for the cursor to click (or
+  // hold).
   function setUpPad() {
     var pad = document.createElement('div');
     pad.id = 'vjod-pad';
     pad.style.cssText =
       'position:fixed;right:22px;bottom:22px;z-index:2147483646;' +
       'display:grid;grid-template-columns:repeat(3,64px);' +
-      'grid-template-rows:repeat(3,64px);gap:6px;opacity:.82;';
+      'grid-template-rows:repeat(3,64px);gap:6px;opacity:0;' +
+      'transition:opacity .25s;pointer-events:none;';
     var cells = [null, 'up', null, 'left', null, 'right', null, 'down', null];
     var glyph = { up: '\u25B2', down: '\u25BC', left: '\u25C0', right: '\u25B6' };
     cells.forEach(function (dir) {
@@ -301,10 +301,28 @@
       pad.appendChild(cell);
     });
     document.body.appendChild(pad);
-    window.addEventListener('keydown', function (e) {
-      if (!sending && e.key && e.key.indexOf('Arrow') === 0) {
-        pad.style.display = 'none';
+
+    // Hidden until the cursor comes near the bottom right corner, so the
+    // screen stays clean for whoever pushes against the edges instead.
+    var shown = false, hideTimer = 0;
+    function show(on) {
+      if (on === shown) return;
+      shown = on;
+      pad.style.opacity = on ? '.85' : '0';
+      pad.style.pointerEvents = on ? 'auto' : 'none';
+    }
+    window.addEventListener('mousemove', function (e) {
+      var near = e.clientX > window.innerWidth - 300 &&
+        e.clientY > window.innerHeight - 300;
+      clearTimeout(hideTimer);
+      if (near) {
+        show(true);
+      } else if (shown) {
+        hideTimer = setTimeout(function () { show(false); }, 800);
       }
+    }, true);
+    window.addEventListener('keydown', function (e) {
+      if (!sending && e.key && e.key.indexOf('Arrow') === 0) show(false);
     }, true);
   }
 
