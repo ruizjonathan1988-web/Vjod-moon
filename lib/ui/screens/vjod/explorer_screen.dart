@@ -123,6 +123,38 @@ class _ExplorerScreenState extends State<ExplorerScreen> {
     return null;
   }
 
+  Future<void> _loadServerCollections() async {
+    try {
+      final client = GetIt.instance<MediaServerClient>();
+      final all = await RowDataSource(client).loadBoxSets(client.baseUrl);
+      final palmares = <AggregatedItem>[];
+      final sagas = <AggregatedItem>[];
+      for (final item in all) {
+        final name = item.name;
+        if (_replacedSmartLists.contains(name.toLowerCase().trim())) continue;
+        (_isPalmares(name) ? palmares : sagas).add(item);
+      }
+      if (!mounted) return;
+      setState(() {
+        _palmares = palmares;
+        _sagas = sagas;
+      });
+    } catch (e) {
+      debugPrint('[Explorer] Server collections failed: $e');
+    }
+  }
+
+  void _openCollection(VjodCollection c, bool french) {
+    context.push(
+      Destinations.seerrBrowseWith(
+        filterId: c.id,
+        filterName: c.title(french),
+        mediaType: c.query.mediaType,
+        filterType: vjodFilterType,
+      ),
+    );
+  }
+
   void _openServerCollection(AggregatedItem item) {
     context.push(Destinations.item(item.id, serverId: item.serverId));
   }
