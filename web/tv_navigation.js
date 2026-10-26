@@ -110,12 +110,61 @@
     up: ['ArrowUp', 38], down: ['ArrowDown', 40],
     left: ['ArrowLeft', 37], right: ['ArrowRight', 39]
   };
+  function wheel(x, y, dx, dy) {
+    var target = document.elementFromPoint(x, y);
+    if (!target) return;
+    target.dispatchEvent(new WheelEvent('wheel', {
+      clientX: x, clientY: y, screenX: x, screenY: y,
+      deltaX: dx, deltaY: dy, deltaMode: 0,
+      bubbles: true, cancelable: true, composed: true
+    }));
+  }
+
+  // A small arrow at the edge being pushed, so the viewer sees the push
+  // was felt.
+  var flashEl = null, flashTimer = 0;
+  function flash(dir) {
+    if (!flashEl) {
+      flashEl = document.createElement('div');
+      flashEl.style.cssText =
+        'position:fixed;z-index:2147483647;pointer-events:none;' +
+        'width:56px;height:56px;border-radius:28px;display:flex;' +
+        'align-items:center;justify-content:center;font:700 30px sans-serif;' +
+        'color:#0B0B0D;background:rgba(237,235,230,0.9);transition:opacity .3s;';
+      document.body.appendChild(flashEl);
+    }
+    var pos = {
+      down: 'left:calc(50% - 28px);bottom:18px;top:auto;right:auto;',
+      up: 'left:calc(50% - 28px);top:18px;bottom:auto;right:auto;',
+      right: 'right:18px;top:calc(50% - 28px);left:auto;bottom:auto;',
+      left: 'left:18px;top:calc(50% - 28px);right:auto;bottom:auto;'
+    }[dir];
+    flashEl.style.cssText = flashEl.style.cssText.replace(
+      /(left|right|top|bottom):[^;]*;/g, '') + pos;
+    flashEl.textContent = { down: '\u25BC', up: '\u25B2', right: '\u25B6', left: '\u25C0' }[dir];
+    flashEl.style.opacity = '1';
+    clearTimeout(flashTimer);
+    flashTimer = setTimeout(function () { flashEl.style.opacity = '0'; }, 350);
+  }
+
   var lastPress = 0;
   function press(dir, held) {
     var now = Date.now();
     // About four steps a second, a little quicker while held.
     if (now - lastPress < (held > 6 ? 150 : 240)) return;
     lastPress = now;
+    // A wheel turn for the screens that scroll like a page (grids, lists),
+    // then an arrow for the ones the remote's highlight drives. Both go the
+    // same way, so either one is enough to move the screen.
+    var w = window.innerWidth, h = window.innerHeight;
+    var amount = held > 6 ? 260 : 180;
+    if (dir === 'down' || dir === 'up') {
+      wheel(w / 2, h / 2, 0, dir === 'down' ? amount : -amount);
+    } else {
+      wheel(w / 2, mouseY >= 0 ? mouseY : h / 2,
+        dir === 'right' ? amount : -amount, 0);
+    }
+    flash(dir);
     var k = ARROWS[dir];
     var target = document.activeElement || document.body;
     sending = true;
@@ -157,9 +206,13 @@
   function setUpScrollProxy() {
     var spacer = document.createElement('div');
     spacer.setAttribute('aria-hidden', 'true');
-    spacer.style.cssText =
-      'position:absolute;top:0;left:0;width:300vw;height:300vh;' +
-      'visibility:hidden;pointer-events:none;';
+    function sizeSpacer() {
+      spacer.style.cssText =
+        'position:absolute;top:0;left:0;visibility:hidden;pointer-events:none;' +
+        'width:' + (window.innerWidth * 3) + 'px;' +
+        'height:' + (window.innerHeight * 3) + 'px;';
+    }
+    sizeSpacer();
     root.appendChild(spacer);
     var css = document.createElement('style');
     css.textContent =
@@ -169,15 +222,20 @@
     document.head.appendChild(css);
 
     var cx = 0, cy = 0, resetting = false, streak = 0, lastScroll = 0;
+    // Back to the middle. Where the page actually lands is the new
+    // reference, read once the browser has settled, so a page that can't
+    // reach the exact middle never reads as a push of its own.
     function centre() {
-      cx = window.innerWidth;
-      cy = window.innerHeight;
       resetting = true;
-      window.scrollTo(cx, cy);
-      setTimeout(function () { resetting = false; }, 0);
+      window.scrollTo(window.innerWidth, window.innerHeight);
+      setTimeout(function () {
+        cx = window.scrollX;
+        cy = window.scrollY;
+        resetting = false;
+      }, 60);
     }
     centre();
-    window.addEventListener('resize', centre);
+    window.addEventListener('resize', function () { sizeSpacer(); centre(); });
 
     window.addEventListener('scroll', function () {
       var dx = window.scrollX - cx, dy = window.scrollY - cy;
