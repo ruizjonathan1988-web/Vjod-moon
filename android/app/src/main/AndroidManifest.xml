@@ -157,5 +157,10 @@
         <intent>
             <action android:name="android.speech.RecognitionService"/>
         </intent>
+        <!-- The TV tab can launch these IPTV players when one is installed. -->
+        <package android:name="ar.tvplayer.tv"/>
+        <package android:name="studio.scillarium.ottnavigator"/>
+        <package android:name="com.nst.iptvsmarterspro"/>
+        <package android:name="ru.iptvremote.android.iptv"/>
     </queries>
 </manifest>

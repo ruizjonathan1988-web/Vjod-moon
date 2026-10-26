@@ -1001,6 +1001,17 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
           icon: Icons.tv_rounded,
           onTap: () => _openLibrary(series),
         ),
+      // Live TV through an external player (TiviMate and the like). No Seerr
+      // needed; it is the viewer's own IPTV source.
+      VjodNavItem(
+        label: l10n.vjodTvTab,
+        icon: Icons.live_tv_rounded,
+        selected: _isActive(Destinations.tv),
+        onTap: () {
+          if (_isActive(Destinations.tv)) return;
+          context.navigateTopLevel(Destinations.tv);
+        },
+      ),
       if (seerr) ...[
         // Explorer: every collection, what the server holds and what can be
         // asked for. On a phone Bientôt lives inside it, to keep five tabs.
@@ -1036,8 +1047,15 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
       ],
     ];
     // On a narrow screen the tabs go to the bottom bar, which the layout
-    // draws from what is published here.
-    final published = narrow ? tabs : const <VjodNavItem>[];
+    // draws from what is published here. The TV tab lives in the avatar menu
+    // on a phone, so the bottom bar keeps Accueil, Films, Séries, Explorer
+    // and En route.
+    final published = narrow
+        ? [
+            for (final t in tabs)
+              if (t.label != l10n.vjodTvTab) t,
+          ]
+        : const <VjodNavItem>[];
     if (!_sameTabs(TopToolbar.vjodBottomTabs.value, published)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) TopToolbar.vjodBottomTabs.value = published;
@@ -1144,6 +1162,12 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
             if (seerr)
               entry(Icons.rule_rounded, l10n.vjodMenuRequests,
                   () => go(Destinations.seerrRequests)),
+            // The TV tab sits here on a phone, where it is kept out of the
+            // bottom bar; on a wide screen it stays a tab and this is a
+            // harmless shortcut.
+            if (TopToolbar.vjodNarrow(host))
+              entry(Icons.live_tv_rounded, l10n.vjodTvTab,
+                  () => go(Destinations.tv)),
           ],
           settings: entry(
             Icons.settings_outlined,
