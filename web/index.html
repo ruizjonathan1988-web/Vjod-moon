@@ -107,7 +107,9 @@
     }
   </style>
 
-  <script defer src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
+  <script src="tv_navigation.js" defer></script>
+  
   <script>
     (function () {
       function isHlsPlaylistUrl(url) {
@@ -120,6 +122,7 @@
         }
         return normalized.indexOf('format=hls') !== -1;
       }
+
 
       function shouldTreatAsHls(url, forceHls) {
         return !!forceHls || isHlsPlaylistUrl(url);
