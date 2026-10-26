@@ -9,7 +9,28 @@ import 'web_tv_remote_stub.dart'
 /// app, for TV browsers that turn the remote into a mouse cursor. The keys
 /// go straight to the focus, the way the TV app's remote does, so every
 /// screen moves exactly as it does there.
-void installWebTvRemote() => impl.exposeWebTvRemote(pressRemoteKey);
+void installWebTvRemote() => impl.exposeWebTvRemote(
+  (name) => '${pressRemoteKey(name) ? 1 : 0}:${describeFocus()}',
+);
+
+/// What has the focus, for the page's diagnostic panel: the node's label,
+/// its widget, and the widgets just above it.
+String describeFocus() {
+  final node = FocusManager.instance.primaryFocus;
+  if (node == null) return 'rien';
+  final context = node.context;
+  final parts = <String>[node.debugLabel ?? '?'];
+  if (context != null) {
+    parts.add(context.widget.runtimeType.toString());
+    var depth = 0;
+    context.visitAncestorElements((element) {
+      final name = element.widget.runtimeType.toString();
+      if (!name.startsWith('_') && name.length < 40) parts.add(name);
+      return ++depth < 12;
+    });
+  }
+  return parts.take(7).join(' < ');
+}
 
 /// Presses [name] (`up`, `down`, `left`, `right`, `ok`, `back`) on the
 /// focused item. True when something in the app acted on it.

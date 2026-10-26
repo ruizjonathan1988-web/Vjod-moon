@@ -1,1 +1,1 @@
-void exposeWebTvRemote(bool Function(String name) press) {}
+void exposeWebTvRemote(String Function(String name) press) {}

@@ -169,7 +169,8 @@
       diagEl.style.cssText =
         'position:fixed;left:12px;top:12px;z-index:2147483647;' +
         'pointer-events:none;background:rgba(0,0,0,.88);color:#7FD6A8;' +
-        'font:15px/1.4 monospace;padding:10px 12px;white-space:pre;';
+        'font:15px/1.4 monospace;padding:10px 12px;white-space:pre-wrap;' +
+        'max-width:70vw;';
       document.body.appendChild(diagEl);
     }
     var a = document.activeElement;
@@ -178,6 +179,7 @@
       '\nMolette ' + diag.wheels + ' / prise par l\'app ' + diag.wheelsTaken +
       '\nFleches ' + diag.keys + ' / prises par l\'app ' + diag.keysTaken +
       '\nCible ' + diag.target +
+      '\nSelection ' + (diag.focus || '-') +
       '\nActif ' + (a ? a.tagName.toLowerCase() : '-') +
       '\nApp ' + (document.querySelector('flutter-view') ? 'flutter-view'
         : (document.querySelector('flt-glass-pane') ? 'flt-glass-pane'
@@ -225,7 +227,13 @@
     if (typeof window.vjodTvKey === 'function') {
       diag.target = 'app';
       var taken = false;
-      try { taken = !!window.vjodTvKey(dir); } catch (e) {}
+      try {
+        var answer = String(window.vjodTvKey(dir));
+        taken = answer.charAt(0) === '1';
+        diag.focus = answer.slice(2);
+      } catch (e) {
+        diag.focus = 'erreur ' + e;
+      }
       diag.keys++;
       if (taken) diag.keysTaken++;
       showDiag();
