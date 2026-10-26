@@ -759,6 +759,155 @@ class _ContentRows extends StatefulWidget {
 class _ContentRowsState extends State<_ContentRows>
     with WidgetsBindingObserver, WindowListener
     implements AudioOwnable {
+  /// One focus per family chip of the "Explorer les collections" band at the
+  /// end of Home.
+  final List<FocusNode> _vjodExploreFocus = [
+    for (final f in VjodFamily.values)
+      FocusNode(debugLabel: 'vjodExplore_${f.name}'),
+  ];
+
+  /// The mock-up closes Home with a band that leads to Explorer.
+  bool get _showVjodExploreBand =>
+      _vjodTheme && GetIt.instance<PluginSyncService>().seerrAvailable;
+
+  /// Down from the last row: scroll to the band and focus its first chip.
+  Future<void> _focusVjodExploreBand() async {
+    if (_scrollController.hasClients) {
+      await _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
+      );
+    }
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final node = _vjodExploreFocus.first;
+      if (mounted && node.context != null) node.requestFocus();
+    });
+  }
+
+  Widget _buildVjodExploreBand(List<HomeRow> rows) {
+    final french = AppLocalizations.of(context).localeName.startsWith('fr');
+    final scale = _vjodRowScale;
+    final families = VjodFamily.values;
+    void openExplorer() => context.navigateTopLevel(Destinations.explorer);
+    KeyEventResult onKey(int index, KeyEvent event) {
+      if (event is! KeyDownEvent) return KeyEventResult.ignored;
+      final key = event.logicalKey;
+      if (key.isUpKey) {
+        unawaited(_focusAdjacentRowItem(rows, rows.length, -1));
+        return KeyEventResult.handled;
+      }
+      if (key == LogicalKeyboardKey.arrowLeft && index > 0) {
+        _vjodExploreFocus[index - 1].requestFocus();
+        return KeyEventResult.handled;
+      }
+      if (key == LogicalKeyboardKey.arrowRight &&
+          index < families.length - 1) {
+        _vjodExploreFocus[index + 1].requestFocus();
+        return KeyEventResult.handled;
+      }
+      if (key == LogicalKeyboardKey.arrowDown ||
+          key == LogicalKeyboardKey.arrowLeft ||
+          key == LogicalKeyboardKey.arrowRight) {
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored;
+    }
+
+    final chips = [
+      for (var i = 0; i < families.length; i++)
+        VjodFocusable(
+          focusNode: _vjodExploreFocus[i],
+          onTap: openExplorer,
+          onKeyEvent: (_, event) => onKey(i, event),
+          builder: (context, focused) => AnimatedContainer(
+            duration: const Duration(milliseconds: 120),
+            height: 46 * scale,
+            padding: EdgeInsets.symmetric(horizontal: 20 * scale),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: focused ? vjodInk : Colors.transparent,
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(
+                color: focused
+                    ? vjodInk
+                    : vjodInk.withValues(alpha: 0.35),
+                width: 2,
+              ),
+            ),
+            child: Text(
+              vjodFamilyTitle(families[i], french),
+              style: TextStyle(
+                color: focused ? const Color(0xFF0B0B0D) : vjodInk,
+                fontSize: 17 * scale,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+    ];
+
+    final heading = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          french ? 'EXPLORER LES COLLECTIONS' : 'EXPLORE THE COLLECTIONS',
+          style: vjodDisplay(34 * scale),
+        ),
+        SizedBox(height: 4 * scale),
+        Text(
+          french
+              ? 'Ambiances, thèmes, palmarès, séries, studios, tour du monde'
+              : 'Moods, themes, awards, series, studios, world cinema',
+          style: TextStyle(
+            color: vjodInk.withValues(alpha: 0.65),
+            fontSize: 16 * scale,
+          ),
+        ),
+      ],
+    );
+
+    final narrow = MediaQuery.sizeOf(context).width < 900;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        _kHomeRowLabelInset + (PlatformDetection.useMobileUi ? 0 : 16),
+        40,
+        _kHomeRowLabelInset + 16,
+        24,
+      ),
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: 30 * scale,
+          vertical: 26 * scale,
+        ),
+        decoration: BoxDecoration(
+          color: const Color(0xFF16171B),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: narrow
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  heading,
+                  SizedBox(height: 18 * scale),
+                  Wrap(spacing: 10, runSpacing: 10, children: chips),
+                ],
+              )
+            : Row(
+                children: [
+                  heading,
+                  SizedBox(width: 30 * scale),
+                  Expanded(
+                    child: Wrap(spacing: 10, runSpacing: 10, children: chips),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+
   /// The Films and Series halves of the Top 10's switch, in its head.
   final _top10SwitchFocus = [
     FocusNode(debugLabel: 'Top10Films'),
@@ -1431,6 +1580,9 @@ class _ContentRowsState extends State<_ContentRows>
   @override
   void dispose() {
     for (final node in _top10SwitchFocus) {
+      node.dispose();
+    }
+    for (final node in _vjodExploreFocus) {
       node.dispose();
     }
     if (widget.viewModel.onRequestsReady == _announceReadyRequests) {
@@ -2851,6 +3003,11 @@ class _ContentRowsState extends State<_ContentRows>
             (10 * metadataScale) +
             headroom;
       }
+    } else if (row.id == HomeViewModel.vjodMoodRowId) {
+      return _libraryRowExtent(
+        _vjodMoodChipRowHeight(metadataScale),
+        metadataScale: metadataScale,
+      );
     } else if (row.rowType == HomeRowType.liveTv ||
         row.rowType == HomeRowType.libraryTilesSmall) {
       final squarePosterSide = _squarePosterSide(posterSize);
@@ -3459,7 +3616,12 @@ class _ContentRowsState extends State<_ContentRows>
         unawaited(_focusAdjacentRowItem(rows, rowIndex, -1));
       }
     } else {
-      unawaited(_focusAdjacentRowItem(rows, rowIndex, 1));
+      final lastFocusable = rows.lastIndexWhere(_rowHasFocusableItems);
+      if (_showVjodExploreBand && rowIndex >= lastFocusable) {
+        unawaited(_focusVjodExploreBand());
+      } else {
+        unawaited(_focusAdjacentRowItem(rows, rowIndex, 1));
+      }
     }
     return true;
   }
@@ -4470,7 +4632,9 @@ class _ContentRowsState extends State<_ContentRows>
                     top: listTopPadding,
                     bottom: neededBottomPadding,
                   ),
-                  itemCount: rows.length + headerCount,
+                  itemCount: rows.length +
+                      headerCount +
+                      (_showVjodExploreBand ? 1 : 0),
                   scrollCacheExtent: const ScrollCacheExtent.pixels(600.0),
                   itemBuilder: (context, index) {
                     if (includeMediaBar && index == 0) {
@@ -4562,6 +4726,9 @@ class _ContentRowsState extends State<_ContentRows>
                     final infoIndex = includeMediaBar ? 1 : 0;
                     if (index == infoIndex) {
                       return infoPlaceholderHeightBuilder;
+                    }
+                    if (index - headerCount >= rows.length) {
+                      return _buildVjodExploreBand(rows);
                     }
                     final row = rows[index - headerCount];
                     final rowIndex = index - headerCount;
@@ -4852,6 +5019,108 @@ class _ContentRowsState extends State<_ContentRows>
     _navigateToLibrary(context, item);
   }
 
+  /// The mood chips: a single line of pills, much lower than a tile row.
+  static double _vjodMoodChipRowHeight(double scale) => 70 * scale;
+
+  /// "Ce soir, plutôt…" as the mock-up's chips under the banner: one pill
+  /// per mood, today's in red, the focused one in white.
+  Widget _buildVjodMoodChipsRow(
+    HomeRow row, {
+    required int rowIndex,
+    required List<HomeRow> rows,
+  }) {
+    final l10n = AppLocalizations.of(context);
+    final scale = _desktopUiScaleFactor();
+    final rowHeight = _vjodMoodChipRowHeight(scale);
+    final chipHeight = 46 * scale;
+    final chipWidth = (PlatformDetection.useMobileUi ? 150 : 190) * scale;
+    return _buildTitledRow(
+      key: _rowContainerKey(rowIndex),
+      title: _localizedRowTitle(row, l10n),
+      subtitle: _rowSubtitle(row, l10n),
+      rowIndex: rowIndex,
+      hasItems: row.items.isNotEmpty,
+      height: rowHeight,
+      child: LockedFocusRow<AggregatedItem>(
+        key: _rowKey(rowIndex),
+        items: row.items,
+        itemKey: _rowItemIdentity,
+        hubKey: _hubKeyForRow(row),
+        controller: _rowHorizontalController(rowIndex),
+        height: rowHeight,
+        itemExtent: chipWidth,
+        itemSpacing: 10 * scale,
+        leadingPadding: _isHomeRowsStyleV2() ? _kHomeRowLabelInset : 0,
+        clipBehavior: Clip.none,
+        padding: EdgeInsets.fromLTRB(_kHomeRowLabelInset, 8, 20, 8),
+        onIndexChanged: (_, item) => _onHomeRowTileFocused(item),
+        onFocusChange: (has) => _onRowFocusTracked(rowIndex, has),
+        onVerticalNavigation: (isUp) => _onRowVerticalNavigation(
+          rowIndex: rowIndex,
+          rows: rows,
+          isUp: isUp,
+        ),
+        onLeftEdge: _onRowLeftEdge,
+        onTap: (_, item) => _onLibraryButtonTap(item),
+        itemBuilder: (ctx, item, idx, isFocused) {
+          final picked = item.name.startsWith('✓');
+          final label = picked ? item.name.substring(1).trim() : item.name;
+          final Color bg;
+          final Color fg;
+          if (isFocused) {
+            bg = vjodInk;
+            fg = const Color(0xFF0B0B0D);
+          } else if (picked) {
+            bg = vjodRed;
+            fg = vjodInk;
+          } else {
+            bg = const Color(0xFF24252B);
+            fg = vjodInk;
+          }
+          return Align(
+            alignment: Alignment.centerLeft,
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                onTap: () => _onLibraryButtonTap(item),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 120),
+                  width: chipWidth,
+                  height: chipHeight,
+                  padding: EdgeInsets.symmetric(horizontal: 14 * scale),
+                  decoration: BoxDecoration(
+                    color: bg,
+                    borderRadius: BorderRadius.circular(chipHeight / 2),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(_vjodMoodIcon(item), size: 20 * scale, color: fg),
+                      SizedBox(width: 8 * scale),
+                      Flexible(
+                        child: Text(
+                          label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: fg,
+                            fontSize: 16 * scale,
+                            fontWeight:
+                                picked ? FontWeight.w700 : FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   Widget _buildLibraryButtonsRow(
     HomeRow row,
     Color focusColor,
@@ -4860,6 +5129,9 @@ class _ContentRowsState extends State<_ContentRows>
     required int rowIndex,
     required List<HomeRow> rows,
   }) {
+    if (row.id == HomeViewModel.vjodMoodRowId) {
+      return _buildVjodMoodChipsRow(row, rowIndex: rowIndex, rows: rows);
+    }
     final l10n = AppLocalizations.of(context);
     final metadataScale = _desktopUiScaleFactor();
     final squarePosterSide = _squarePosterSide(posterSize);
