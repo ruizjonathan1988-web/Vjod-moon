@@ -7,10 +7,7 @@ import 'package:moonfin_design/moonfin_design.dart';
 import 'package:server_core/server_core.dart';
 
 import '../../../data/models/aggregated_item.dart';
-import '../../../data/repositories/seerr_repository.dart';
-import '../../../data/services/seerr/seerr_api_models.dart';
 import '../../../data/viewmodels/seerr_discover_view_model.dart';
-import '../../../util/seerr_genre_art.dart';
 import '../../widgets/offline_aware_image.dart';
 import '../../../data/services/row_data_source.dart';
 import '../../../data/services/vjod/vjod_collections.dart';
@@ -102,7 +99,10 @@ class ExplorerScreen extends StatefulWidget {
 class _ExplorerScreenState extends State<ExplorerScreen> {
   List<AggregatedItem> _palmares = const [];
   List<AggregatedItem> _sagas = const [];
-  List<SeerrGenre> _genres = const [];
+
+  /// VJOD's studio collections drawn with the matching Seerr logo, so each
+  /// studio has a single tile.
+  static const _studioLogoFor = {'pixar': 3, 'a24': 41077};
 
   /// The streaming services worth a tile from France.
   static const _networkIds = {213, 2739, 1024, 2552, 49, 4330, 453, 3353, 4};
@@ -111,21 +111,15 @@ class _ExplorerScreenState extends State<ExplorerScreen> {
   void initState() {
     super.initState();
     unawaited(_loadServerCollections());
-    unawaited(_loadGenres());
   }
 
-  /// Seerr's genres, each with a duotone backdrop, as on its Discover page.
-  Future<void> _loadGenres() async {
-    try {
-      final repo = await GetIt.instance.getAsync<SeerrRepository>();
-      await repo.ensureInitialized();
-      if (!repo.isAvailable) return;
-      final genres = await repo.getGenreSliderMovies();
-      if (!mounted) return;
-      setState(() => _genres = genres);
-    } catch (e) {
-      debugPrint('[Explorer] Genres failed: $e');
+  String? _studioLogo(String collectionId) {
+    final id = _studioLogoFor[collectionId];
+    if (id == null) return null;
+    for (final st in SeerrDiscoverViewModel.popularStudios) {
+      if (st.id == id) return st.logoPath;
     }
+    return null;
   }
 
   void _openSeerr(String id, String name, String mediaType, String type) {
@@ -249,17 +243,21 @@ class _ExplorerScreenState extends State<ExplorerScreen> {
                   width: tileW,
                   height: tileH,
                   scale: s,
-                  color: _tileHue(c.id),
+                  color: _studioLogo(c.id) != null
+                      ? const Color(0xFF1C1D22)
+                      : _tileHue(c.id),
                   chip: family == VjodFamily.ready
                       ? vjodFamilyTitle(family, french)
                       : null,
                   title: c.title(french),
+                  logoUrl: _studioLogo(c.id),
                   autofocus: takeFirst(),
                   onTap: () => _openCollection(c, french),
                 ),
-              // Seerr's studios, with their logos, after VJOD's own.
+              // Seerr's other studios, with their logos, after VJOD's own.
               if (family == VjodFamily.studios)
                 for (final st in SeerrDiscoverViewModel.popularStudios)
+                  if (!_studioLogoFor.containsValue(st.id))
                   _ExplorerTile(
                     width: tileW,
                     height: tileH,
@@ -278,35 +276,6 @@ class _ExplorerScreenState extends State<ExplorerScreen> {
             ],
           ),
         );
-
-      if (family == VjodFamily.themes && _genres.isNotEmpty) {
-        children
-          ..add(sectionTitle('Genres'))
-          ..add(
-            Wrap(
-              spacing: gap,
-              runSpacing: gap,
-              children: [
-                for (final g in _genres)
-                  _ExplorerTile(
-                    width: tileW,
-                    height: tileH,
-                    scale: s,
-                    color: _tileHue(g.name),
-                    title: g.name,
-                    imageUrl: seerrGenreBackdropUrl(g.id, g.backdrops),
-                    autofocus: takeFirst(),
-                    onTap: () => _openSeerr(
-                      g.id.toString(),
-                      g.name,
-                      'movie',
-                      'genre',
-                    ),
-                  ),
-              ],
-            ),
-          );
-      }
 
       if (family == VjodFamily.series) {
         children
@@ -435,9 +404,6 @@ class _ExplorerTile extends StatelessWidget {
   /// A studio's or a service's logo, drawn in place of the name.
   final String? logoUrl;
 
-  /// Artwork behind the name, such as a genre's duotone backdrop.
-  final String? imageUrl;
-
   const _ExplorerTile({
     required this.width,
     required this.height,
@@ -448,7 +414,6 @@ class _ExplorerTile extends StatelessWidget {
     required this.onTap,
     this.chip,
     this.logoUrl,
-    this.imageUrl,
   });
 
   Widget _nameText(double s) => Text(
@@ -468,7 +433,7 @@ class _ExplorerTile extends StatelessWidget {
         duration: const Duration(milliseconds: 120),
         width: width,
         height: height,
-        padding: imageUrl != null ? EdgeInsets.zero : EdgeInsets.all(14 * s),
+        padding: EdgeInsets.all(14 * s),
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(6),
@@ -484,29 +449,6 @@ class _ExplorerTile extends StatelessWidget {
                   errorWidget: (_, _, _) =>
                       Align(alignment: Alignment.bottomLeft, child: _nameText(s)),
                 ),
-              )
-            : imageUrl != null
-            ? Stack(
-                fit: StackFit.expand,
-                children: [
-                  Positioned.fill(
-                    child: OfflineAwareImage(
-                      imageUrl: imageUrl!,
-                      fit: BoxFit.cover,
-                      errorWidget: (_, _, _) => const SizedBox.shrink(),
-                    ),
-                  ),
-                  const Positioned.fill(
-                    child: ColoredBox(color: Color(0x4D000000)),
-                  ),
-                  Padding(
-                    padding: EdgeInsets.all(14 * s),
-                    child: Align(
-                      alignment: Alignment.bottomLeft,
-                      child: _nameText(s),
-                    ),
-                  ),
-                ],
               )
             : Column(
           crossAxisAlignment: CrossAxisAlignment.start,
