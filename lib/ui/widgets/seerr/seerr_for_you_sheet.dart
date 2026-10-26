@@ -13,6 +13,7 @@ import '../track_selector_dialog.dart';
 enum _ForYouChoice {
   request,
   requestAllSeasons,
+  requestRussian,
   details,
   notInterested,
   editTaste,
@@ -66,6 +67,12 @@ Future<void> showSeerrForYouSheet({
             onTap: () =>
                 Navigator.pop(dialogContext, _ForYouChoice.requestAllSeasons),
           ),
+        FocusableDialogRow(
+          icon: Icons.translate_rounded,
+          label: l10n.request4k,
+          onTap: () =>
+              Navigator.pop(dialogContext, _ForYouChoice.requestRussian),
+        ),
         FocusableDialogRow(
           icon: Icons.info_outline_rounded,
           label: l10n.seerrForYouOpenDetails,
@@ -121,8 +128,11 @@ Future<void> showSeerrForYouSheet({
     await repo.createRequest(
       mediaId: tmdbId,
       mediaType: isTv ? 'tv' : 'movie',
-      seasons: isTv && choice == _ForYouChoice.request ? const [1] : null,
+      seasons: isTv && choice != _ForYouChoice.requestAllSeasons
+          ? const [1]
+          : null,
       allSeasons: isTv && choice == _ForYouChoice.requestAllSeasons,
+      is4k: choice == _ForYouChoice.requestRussian,
     );
     // Notify before dropping the card: the context may belong to it.
     if (context.mounted) {

@@ -7300,6 +7300,8 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
         DetailButton.personalRating,
         DetailButton.notForMe,
         DetailButton.seerrRequest,
+        // Russian sits next to French, as in the mock-up, not behind More.
+        DetailButton.seerrRequest4k,
       ];
       final front = <Widget>[
         ?primaryAction,
@@ -14382,16 +14384,19 @@ Widget? _seerrRequestButton(
     isContinuing: isContinuing,
   );
   // A film has nothing to choose, so one press asks for it with the server's
-  // defaults. The sheet, with quality and advanced options, stays a long
-  // press away. A series still opens it, to pick its seasons.
-  final quick = !seerr.state.isTv && !is4k;
+  // defaults, in French or in Russian alike. The sheet, with quality and
+  // advanced options, stays a long press away. A series still opens it, to
+  // pick its seasons.
+  final quick = !seerr.state.isTv;
   return _DetailActionButton(
     label: action.label,
     icon: Icons.add,
     isPrimary: isPrimary,
     focusNode: focusNode,
     autofocus: autofocus,
-    onPressed: quick ? () => _quickRequest(context, seerr) : openSheet,
+    onPressed: quick
+        ? () => _quickRequest(context, seerr, is4k: is4k)
+        : openSheet,
     onLongPress: quick ? openSheet : null,
   );
 }
@@ -14399,22 +14404,23 @@ Widget? _seerrRequestButton(
 /// Asks for a film in one press, then says so with a way back.
 Future<void> _quickRequest(
   BuildContext context,
-  SeerrMediaDetailViewModel seerr,
-) async {
+  SeerrMediaDetailViewModel seerr, {
+  bool is4k = false,
+}) async {
   final l10n = AppLocalizations.of(context);
-  await seerr.submitRequest();
+  await seerr.submitRequest(is4k: is4k);
   if (!context.mounted || seerr.state.requestError != null) return;
   // A remote can't reach the card, but the page's own primary button turns
   // into Cancel Request, so the way back is still one press away there.
   final touch = PlatformDetection.useMobileUi;
   FloatingNotification.show(
     context,
-    l10n.requestSentTitle,
+    is4k ? l10n.requested4k : l10n.requestSentTitle,
     touch ? l10n.requestSentBodyUndo : l10n.requestSentBody,
     touch
         ? () async {
             final ids = [
-              for (final r in seerr.state.quality(is4k: false).cancelableRequests)
+              for (final r in seerr.state.quality(is4k: is4k).cancelableRequests)
                 r.id,
             ];
             if (ids.isEmpty) return;
