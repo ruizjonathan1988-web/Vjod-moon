@@ -265,7 +265,7 @@ class SeerrBrowseViewModel extends ChangeNotifier {
 
       // A letter or availability filter can reject a whole page, so keep
       // reading ahead until there is enough to fill the grid.
-      while (matches.length < _minMatchesPerLoad &&
+      while (matches.length < _minMatchesFor(first: true) &&
           pageNum <= _maxPagesPerScan) {
         final page = await _fetchPage(pageNum);
         lastPage = page;
@@ -278,7 +278,7 @@ class SeerrBrowseViewModel extends ChangeNotifier {
 
       _state = _state.copyWith(
         isLoading: false,
-        items: matches,
+        items: _vjodOrder(matches),
         currentPage: lastPage.page,
         totalPages: lastPage.totalPages,
       );
@@ -301,7 +301,7 @@ class SeerrBrowseViewModel extends ChangeNotifier {
       final matches = <SeerrDiscoverItem>[];
       late SeerrDiscoverPage lastPage;
 
-      while (matches.length < _minMatchesPerLoad &&
+      while (matches.length < _minMatchesFor(first: false) &&
           pageNum < startPage + _maxPagesPerScan) {
         final page = await _fetchPage(pageNum);
         lastPage = page;
@@ -314,7 +314,7 @@ class SeerrBrowseViewModel extends ChangeNotifier {
 
       _state = _state.copyWith(
         isLoadingMore: false,
-        items: [..._state.items, ...matches],
+        items: [..._state.items, ..._vjodOrder(matches)],
         currentPage: lastPage.page,
         totalPages: lastPage.totalPages,
       );
@@ -428,6 +428,18 @@ class SeerrBrowseViewModel extends ChangeNotifier {
       // The dialog just shows the static sections when the lists fail.
     }
   }
+
+  /// A VJOD collection opens on a few pages at once, so what the library
+  /// holds among its best known titles comes first, as on Home.
+  int _minMatchesFor({required bool first}) =>
+      filterType == vjodFilterType && first ? 40 : _minMatchesPerLoad;
+
+  /// What you have first, then what is on its way, then the rest, within
+  /// each batch read, for a VJOD collection. Other browses keep Seerr's order.
+  List<SeerrDiscoverItem> _vjodOrder(List<SeerrDiscoverItem> items) =>
+      filterType == vjodFilterType
+      ? VjodCollectionService.availableFirst(items)
+      : items;
 
   Future<SeerrDiscoverPage> _fetchPage(int page) async {
     // A VJOD collection brings its own search.

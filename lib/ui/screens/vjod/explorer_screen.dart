@@ -215,6 +215,25 @@ class _ExplorerScreenState extends State<ExplorerScreen> {
 
     final children = <Widget>[];
 
+    // On a phone Bientôt has no tab of its own: it opens Explorer, where it
+    // is seen without scrolling.
+    if (TopToolbar.vjodNarrow(context)) {
+      children.add(
+        Padding(
+          padding: EdgeInsets.only(top: 6 * s),
+          child: _ExplorerTile(
+            width: width - 2 * left,
+            height: tileH * 0.75,
+            scale: s,
+            color: vjodRed,
+            title: l10n.vjodTabSoon,
+            autofocus: takeFirst(),
+            onTap: () => context.push(Destinations.bientot),
+          ),
+        ),
+      );
+    }
+
     for (final family in VjodFamily.values) {
       final collections = [
         for (final c in vjodCollections)
@@ -275,27 +294,6 @@ class _ExplorerScreenState extends State<ExplorerScreen> {
 
     serverSection(french ? 'Palmarès' : 'Awards & top lists', _palmares);
     serverSection('Sagas & collections', _sagas);
-
-    // On a phone Bientôt has no tab of its own: it sits at the end of Explorer.
-    if (TopToolbar.vjodNarrow(context)) {
-    children
-      ..add(sectionTitle(l10n.vjodTabSoon))
-      ..add(
-        Wrap(
-          children: [
-            _ExplorerTile(
-              width: tileW,
-              height: tileH,
-              scale: s,
-              color: _tileHue('bientot'),
-              title: l10n.vjodTabSoon,
-              autofocus: takeFirst(),
-              onTap: () => context.push(Destinations.bientot),
-            ),
-          ],
-        ),
-      );
-    }
 
     final header = Padding(
       padding: EdgeInsets.fromLTRB(left, top, left, 0),
