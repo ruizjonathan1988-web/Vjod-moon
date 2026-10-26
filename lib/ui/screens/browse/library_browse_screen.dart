@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui';
 
+import '../../widgets/focus/web_tv_wheel_scroll.dart';
 import '../../widgets/offline_aware_image.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -1084,7 +1085,15 @@ class _LibraryBrowseScreenState extends State<LibraryBrowseScreen>
           right: railGap,
           child: Focus(
             focusNode: _gridAreaFocusNode,
-            child: _buildBody(),
+            // A sideways grid turns the wheel itself; a vertical one is
+            // helped on a TV's web browser, where the box's cursor sends
+            // wheel turns the grid lets go by.
+            child: scrollsSideways
+                ? _buildBody()
+                : WebTvWheelScroll(
+                    controller: _scrollController,
+                    child: _buildBody(),
+                  ),
           ),
         ),
         if (showRail)
