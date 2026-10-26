@@ -134,6 +134,63 @@
     }
   }, 40);
 
+  // Second way for cursor browsers, for those that don't tell the page
+  // where their cursor is: they scroll the page themselves when the cursor
+  // is pushed against an edge. The app draws on a fixed canvas, so the page
+  // has nothing to scroll. Give it something: an invisible area three
+  // screens high and wide behind the app. Whatever the browser scrolls it
+  // by is handed to the app as a wheel turn, and the area is put back in
+  // the middle, ready for the next push.
+  var lastArrow = 0;
+  window.addEventListener('keydown', function (e) {
+    if (e.key && e.key.indexOf('Arrow') === 0) lastArrow = Date.now();
+  }, true);
+
+  function setUpScrollProxy() {
+    var spacer = document.createElement('div');
+    spacer.setAttribute('aria-hidden', 'true');
+    spacer.style.cssText =
+      'position:absolute;top:0;left:0;width:300vw;height:300vh;' +
+      'visibility:hidden;pointer-events:none;';
+    root.appendChild(spacer);
+    var css = document.createElement('style');
+    css.textContent =
+      'html { overflow: scroll !important; scrollbar-width: none; }' +
+      'html::-webkit-scrollbar { display: none; }' +
+      'flutter-view, flt-glass-pane { position: fixed !important; }';
+    document.head.appendChild(css);
+
+    var cx = 0, cy = 0, resetting = false;
+    function centre() {
+      cx = window.innerWidth;
+      cy = window.innerHeight;
+      resetting = true;
+      window.scrollTo(cx, cy);
+      setTimeout(function () { resetting = false; }, 0);
+    }
+    centre();
+    window.addEventListener('resize', centre);
+
+    window.addEventListener('scroll', function () {
+      var dx = window.scrollX - cx, dy = window.scrollY - cy;
+      if (resetting || (!dx && !dy)) return;
+      // Arrows that reach the app move its highlight; any scroll they cause
+      // on the way is not a push against an edge.
+      if (Date.now() - lastArrow > 400) {
+        var w = window.innerWidth, h = window.innerHeight;
+        if (dy) wheel(w / 2, h / 2, 0, dy);
+        if (dx) wheel(w / 2, mouseY >= 0 ? mouseY : h / 2, dx, 0);
+      }
+      centre();
+    }, { passive: true });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setUpScrollProxy);
+  } else {
+    setUpScrollProxy();
+  }
+
   // Samsung Tizen: 10009. LG webOS: 461.
   var BACK_CODES = [10009, 461];
   var KNOWN_BACK = ['Escape', 'GoBack', 'BrowserBack', 'Backspace'];
