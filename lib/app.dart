@@ -72,7 +72,6 @@ import 'util/focus/key_event_utils.dart';
 import 'util/focus/gamepad/gamepad_navigation_scope.dart';
 import 'util/focus/gamepad/gamepad_key_synthesizer.dart';
 import 'util/focus/open_popup.dart';
-import 'ui/widgets/web_tv_debug_overlay.dart';
 import 'package:custom_tv_text_field/custom_tv_text_field.dart';
 
 class MoonfinApp extends StatefulWidget {
@@ -324,8 +323,6 @@ class _MoonfinAppState extends State<MoonfinApp> {
                             ),
                             TimesUpFocusGuard(child: shell),
                             if (PlatformDetection.isTV) const ScreensaverHost(),
-                            if (WebTvDebugOverlay.enabled)
-                              const WebTvDebugOverlay(),
                             // Last, so nothing sits above it and nothing can be
                             // reached through it while the schedule is closed.
                             const TimesUpGate(),

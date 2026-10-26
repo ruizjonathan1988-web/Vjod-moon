@@ -110,22 +110,9 @@
     up: ['ArrowUp', 38], down: ['ArrowDown', 40],
     left: ['ArrowLeft', 37], right: ['ArrowRight', 39]
   };
-  // Where the app listens: its own element on the page. Events sent
-  // anywhere else (the page's body, or a video or frame the app shows above
-  // itself) may never reach it.
-  function appElement() {
-    return document.querySelector('flutter-view') ||
-      document.querySelector('flt-glass-pane') || document.body;
-  }
-  function keyTarget() {
-    var app = appElement();
-    var active = document.activeElement;
-    return active && active !== document.body && app.contains(active)
-      ? active : app;
-  }
-
   function wheel(x, y, dx, dy) {
-    var target = appElement();
+    var target = document.elementFromPoint(x, y);
+    if (!target) return;
     target.dispatchEvent(new WheelEvent('wheel', {
       clientX: x, clientY: y, screenX: x, screenY: y,
       deltaX: dx, deltaY: dy, deltaMode: 0,
@@ -182,7 +169,7 @@
     }
     flash(dir);
     var k = ARROWS[dir];
-    var target = keyTarget();
+    var target = document.activeElement || document.body;
     sending = true;
     try {
       ['keydown', 'keyup'].forEach(function (type) {
@@ -354,7 +341,7 @@
   var KNOWN_BACK = ['Escape', 'GoBack', 'BrowserBack', 'Backspace'];
 
   function relay(type, original) {
-    var target = keyTarget();
+    var target = document.activeElement || document.body;
     var ev = new KeyboardEvent(type, {
       key: 'Escape',
       code: 'Escape',
