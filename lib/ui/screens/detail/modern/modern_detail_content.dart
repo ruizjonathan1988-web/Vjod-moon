@@ -5989,7 +5989,7 @@ class _ModernDetailContentState extends State<ModernDetailContent> {
                         child: FractionallySizedBox(
                           alignment: Alignment.centerLeft,
                           widthFactor: played ? 1 : pct.clamp(0.0, 1.0),
-                          child: const ColoredBox(color: vjodInk),
+                          child: ColoredBox(color: vjodInk),
                         ),
                       ),
                     ),
