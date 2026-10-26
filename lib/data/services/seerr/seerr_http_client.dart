@@ -577,6 +577,24 @@ class SeerrHttpClient {
     return response.data as Map<String, dynamic>;
   }
 
+  /// TMDB keywords matching [query], as Seerr's keyword slider form finds
+  /// them: `{id, name}` objects, best match first.
+  Future<List<Map<String, dynamic>>> searchKeywords(String query) async {
+    final response = await _dio.get(
+      _apiUrl('search/keyword'),
+      queryParameters: {'query': query, 'page': 1},
+      options: _authOptions(),
+    );
+    _requireSuccess(response, 'searchKeywords');
+    final data = response.data;
+    final results = data is Map ? data['results'] : null;
+    if (results is! List) return const [];
+    return [
+      for (final r in results)
+        if (r is Map) r.cast<String, dynamic>(),
+    ];
+  }
+
   /// The languages TMDB knows, served by seerr so the filter list matches
   /// what the discover queries accept.
   Future<List<dynamic>> getLanguages() async {

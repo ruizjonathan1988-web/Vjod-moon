@@ -29,6 +29,7 @@ import '../screens/browse/collection_screen.dart';
 import '../screens/browse/favorites_screen.dart';
 import '../screens/seerr/en_route_screen.dart';
 import '../screens/seerr/bientot_screen.dart';
+import '../screens/vjod/explorer_screen.dart';
 import '../screens/browse/folder_browse_screen.dart';
 import '../screens/browse/library_browse_screen.dart';
 import '../screens/browse/library_genres_screen.dart';
@@ -346,6 +347,10 @@ final appRouter = GoRouter(
     GoRoute(
       path: Destinations.bientot,
       builder: (context, state) => const BientotScreen(),
+    ),
+    GoRoute(
+      path: Destinations.explorer,
+      builder: (context, state) => const ExplorerScreen(),
     ),
     GoRoute(
       path: Destinations.folderView,

@@ -194,20 +194,62 @@ class HomeSectionConfig {
     HomeSectionConfig(type: HomeSectionType.resume, enabled: true, order: 0),
     HomeSectionConfig(type: HomeSectionType.nextUp, enabled: true, order: 1),
     // These need Seerr: for the charts, the suggestions and the requests.
+    // VJOD's own rows sit between the others, so Home reads like one
+    // catalogue: what is ready to play first, then everything to explore.
     HomeSectionConfig(
-      type: HomeSectionType.top10Movies,
+      type: HomeSectionType.vjodUnwatchedGems,
       enabled: true,
       order: 2,
     ),
     HomeSectionConfig(
-      type: HomeSectionType.seerrForYou,
+      type: HomeSectionType.top10Movies,
       enabled: true,
       order: 3,
     ),
     HomeSectionConfig(
-      type: HomeSectionType.frenchMovies,
+      type: HomeSectionType.vjodMindBenders,
       enabled: true,
       order: 4,
+    ),
+    HomeSectionConfig(
+      type: HomeSectionType.vjodThemeOfDay,
+      enabled: true,
+      order: 5,
+    ),
+    HomeSectionConfig(
+      type: HomeSectionType.vjodMiniSeries,
+      enabled: true,
+      order: 6,
+    ),
+    HomeSectionConfig(
+      type: HomeSectionType.seerrForYou,
+      enabled: true,
+      order: 7,
+    ),
+    HomeSectionConfig(
+      type: HomeSectionType.vjodShortGems,
+      enabled: true,
+      order: 8,
+    ),
+    HomeSectionConfig(
+      type: HomeSectionType.vjodFeelGood,
+      enabled: true,
+      order: 9,
+    ),
+    HomeSectionConfig(
+      type: HomeSectionType.vjodEpic,
+      enabled: true,
+      order: 10,
+    ),
+    HomeSectionConfig(
+      type: HomeSectionType.vjodBinge,
+      enabled: true,
+      order: 11,
+    ),
+    HomeSectionConfig(
+      type: HomeSectionType.frenchMovies,
+      enabled: true,
+      order: 12,
     ),
     HomeSectionConfig(
       type: HomeSectionType.top10Series,
@@ -529,6 +571,14 @@ class HomeSectionConfig {
     HomeSectionType.frenchSeries: HomeSectionType.frenchMovies,
     HomeSectionType.frenchClassics: HomeSectionType.frenchSeries,
     HomeSectionType.seerrUpcoming: HomeSectionType.seerrGems,
+    HomeSectionType.vjodUnwatchedGems: HomeSectionType.nextUp,
+    HomeSectionType.vjodMindBenders: HomeSectionType.top10Movies,
+    HomeSectionType.vjodThemeOfDay: HomeSectionType.vjodMindBenders,
+    HomeSectionType.vjodMiniSeries: HomeSectionType.vjodThemeOfDay,
+    HomeSectionType.vjodShortGems: HomeSectionType.seerrForYou,
+    HomeSectionType.vjodFeelGood: HomeSectionType.vjodShortGems,
+    HomeSectionType.vjodEpic: HomeSectionType.vjodFeelGood,
+    HomeSectionType.vjodBinge: HomeSectionType.vjodEpic,
   };
 
   /// [config] placed right after [leader], everything below moved down one.
@@ -539,7 +589,11 @@ class HomeSectionConfig {
   ) => [
     for (final c in configs)
       c.order > leader.order ? c.copyWith(order: c.order + 1) : c,
-    config.copyWith(order: leader.order + 1, enabled: leader.enabled),
+    // VJOD's rows come on whatever their neighbour does: they are the point.
+    config.copyWith(
+      order: leader.order + 1,
+      enabled: config.type.isVjodRow ? config.enabled : leader.enabled,
+    ),
   ];
 
   static String toJsonString(List<HomeSectionConfig> configs) =>

@@ -2604,6 +2604,65 @@ class RowDataSource {
     }
   }
 
+  /// Films the library holds and the viewer hasn't seen, best rated first:
+  /// VJOD's two "ready to play" rows. [short] keeps those under 1 h 40.
+  Future<List<AggregatedItem>> loadVjodReady(
+    String serverId, {
+    bool short = false,
+  }) async {
+    try {
+      final draw = await _searchVisibleLibraryItems(
+        serverId,
+        const ['Movie'],
+        (parentId) => _getItemsWithFallback(
+          parentId: parentId,
+          includeItemTypes: const ['Movie'],
+          filters: const ['IsUnplayed'],
+          sortBy: 'CommunityRating,SortName',
+          sortOrder: 'Descending',
+          recursive: true,
+          limit: 200,
+        ),
+      );
+      double rating(AggregatedItem item) =>
+          (item.rawData['CommunityRating'] as num?)?.toDouble() ?? 0;
+      int minutes(AggregatedItem item) =>
+          ((item.rawData['RunTimeTicks'] as num?)?.toInt() ?? 0) ~/
+          600000000;
+      final picked = [
+        for (final item in draw)
+          if (rating(item) >= (short ? 7.0 : 7.3))
+            if (!short || (minutes(item) >= 60 && minutes(item) <= 100)) item,
+      ]..sort((a, b) => rating(b).compareTo(rating(a)));
+      // The very best first, then a little shuffle among the rest, so the row
+      // isn't the same every evening.
+      final head = picked.take(6).toList();
+      final tail = picked.skip(6).take(30).toList()..shuffle();
+      return [...head, ...tail];
+    } catch (e) {
+      debugPrint('[RowDataSource] VJOD ready row failed: $e');
+      return const [];
+    }
+  }
+
+  /// Every collection the server holds (the SmartLists palmarès among them),
+  /// by name, for Explorer.
+  Future<List<AggregatedItem>> loadBoxSets(String serverId) async {
+    try {
+      final response = await _getItemsWithFallback(
+        includeItemTypes: const ['BoxSet'],
+        sortBy: 'SortName',
+        sortOrder: 'Ascending',
+        recursive: true,
+        limit: 200,
+      );
+      return _parseItems(response, serverId);
+    } catch (e) {
+      debugPrint('[RowDataSource] Collections for Explorer failed: $e');
+      return const [];
+    }
+  }
+
   /// One movie and one series nobody finished, drawn at random and leaning
   /// towards well-rated ones, for the Surprise row.
   Future<List<AggregatedItem>> loadSurprisePicks(String serverId) async {

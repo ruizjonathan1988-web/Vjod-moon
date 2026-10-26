@@ -4,6 +4,7 @@ import 'package:get_it/get_it.dart';
 import 'package:server_core/server_core.dart' hide ImageType;
 
 import '../../../data/services/plugin_sync_service.dart';
+import '../../../data/services/vjod/vjod_collections.dart';
 import '../../../preference/preference_constants.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../widgets/settings/settings_section_header.dart';
@@ -104,6 +105,17 @@ class _HomeRowsImageTypeScreenState extends State<HomeRowsImageTypeScreen> {
         HomeSectionType.seerrGems => l10n.gemsRow,
         HomeSectionType.seerrUpcoming => l10n.upcomingRow,
         HomeSectionType.familyNight => l10n.familyNightRow,
+        HomeSectionType.vjodUnwatchedGems ||
+        HomeSectionType.vjodShortGems ||
+        HomeSectionType.vjodMindBenders ||
+        HomeSectionType.vjodThemeOfDay ||
+        HomeSectionType.vjodMiniSeries ||
+        HomeSectionType.vjodFeelGood ||
+        HomeSectionType.vjodEpic ||
+        HomeSectionType.vjodBinge => vjodSectionLabel(
+          type.vjodCollectionId,
+          l10n.localeName.startsWith('fr'),
+        ),
         HomeSectionType.seerrRecentRequests => l10n.recentRequests,
         HomeSectionType.seerrWatchlist => l10n.yourWatchlist,
         HomeSectionType.seerrRecentlyAdded => l10n.recentlyAdded,

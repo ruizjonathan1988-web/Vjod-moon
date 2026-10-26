@@ -595,6 +595,18 @@ enum HomeSectionType {
   sinceYouWatched5('sinceyouwatched5'),
   rewatch('rewatch'),
   seasonal('seasonal'),
+
+  /// VJOD's own rows. The first two hold only what the library has and the
+  /// viewer hasn't seen; the others mix the library with everything Seerr
+  /// can request, the library first.
+  vjodUnwatchedGems('vjod_unwatched_gems'),
+  vjodShortGems('vjod_short_gems'),
+  vjodMindBenders('vjod_mind_benders'),
+  vjodThemeOfDay('vjod_theme_of_day'),
+  vjodMiniSeries('vjod_miniseries'),
+  vjodFeelGood('vjod_feel_good'),
+  vjodEpic('vjod_epic'),
+  vjodBinge('vjod_binge'),
   none('none');
 
   const HomeSectionType(this.serializedName);
@@ -611,6 +623,22 @@ enum HomeSectionType {
     HomeSectionType.sinceYouWatched5 => 5,
     _ => 0,
   };
+
+  /// The VJOD collection a VJOD row draws from, null for every other row.
+  /// The Theme of the day changes collection daily, so it has none fixed.
+  String? get vjodCollectionId => switch (this) {
+    HomeSectionType.vjodUnwatchedGems => 'gems',
+    HomeSectionType.vjodShortGems => 'short_gems',
+    HomeSectionType.vjodMindBenders => 'mind_benders',
+    HomeSectionType.vjodMiniSeries => 'miniseries',
+    HomeSectionType.vjodFeelGood => 'feel_good',
+    HomeSectionType.vjodEpic => 'epic',
+    HomeSectionType.vjodBinge => 'binge',
+    _ => null,
+  };
+
+  bool get isVjodRow =>
+      vjodCollectionId != null || this == HomeSectionType.vjodThemeOfDay;
 
   static HomeSectionType fromSerialized(String name) {
     if (name == 'watchlist') return HomeSectionType.playlists;

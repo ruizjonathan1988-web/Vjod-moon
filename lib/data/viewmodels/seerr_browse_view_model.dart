@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 
 import '../repositories/seerr_repository.dart';
 import '../services/seerr/seerr_api_models.dart';
+import '../services/vjod/vjod_collection_service.dart';
+import '../services/vjod/vjod_collections.dart';
 
 enum SeerrBrowseFilter { all, available, requested }
 
@@ -228,7 +230,14 @@ class SeerrBrowseViewModel extends ChangeNotifier {
     required this.mediaType,
     this.filterType,
   }) {
-    _state = SeerrBrowseState(sortBy: sortOptions.first);
+    // A "ready to watch" VJOD collection opens on what the server holds.
+    final ready =
+        filterType == vjodFilterType &&
+        (vjodCollectionById(filterId ?? '')?.readyOnly ?? false);
+    _state = SeerrBrowseState(
+      sortBy: sortOptions.first,
+      filter: ready ? SeerrBrowseFilter.available : SeerrBrowseFilter.all,
+    );
   }
 
   Future<void> load() async {
@@ -420,7 +429,18 @@ class SeerrBrowseViewModel extends ChangeNotifier {
     }
   }
 
-  Future<SeerrDiscoverPage> _fetchPage(int page) {
+  Future<SeerrDiscoverPage> _fetchPage(int page) async {
+    // A VJOD collection brings its own search.
+    if (filterType == vjodFilterType) {
+      final collection = vjodCollectionById(filterId);
+      if (collection == null) return const SeerrDiscoverPage();
+      return await VjodCollectionService.fetchPage(
+            _repo,
+            collection,
+            page: page,
+          ) ??
+          const SeerrDiscoverPage();
+    }
     final id = filterId != null ? int.tryParse(filterId!) : null;
     // A genre this browse was opened on and genres picked in the dialog ride
     // the same parameter, comma joined the way seerr's own panel sends them.

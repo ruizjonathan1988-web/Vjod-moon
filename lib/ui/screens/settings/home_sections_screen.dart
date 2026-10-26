@@ -17,6 +17,7 @@ import '../../../data/services/seerr/seerr_discover_sliders.dart';
 import '../../../data/utils/playlist_utils.dart';
 import '../../../data/services/plugin_sync_service.dart';
 import '../../../preference/home_section_config.dart';
+import '../../../data/services/vjod/vjod_collections.dart';
 import '../../../preference/preference_constants.dart';
 import '../../../preference/user_preferences.dart';
 import '../../../preference/seerr_preferences.dart';
@@ -542,6 +543,7 @@ class _HomeSectionsScreenState extends State<HomeSectionsScreen>
         section.type == HomeSectionType.frenchMovies ||
         section.type == HomeSectionType.frenchSeries ||
         section.type == HomeSectionType.frenchClassics ||
+        section.type.isVjodRow ||
         section.type == HomeSectionType.radarrCalendar ||
         section.type == HomeSectionType.sonarrCalendar) {
       return 6;
@@ -1841,6 +1843,17 @@ class _HomeSectionsScreenState extends State<HomeSectionsScreen>
         HomeSectionType.seerrGems => l10n.gemsRow,
         HomeSectionType.seerrUpcoming => l10n.upcomingRow,
         HomeSectionType.familyNight => l10n.familyNightRow,
+        HomeSectionType.vjodUnwatchedGems ||
+        HomeSectionType.vjodShortGems ||
+        HomeSectionType.vjodMindBenders ||
+        HomeSectionType.vjodThemeOfDay ||
+        HomeSectionType.vjodMiniSeries ||
+        HomeSectionType.vjodFeelGood ||
+        HomeSectionType.vjodEpic ||
+        HomeSectionType.vjodBinge => vjodSectionLabel(
+          type.vjodCollectionId,
+          l10n.localeName.startsWith('fr'),
+        ),
         HomeSectionType.seerrRecentRequests => l10n.recentRequests,
         HomeSectionType.seerrWatchlist => l10n.yourWatchlist,
         HomeSectionType.seerrRecentlyAdded => l10n.recentlyAdded,

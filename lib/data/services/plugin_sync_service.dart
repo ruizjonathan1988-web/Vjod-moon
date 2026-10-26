@@ -1738,7 +1738,8 @@ class PluginSyncService extends ChangeNotifier {
       type == prefs.HomeSectionType.frenchMovies ||
       type == prefs.HomeSectionType.frenchSeries ||
       type == prefs.HomeSectionType.frenchClassics ||
-      type == prefs.HomeSectionType.surprise;
+      type == prefs.HomeSectionType.surprise ||
+      type.isVjodRow;
 
   /// Seerr home rows keep their own copy of the enabled state that the settings
   /// screens write alongside the section layout, so mirror it here too. Without

@@ -46,6 +46,8 @@ import '../../../data/services/seerr/upcoming_picks.dart';
 import '../../../data/services/betaseries/betaseries_client.dart';
 import '../../../data/services/chart_cards.dart';
 import '../../../data/services/trakt/trakt_client.dart';
+import '../../../data/services/vjod/vjod_collection_service.dart';
+import '../../../data/services/vjod/vjod_collections.dart';
 import '../../../data/services/wikidata/film_awards_client.dart';
 import '../../../data/services/french_box_office.dart';
 import '../../../data/services/home_highlights.dart';
@@ -320,6 +322,7 @@ class HomeViewModel extends ChangeNotifier {
       HomeSectionType.seasonal =>
         false,
       final t when _isSeerrSectionType(t) || _isTmdbSectionType(t) => false,
+      final t when t.isVjodRow => false,
       _ => true,
     };
   }
@@ -581,7 +584,12 @@ class HomeViewModel extends ChangeNotifier {
                         c.type != HomeSectionType.top10Series &&
                         c.type != HomeSectionType.frenchMovies &&
                         c.type != HomeSectionType.frenchSeries &&
-                        c.type != HomeSectionType.frenchClassics) ||
+                        c.type != HomeSectionType.frenchClassics &&
+                        // The VJOD rows drawn from Seerr; the two "ready
+                        // tonight" ones read the library alone.
+                        !(c.type.isVjodRow &&
+                            c.type != HomeSectionType.vjodUnwatchedGems &&
+                            c.type != HomeSectionType.vjodShortGems)) ||
                     showSeerrRows) &&
                 (!_isImdbSectionType(c.type) || (showImdbRows && _isImdbSectionEnabled(c.type))) &&
                 (!_isTmdbSectionType(c.type) || (showTmdbRows && _isTmdbSectionEnabled(c.type))) &&
@@ -1017,6 +1025,15 @@ class HomeViewModel extends ChangeNotifier {
         return row.id == sagaRowId;
       case HomeSectionType.seerrGems:
         return row.id == gemsRowId;
+      case HomeSectionType.vjodUnwatchedGems:
+      case HomeSectionType.vjodShortGems:
+      case HomeSectionType.vjodMindBenders:
+      case HomeSectionType.vjodThemeOfDay:
+      case HomeSectionType.vjodMiniSeries:
+      case HomeSectionType.vjodFeelGood:
+      case HomeSectionType.vjodEpic:
+      case HomeSectionType.vjodBinge:
+        return row.id == cfg.type.serializedName;
       case HomeSectionType.seerrUpcoming:
         return row.id == upcomingRowId;
       case HomeSectionType.familyNight:
@@ -1391,6 +1408,15 @@ class HomeViewModel extends ChangeNotifier {
         return const {'seerrSagas'};
       case HomeSectionType.seerrGems:
         return const {'seerrGems'};
+      case HomeSectionType.vjodUnwatchedGems:
+      case HomeSectionType.vjodShortGems:
+      case HomeSectionType.vjodMindBenders:
+      case HomeSectionType.vjodThemeOfDay:
+      case HomeSectionType.vjodMiniSeries:
+      case HomeSectionType.vjodFeelGood:
+      case HomeSectionType.vjodEpic:
+      case HomeSectionType.vjodBinge:
+        return {type.serializedName};
       case HomeSectionType.seerrUpcoming:
         return const {'seerrUpcoming'};
       case HomeSectionType.familyNight:
@@ -1765,6 +1791,15 @@ class HomeViewModel extends ChangeNotifier {
         return _loadSagaRow(l10n, forceRefresh: forceRefresh);
       case HomeSectionType.seerrGems:
         return _loadGemsRow(l10n, forceRefresh: forceRefresh);
+      case HomeSectionType.vjodUnwatchedGems:
+      case HomeSectionType.vjodShortGems:
+      case HomeSectionType.vjodMindBenders:
+      case HomeSectionType.vjodThemeOfDay:
+      case HomeSectionType.vjodMiniSeries:
+      case HomeSectionType.vjodFeelGood:
+      case HomeSectionType.vjodEpic:
+      case HomeSectionType.vjodBinge:
+        return _loadVjodRow(section, l10n);
       case HomeSectionType.seerrUpcoming:
         return _loadUpcomingRow(l10n, forceRefresh: forceRefresh);
       case HomeSectionType.familyNight:
@@ -2257,6 +2292,14 @@ class HomeViewModel extends ChangeNotifier {
       case HomeSectionType.seerrGems:
       case HomeSectionType.seerrUpcoming:
       case HomeSectionType.familyNight:
+      case HomeSectionType.vjodUnwatchedGems:
+      case HomeSectionType.vjodShortGems:
+      case HomeSectionType.vjodMindBenders:
+      case HomeSectionType.vjodThemeOfDay:
+      case HomeSectionType.vjodMiniSeries:
+      case HomeSectionType.vjodFeelGood:
+      case HomeSectionType.vjodEpic:
+      case HomeSectionType.vjodBinge:
         return null;
       case HomeSectionType.seerrForYou:
         return HomeRow(
@@ -3908,6 +3951,112 @@ class HomeViewModel extends ChangeNotifier {
       return [];
     }
   }
+
+  /// A VJOD row. The two ready ones read the library; the others are a VJOD
+  /// collection searched on Seerr, what the library holds first, ending on a
+  /// tile that opens the whole collection.
+  Future<List<HomeRow>> _loadVjodRow(
+    HomeSectionType type,
+    AppLocalizations l10n,
+  ) async {
+    final french = l10n.localeName.startsWith('fr');
+    final themeOfDay = type == HomeSectionType.vjodThemeOfDay;
+    final collection = themeOfDay
+        ? vjodThemeOfDay(DateTime.now())
+        : vjodCollectionById(type.vjodCollectionId);
+    if (collection == null) return [];
+    final title = themeOfDay
+        ? '${french ? 'Thème du jour' : 'Theme of the day'} · ${collection.title(french)}'
+        : collection.title(french);
+
+    if (collection.readyOnly) {
+      try {
+        final items = await _dataSource.loadVjodReady(
+          _serverId,
+          short: type == HomeSectionType.vjodShortGems,
+        );
+        if (items.length < 4) return [];
+        return [
+          HomeRow(
+            id: type.serializedName,
+            title: title,
+            rowType: HomeRowType.pluginDynamic,
+            items: items,
+            totalCount: items.length,
+          ),
+        ];
+      } catch (e) {
+        debugPrint('[VjodRow] Failed to load ${type.serializedName}: $e');
+        return [];
+      }
+    }
+
+    try {
+      final repo = await GetIt.instance.getAsync<SeerrRepository>();
+      await repo.ensureInitialized();
+      if (!repo.isAvailable) return [];
+      final blockNsfw = GetIt.instance<SeerrPreferences>().blockNsfw;
+      final taste = _taste();
+      final found = await VjodCollectionService.loadRow(
+        repo,
+        collection,
+        hidden: taste.feedback.hiddenKeys,
+      );
+      final items = [
+        for (final item in found)
+          if (_suggestionCard(
+                item,
+                collection.query.mediaType,
+                blockNsfw: blockNsfw,
+              )
+              case final card?)
+            card,
+      ];
+      if (items.length < 5) return [];
+      final cover = found.firstWhere(
+        (item) => (item.backdropPath ?? '').isNotEmpty,
+        orElse: () => found.first,
+      );
+      items.add(
+        vjodSeeAllCard(
+          collection,
+          french,
+          backdropPath: cover.backdropPath,
+          posterPath: cover.posterPath,
+        ),
+      );
+      return [
+        _seerrRow(type.serializedName, title, items, totalCount: items.length),
+      ];
+    } catch (e) {
+      debugPrint('[VjodRow] Failed to load ${type.serializedName}: $e');
+      return [];
+    }
+  }
+
+  /// The tile closing a VJOD row: the whole collection, in the Seerr grid.
+  /// It wears the artwork of one of the row's titles, so it never goes
+  /// looking for a picture of its own name.
+  static AggregatedItem vjodSeeAllCard(
+    VjodCollection collection,
+    bool french, {
+    String? backdropPath,
+    String? posterPath,
+  }) =>
+      AggregatedItem(
+        id: collection.id,
+        serverId: 'seerr',
+        rawData: {
+          'Name': french ? 'Tout voir' : 'See all',
+          'Type': 'Folder',
+          'Overview': collection.title(french),
+          'FilterType': vjodFilterType,
+          'FilterName': collection.title(french),
+          'MediaType': collection.query.mediaType,
+          'BackdropPath': backdropPath ?? '',
+          'PosterPath': posterPath ?? '',
+        },
+      );
 
   /// Unwatched family films from the library, best rated first.
   Future<List<HomeRow>> _loadFamilyRow(AppLocalizations l10n) async {

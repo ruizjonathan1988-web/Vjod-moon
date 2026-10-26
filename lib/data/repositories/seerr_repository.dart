@@ -527,6 +527,28 @@ class SeerrRepository {
     ),
   );
 
+  final Map<String, int?> _keywordIds = {};
+
+  /// The TMDB id of the keyword named [name], the exact match when there is
+  /// one, else the first found. Remembered for the session, misses included.
+  Future<int?> keywordId(String name) async {
+    final key = name.toLowerCase();
+    if (_keywordIds.containsKey(key)) return _keywordIds[key];
+    final results = await _withClient((c) => c.searchKeywords(name));
+    int? id;
+    for (final r in results) {
+      final rid = r['id'];
+      if (rid is! int) continue;
+      if ((r['name']?.toString() ?? '').toLowerCase() == key) {
+        id = rid;
+        break;
+      }
+      id ??= rid;
+    }
+    _keywordIds[key] = id;
+    return id;
+  }
+
   /// The sliders on Seerr's discover page. A failed read isn't kept, so the
   /// next caller tries again.
   Future<List<SeerrDiscoverSlider>> getDiscoverSliders({bool force = false}) {

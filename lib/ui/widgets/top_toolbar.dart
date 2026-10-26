@@ -907,8 +907,8 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
     );
   }
 
-  /// The mock-up's bar: logo, Accueil, Films, Séries, Bientôt, En route,
-  /// search, and the avatar that opens everything else.
+  /// The mock-up's bar: logo, Accueil, Films, Séries, Explorer, Bientôt,
+  /// En route, search, and the avatar that opens everything else.
   Widget _buildVjodBar() {
     final l10n = AppLocalizations.of(context);
     final s = _vjodScale;
@@ -949,15 +949,27 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
           onTap: () => _openLibrary(series),
         ),
       if (seerr) ...[
+        // Explorer: every collection, what the server holds and what can be
+        // asked for. On a phone Bientôt lives inside it, to keep five tabs.
         VjodNavItem(
-          label: l10n.vjodTabSoon,
-          icon: Icons.calendar_month_outlined,
-          selected: _isActive(Destinations.bientot),
+          label: 'Explorer',
+          icon: Icons.explore_outlined,
+          selected: _isActive(Destinations.explorer),
           onTap: () {
-            if (_isActive(Destinations.bientot)) return;
-            context.navigateTopLevel(Destinations.bientot);
+            if (_isActive(Destinations.explorer)) return;
+            context.navigateTopLevel(Destinations.explorer);
           },
         ),
+        if (!narrow)
+          VjodNavItem(
+            label: l10n.vjodTabSoon,
+            icon: Icons.calendar_month_outlined,
+            selected: _isActive(Destinations.bientot),
+            onTap: () {
+              if (_isActive(Destinations.bientot)) return;
+              context.navigateTopLevel(Destinations.bientot);
+            },
+          ),
         VjodNavItem(
           label: l10n.enRouteTitle,
           icon: Icons.downloading_rounded,
