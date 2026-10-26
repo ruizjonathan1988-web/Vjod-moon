@@ -4333,9 +4333,16 @@ class HomeViewModel extends ChangeNotifier {
       await repo.ensureInitialized();
       if (!repo.isAvailable) return [];
       final now = DateTime.now();
+      // Nothing that already has a row of its own on Home today, so two
+      // rows never tell the same story.
+      final onHome = <String>{
+        vjodThemeOfDay(now).id,
+        for (final t in HomeSectionType.values)
+          if (t.vjodCollectionId case final id?) id,
+      };
       final pool = [
         for (final c in vjodCollections)
-          if (!c.readyOnly && c.inSeason(now))
+          if (!c.readyOnly && c.inSeason(now) && !onHome.contains(c.id))
             if (!_vjodCollectionInComfort(c, signals.comfort)) c,
       ];
       if (pool.isEmpty) return [];
