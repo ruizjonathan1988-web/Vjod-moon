@@ -5682,7 +5682,7 @@ class _HorizontalActionRowState extends State<_HorizontalActionRow> {
         controller: _scrollController,
         scrollDirection: Axis.horizontal,
         clipBehavior: Clip.none,
-        physics: PlatformDetection.isTV
+        physics: PlatformDetection.remoteOnlyScrolling
             ? const NeverScrollableScrollPhysics()
             : const BouncingScrollPhysics(),
         child: Padding(

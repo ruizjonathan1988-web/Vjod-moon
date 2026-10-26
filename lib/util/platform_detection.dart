@@ -67,6 +67,11 @@ class PlatformDetection {
     };
   }
 
+  /// Lists that only the remote's focus moves. Not on a TV's web browser,
+  /// where a box often turns the remote into a mouse cursor and the page has
+  /// to scroll the way a mouse wheel scrolls it.
+  static bool get remoteOnlyScrolling => isTV && !isWeb;
+
   static bool _isTv = false;
   static void setTvMode(bool value) => _isTv = value;
 

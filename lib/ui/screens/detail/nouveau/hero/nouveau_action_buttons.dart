@@ -522,7 +522,7 @@ class _NouveauActionButtonsState extends State<NouveauActionButtons> {
               controller: _scrollController,
               scrollDirection: Axis.horizontal,
               clipBehavior: Clip.hardEdge,
-              physics: PlatformDetection.isTV
+              physics: PlatformDetection.remoteOnlyScrolling
                   ? const NeverScrollableScrollPhysics()
                   : const BouncingScrollPhysics(),
               // Room for a focused button to grow and cast its shadow

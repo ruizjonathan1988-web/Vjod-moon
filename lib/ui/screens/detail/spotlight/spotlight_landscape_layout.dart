@@ -50,7 +50,7 @@ class SpotlightLandscapeLayout extends StatelessWidget {
           bottom: false,
           child: SingleChildScrollView(
             controller: scrollController,
-            physics: PlatformDetection.isTV
+            physics: PlatformDetection.remoteOnlyScrolling
                 ? const NeverScrollableScrollPhysics()
                 : const ScrollPhysics(),
             padding: EdgeInsets.only(

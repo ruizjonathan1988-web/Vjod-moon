@@ -65,7 +65,7 @@ class ModernLandscapeLayout extends StatelessWidget {
           bottom: false,
           child: SingleChildScrollView(
             controller: scrollController,
-            physics: PlatformDetection.isTV ? const NeverScrollableScrollPhysics() : const ScrollPhysics(),
+            physics: PlatformDetection.remoteOnlyScrolling ? const NeverScrollableScrollPhysics() : const ScrollPhysics(),
             padding: EdgeInsets.only(
               top: (hasUpNext ? topInset - 24 : topInset - 12) / scale,
               bottom: bottomContentInset(context),
