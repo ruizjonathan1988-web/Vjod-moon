@@ -126,11 +126,23 @@
 
   function wheel(x, y, dx, dy) {
     var target = appElement();
-    var free = target.dispatchEvent(new WheelEvent('wheel', {
+    // Shaped like a real mouse wheel's notches: whole multiples of 120,
+    // with the matching legacy wheelDelta. Anything else, the app reads as
+    // a laptop touchpad gesture, which half its screens don't scroll with.
+    dx = Math.round(dx / 120) * 120;
+    dy = Math.round(dy / 120) * 120;
+    if (!dx && !dy) return;
+    var ev = new WheelEvent('wheel', {
       clientX: x, clientY: y, screenX: x, screenY: y,
       deltaX: dx, deltaY: dy, deltaMode: 0,
       bubbles: true, cancelable: true, composed: true
-    }));
+    });
+    try {
+      Object.defineProperty(ev, 'wheelDeltaX', { value: -dx });
+      Object.defineProperty(ev, 'wheelDeltaY', { value: -dy });
+      Object.defineProperty(ev, 'wheelDelta', { value: -(dy || dx) });
+    } catch (e) {}
+    var free = target.dispatchEvent(ev);
     diag.wheels++;
     // The app cancels a wheel turn it scrolled with.
     if (!free) diag.wheelsTaken++;
@@ -210,7 +222,7 @@
     // then an arrow for the ones the remote's highlight drives. Both go the
     // same way, so either one is enough to move the screen.
     var w = window.innerWidth, h = window.innerHeight;
-    var amount = held > 6 ? 260 : 180;
+    var amount = held > 6 ? 240 : 120;
     if (dir === 'down' || dir === 'up') {
       // Low on the screen rather than in the middle: on a library or a
       // collection the middle is often the header (title, sort, letters),
