@@ -7,7 +7,7 @@ library;
 const vjodFilterType = 'vjod';
 
 /// The groups the Explorer page shows, in its order.
-enum VjodFamily { ready, ambiances, themes, series, studios, world }
+enum VjodFamily { ready, ambiances, themes, series, platforms, studios, world }
 
 /// One Seerr discover search. Every field maps to a parameter Seerr's
 /// `discover/movies` or `discover/tv` route takes.
@@ -93,6 +93,7 @@ String vjodFamilyTitle(VjodFamily family, bool french) => switch (family) {
   VjodFamily.ambiances => french ? 'Ambiances' : 'Moods',
   VjodFamily.themes => french ? 'Thèmes' : 'Themes',
   VjodFamily.series => french ? 'Séries' : 'Series',
+  VjodFamily.platforms => french ? 'Plateformes' : 'Streaming services',
   VjodFamily.studios => 'Studios',
   VjodFamily.world => french ? 'Tour du monde' : 'Around the world',
 };
@@ -327,17 +328,68 @@ const vjodCollections = <VjodCollection>[
   ),
   VjodCollection(
     id: 'hbo',
-    family: VjodFamily.series,
+    family: VjodFamily.platforms,
     titleFr: 'Séries HBO',
     titleEn: 'HBO series',
     query: VjodQuery(mediaType: 'tv', network: 49, voteCountGte: 200),
   ),
   VjodCollection(
     id: 'netflix',
-    family: VjodFamily.series,
+    family: VjodFamily.platforms,
     titleFr: 'Séries Netflix',
     titleEn: 'Netflix series',
     query: VjodQuery(mediaType: 'tv', network: 213, voteCountGte: 200),
+  ),
+
+  // Streaming services.
+  VjodCollection(
+    id: 'disneyplus',
+    family: VjodFamily.platforms,
+    titleFr: 'Séries Disney+',
+    titleEn: 'Disney+ series',
+    query: VjodQuery(mediaType: 'tv', network: 2739, voteCountGte: 100),
+  ),
+  VjodCollection(
+    id: 'prime',
+    family: VjodFamily.platforms,
+    titleFr: 'Séries Prime Video',
+    titleEn: 'Prime Video series',
+    query: VjodQuery(mediaType: 'tv', network: 1024, voteCountGte: 100),
+  ),
+  VjodCollection(
+    id: 'appletv',
+    family: VjodFamily.platforms,
+    titleFr: 'Séries Apple TV+',
+    titleEn: 'Apple TV+ series',
+    query: VjodQuery(mediaType: 'tv', network: 2552, voteCountGte: 100),
+  ),
+  VjodCollection(
+    id: 'paramountplus',
+    family: VjodFamily.platforms,
+    titleFr: 'Séries Paramount+',
+    titleEn: 'Paramount+ series',
+    query: VjodQuery(mediaType: 'tv', network: 4330, voteCountGte: 100),
+  ),
+  VjodCollection(
+    id: 'hulu',
+    family: VjodFamily.platforms,
+    titleFr: 'Séries Hulu',
+    titleEn: 'Hulu series',
+    query: VjodQuery(mediaType: 'tv', network: 453, voteCountGte: 100),
+  ),
+  VjodCollection(
+    id: 'peacock',
+    family: VjodFamily.platforms,
+    titleFr: 'Séries Peacock',
+    titleEn: 'Peacock series',
+    query: VjodQuery(mediaType: 'tv', network: 3353, voteCountGte: 100),
+  ),
+  VjodCollection(
+    id: 'bbc',
+    family: VjodFamily.platforms,
+    titleFr: 'Séries BBC',
+    titleEn: 'BBC series',
+    query: VjodQuery(mediaType: 'tv', network: 4, voteCountGte: 100),
   ),
 
   // Studios.
@@ -361,6 +413,69 @@ const vjodCollections = <VjodCollection>[
     titleFr: 'A24',
     titleEn: 'A24',
     query: VjodQuery(studio: 41077, voteCountGte: 100),
+  ),
+  VjodCollection(
+    id: 'disney',
+    family: VjodFamily.studios,
+    titleFr: 'Disney',
+    titleEn: 'Disney',
+    query: VjodQuery(studio: 2, voteCountGte: 200),
+  ),
+  VjodCollection(
+    id: 'marvel',
+    family: VjodFamily.studios,
+    titleFr: 'Marvel Studios',
+    titleEn: 'Marvel Studios',
+    query: VjodQuery(studio: 420, voteCountGte: 200),
+  ),
+  VjodCollection(
+    id: 'dc',
+    family: VjodFamily.studios,
+    titleFr: 'DC',
+    titleEn: 'DC',
+    query: VjodQuery(studio: 9993, voteCountGte: 200),
+  ),
+  VjodCollection(
+    id: 'dreamworks',
+    family: VjodFamily.studios,
+    titleFr: 'DreamWorks',
+    titleEn: 'DreamWorks',
+    query: VjodQuery(studio: 521, voteCountGte: 200),
+  ),
+  VjodCollection(
+    id: 'warner',
+    family: VjodFamily.studios,
+    titleFr: 'Warner Bros.',
+    titleEn: 'Warner Bros.',
+    query: VjodQuery(studio: 174, voteCountGte: 200),
+  ),
+  VjodCollection(
+    id: 'universal',
+    family: VjodFamily.studios,
+    titleFr: 'Universal',
+    titleEn: 'Universal',
+    query: VjodQuery(studio: 33, voteCountGte: 200),
+  ),
+  VjodCollection(
+    id: 'paramount',
+    family: VjodFamily.studios,
+    titleFr: 'Paramount',
+    titleEn: 'Paramount',
+    query: VjodQuery(studio: 4, voteCountGte: 200),
+  ),
+  VjodCollection(
+    id: 'sony',
+    family: VjodFamily.studios,
+    titleFr: 'Sony Pictures',
+    titleEn: 'Sony Pictures',
+    query: VjodQuery(studio: 34, voteCountGte: 200),
+  ),
+  VjodCollection(
+    id: 'fox',
+    family: VjodFamily.studios,
+    titleFr: '20th Century Studios',
+    titleEn: '20th Century Studios',
+    query: VjodQuery(studio: 127928, voteCountGte: 200),
   ),
 
   // Around the world, by original language.

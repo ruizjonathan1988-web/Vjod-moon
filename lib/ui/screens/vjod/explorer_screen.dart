@@ -100,69 +100,27 @@ class _ExplorerScreenState extends State<ExplorerScreen> {
   List<AggregatedItem> _palmares = const [];
   List<AggregatedItem> _sagas = const [];
 
-  /// VJOD's studio collections drawn with the matching Seerr logo, so each
-  /// studio has a single tile.
-  static const _studioLogoFor = {'pixar': 3, 'a24': 41077};
-
-  /// The streaming services worth a tile from France.
-  static const _networkIds = {213, 2739, 1024, 2552, 49, 4330, 453, 3353, 4};
-
   @override
   void initState() {
     super.initState();
     unawaited(_loadServerCollections());
   }
 
-  String? _studioLogo(String collectionId) {
-    final id = _studioLogoFor[collectionId];
-    if (id == null) return null;
-    for (final st in SeerrDiscoverViewModel.popularStudios) {
-      if (st.id == id) return st.logoPath;
+  /// The studio's or the service's logo, from Seerr's own lists.
+  static String? _logoFor(VjodCollection c) {
+    final studio = c.query.studio;
+    if (studio != null) {
+      for (final st in SeerrDiscoverViewModel.popularStudios) {
+        if (st.id == studio) return st.logoPath;
+      }
+    }
+    final network = c.query.network;
+    if (network != null) {
+      for (final n in SeerrDiscoverViewModel.popularNetworks) {
+        if (n.id == network) return n.logoPath;
+      }
     }
     return null;
-  }
-
-  void _openSeerr(String id, String name, String mediaType, String type) {
-    context.push(
-      Destinations.seerrBrowseWith(
-        filterId: id,
-        filterName: name,
-        mediaType: mediaType,
-        filterType: type,
-      ),
-    );
-  }
-
-  Future<void> _loadServerCollections() async {
-    try {
-      final client = GetIt.instance<MediaServerClient>();
-      final all = await RowDataSource(client).loadBoxSets(client.baseUrl);
-      final palmares = <AggregatedItem>[];
-      final sagas = <AggregatedItem>[];
-      for (final item in all) {
-        final name = item.name;
-        if (_replacedSmartLists.contains(name.toLowerCase().trim())) continue;
-        (_isPalmares(name) ? palmares : sagas).add(item);
-      }
-      if (!mounted) return;
-      setState(() {
-        _palmares = palmares;
-        _sagas = sagas;
-      });
-    } catch (e) {
-      debugPrint('[Explorer] Server collections failed: $e');
-    }
-  }
-
-  void _openCollection(VjodCollection c, bool french) {
-    context.push(
-      Destinations.seerrBrowseWith(
-        filterId: c.id,
-        filterName: c.title(french),
-        mediaType: c.query.mediaType,
-        filterType: vjodFilterType,
-      ),
-    );
   }
 
   void _openServerCollection(AggregatedItem item) {
@@ -243,69 +201,20 @@ class _ExplorerScreenState extends State<ExplorerScreen> {
                   width: tileW,
                   height: tileH,
                   scale: s,
-                  color: _studioLogo(c.id) != null
+                  color: _logoFor(c) != null
                       ? const Color(0xFF1C1D22)
                       : _tileHue(c.id),
                   chip: family == VjodFamily.ready
                       ? vjodFamilyTitle(family, french)
                       : null,
                   title: c.title(french),
-                  logoUrl: _studioLogo(c.id),
+                  logoUrl: _logoFor(c),
                   autofocus: takeFirst(),
                   onTap: () => _openCollection(c, french),
                 ),
-              // Seerr's other studios, with their logos, after VJOD's own.
-              if (family == VjodFamily.studios)
-                for (final st in SeerrDiscoverViewModel.popularStudios)
-                  if (!_studioLogoFor.containsValue(st.id))
-                  _ExplorerTile(
-                    width: tileW,
-                    height: tileH,
-                    scale: s,
-                    color: const Color(0xFF1C1D22),
-                    title: st.name,
-                    logoUrl: st.logoPath,
-                    autofocus: takeFirst(),
-                    onTap: () => _openSeerr(
-                      st.id.toString(),
-                      st.name,
-                      'movie',
-                      'studio',
-                    ),
-                  ),
             ],
           ),
         );
-
-      if (family == VjodFamily.series) {
-        children
-          ..add(sectionTitle(french ? 'Plateformes' : 'Streaming services'))
-          ..add(
-            Wrap(
-              spacing: gap,
-              runSpacing: gap,
-              children: [
-                for (final n in SeerrDiscoverViewModel.popularNetworks)
-                  if (_networkIds.contains(n.id))
-                    _ExplorerTile(
-                      width: tileW,
-                      height: tileH,
-                      scale: s,
-                      color: const Color(0xFF1C1D22),
-                      title: n.name,
-                      logoUrl: n.logoPath,
-                      autofocus: takeFirst(),
-                      onTap: () => _openSeerr(
-                        n.id.toString(),
-                        n.name,
-                        'tv',
-                        'network',
-                      ),
-                    ),
-              ],
-            ),
-          );
-      }
     }
 
     void serverSection(String title, List<AggregatedItem> items) {
