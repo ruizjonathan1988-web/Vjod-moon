@@ -60,7 +60,7 @@ class _EnRouteScreenState extends State<EnRouteScreen> {
     super.initState();
     unawaited(_load());
     // Downloads move every few seconds, so the bars keep up while open.
-    _refresh = Timer.periodic(const Duration(seconds: 15), (_) => _load());
+    _refresh = Timer.periodic(const Duration(seconds: 8), (_) => _load());
   }
 
   @override
@@ -102,6 +102,14 @@ class _EnRouteScreenState extends State<EnRouteScreen> {
         );
         entries = promoteInLibrary(entries, inLibrary, now: now);
       }
+
+      // En route shows what is still on its way. A title that has arrived is
+      // no longer en route, so it drops off here as soon as it is ready,
+      // instead of lingering. It stays on the home "Mes demandes" row.
+      entries = [
+        for (final e in entries)
+          if (e.state != MyRequestState.ready) e,
+      ];
 
       final previous = {
         for (final e in _entries ?? const <_EnRouteEntry>[]) e.entry.key: e,
