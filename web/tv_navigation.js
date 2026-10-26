@@ -159,7 +159,10 @@
     var w = window.innerWidth, h = window.innerHeight;
     var amount = held > 6 ? 260 : 180;
     if (dir === 'down' || dir === 'up') {
-      wheel(w / 2, h / 2, 0, dir === 'down' ? amount : -amount);
+      // Low on the screen rather than in the middle: on a library or a
+      // collection the middle is often the header (title, sort, letters),
+      // which doesn't scroll, while the grid sits below it.
+      wheel(w / 2, h * 0.75, 0, dir === 'down' ? amount : -amount);
     } else {
       wheel(w / 2, mouseY >= 0 ? mouseY : h / 2,
         dir === 'right' ? amount : -amount, 0);
