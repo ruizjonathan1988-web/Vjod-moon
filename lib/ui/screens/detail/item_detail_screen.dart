@@ -7084,7 +7084,7 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
           label: item.isFavorite ? l10n.favorited : l10n.favorite,
           // VJOD's "+" adds to the list, as in the mock-up.
           icon: _DetailActionButtonState._vjodButtons
-              ? (item.isFavorite ? Icons.check : Icons.add)
+              ? (item.isFavorite ? Icons.check_rounded : Icons.add_rounded)
               : Icons.favorite,
           onPressed: viewModel.toggleFavorite,
           isActive: item.isFavorite,
@@ -7332,7 +7332,7 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
         for (final b in allButtons)
           if (!front.contains(b)) b,
       ];
-      if (rest.length > 1) {
+      if (rest.isNotEmpty) {
         allButtons = [...front, ...rest];
         vjodInline = front.length;
       }
@@ -12238,8 +12238,9 @@ class _DetailActionButtonState extends State<_DetailActionButton>
     // The mock-up's small squares (+ and the thumb), its plain-word
     // "Not for me", and words without icons for everything else.
     final squares = <IconData>{
-      Icons.add,
-      Icons.check,
+      // Only the list's own "+": a request keeps its words.
+      Icons.add_rounded,
+      Icons.check_rounded,
       Icons.favorite,
       Icons.thumb_up,
       Icons.thumb_down,

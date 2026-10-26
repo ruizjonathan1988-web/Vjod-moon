@@ -2506,6 +2506,8 @@ class _MediaBarState extends State<MediaBar>
             item.caption!
           else if (item.runtime != null && item.itemType != 'Series')
             _vjodLength(item.runtime!),
+          if (item.communityRating case final r? when r > 0)
+            '★ ${r.toStringAsFixed(1).replaceAll('.', ',')}',
         ],
         endsAt: _vjodEndsAt(l10n, item),
         actions: actions,

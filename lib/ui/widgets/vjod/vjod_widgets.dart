@@ -812,14 +812,21 @@ class VjodHeroContent extends StatelessWidget {
           ),
           SizedBox(height: 6 * s),
         ],
-        Text(
-          title.toUpperCase(),
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: vjodDisplay(
-            (compact ? 44 : 76) * s,
-            height: 1.02,
-          ).copyWith(shadows: const [Shadow(color: Color(0x99000000), blurRadius: 18)]),
+        // Always one line: a long title shrinks instead of wrapping, so it
+        // never pushes the buttons under the row of cards below.
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
+            title.toUpperCase(),
+            maxLines: 1,
+            style: vjodDisplay(
+              (compact ? 44 : 76) * s,
+              height: 1.02,
+            ).copyWith(
+              shadows: const [Shadow(color: Color(0x99000000), blurRadius: 18)],
+            ),
+          ),
         ),
         SizedBox(height: 10 * s),
         Wrap(

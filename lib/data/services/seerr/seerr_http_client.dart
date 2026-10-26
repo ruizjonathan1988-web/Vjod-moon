@@ -580,9 +580,10 @@ class SeerrHttpClient {
   /// TMDB keywords matching [query], as Seerr's keyword slider form finds
   /// them: `{id, name}` objects, best match first.
   Future<List<Map<String, dynamic>>> searchKeywords(String query) async {
+    // Built by hand like search(): Dio would send spaces as '+' and leave
+    // brackets bare, and Seerr turns both down as reserved characters.
     final response = await _dio.get(
-      _apiUrl('search/keyword'),
-      queryParameters: {'query': query, 'page': 1},
+      '${_apiUrl('search/keyword')}?query=${_encodeQueryValue(query)}&page=1',
       options: _authOptions(),
     );
     _requireSuccess(response, 'searchKeywords');

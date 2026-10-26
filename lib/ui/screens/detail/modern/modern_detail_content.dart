@@ -5608,7 +5608,7 @@ class _ModernDetailContentState extends State<ModernDetailContent> {
     ];
     final dim = AppColorScheme.onSurface.withValues(alpha: 0.35);
     return Padding(
-      padding: const EdgeInsets.only(top: 16),
+      padding: EdgeInsets.only(top: 18 * _vjodU),
       child: Wrap(
         crossAxisAlignment: WrapCrossAlignment.center,
         runSpacing: 6,
@@ -5694,18 +5694,79 @@ class _ModernDetailContentState extends State<ModernDetailContent> {
   );
 
   /// A poster from "In the same vein", with Ready or Request on its corner.
-  Widget _vjodPoster(AggregatedItem entry, {FocusNode? focusNode}) {
-    final seerr = entry.serverId == 'seerr' || entry.id.startsWith('tmdb:');
+  /// "In the same vein" for this very title: TMDB's recommendations and
+  /// similar titles through Seerr, ready or not, each tagged; the library's
+  /// own similar list only when Seerr has nothing.
+  List<Widget> _vjodSameTiles({FocusNode? first}) {
+    final state = _vm.seerr?.state;
+    final seen = <String>{};
+    final tiles = <Widget>[];
+    if (state != null) {
+      for (final d in [...state.recommendations, ...state.similar]) {
+        if (d.adult) continue;
+        final type = d.mediaType ?? (state.isTv ? 'tv' : 'movie');
+        if (type != 'movie' && type != 'tv') continue;
+        if (!seen.add('$type:${d.id}')) continue;
+        final status = d.mediaInfo?.status;
+        final kind = switch (status) {
+          SeerrMediaStatus.available || SeerrMediaStatus.partiallyAvailable => 0,
+          SeerrMediaStatus.pending || SeerrMediaStatus.processing => 1,
+          _ => 2,
+        };
+        final poster = d.posterPath;
+        tiles.add(
+          _vjodPoster(
+            url: poster == null ? null : 'https://image.tmdb.org/t/p/w342$poster',
+            kind: kind,
+            focusNode: tiles.isEmpty ? first : null,
+            onTap: () => context.push(
+              Destinations.seerrMedia(
+                '${d.id}',
+                mediaType: type,
+                title: d.title ?? d.name ?? '',
+              ),
+            ),
+          ),
+        );
+        if (tiles.length >= 15) break;
+      }
+    }
+    if (tiles.isEmpty) {
+      for (final e in _vm.similar.take(12)) {
+        final seerr = e.serverId == 'seerr' || e.id.startsWith('tmdb:');
+        tiles.add(
+          _vjodPoster(
+            url: _imageUrl(e),
+            kind: seerr ? 2 : 0,
+            focusNode: tiles.isEmpty ? first : null,
+            onTap: () => _vjodOpen(e),
+          ),
+        );
+      }
+    }
+    return tiles;
+  }
+
+  /// A poster with Ready, Requested or Request on its corner.
+  Widget _vjodPoster({
+    required String? url,
+    required int kind,
+    required VoidCallback onTap,
+    FocusNode? focusNode,
+  }) {
     final l10n = AppLocalizations.of(context);
-    final color = seerr ? AppColorScheme.accent : AppColorScheme.statusAvailable;
+    final (label, color) = switch (kind) {
+      0 => (l10n.seerrTagReady, AppColorScheme.statusAvailable),
+      1 => (l10n.seerrTagRequested, const Color(0xFFE8C46A)),
+      _ => (l10n.vjodRequestIt, AppColorScheme.accent),
+    };
     final u = _vjodU;
     final w = 108.0 * u;
-    final url = _imageUrl(entry);
     return Padding(
       padding: EdgeInsets.only(right: 11 * u),
       child: VjodFocusable(
         focusNode: focusNode,
-        onTap: () => _vjodOpen(entry),
+        onTap: onTap,
         builder: (context, focused) => AnimatedContainer(
           duration: const Duration(milliseconds: 120),
           width: w,
@@ -5721,10 +5782,10 @@ class _ModernDetailContentState extends State<ModernDetailContent> {
             children: [
               if (url != null) OfflineAwareImage(imageUrl: url, fit: BoxFit.cover),
               Positioned(
-                left: 5,
-                top: 5,
+                left: 5 * u,
+                top: 5 * u,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: EdgeInsets.symmetric(horizontal: 6 * u, vertical: 2 * u),
                   decoration: BoxDecoration(
                     color: const Color(0xD90B0B0D),
                     borderRadius: BorderRadius.circular(3),
@@ -5733,16 +5794,16 @@ class _ModernDetailContentState extends State<ModernDetailContent> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Container(
-                        width: 6,
-                        height: 6,
+                        width: 6 * u,
+                        height: 6 * u,
                         decoration: BoxDecoration(color: color, shape: BoxShape.circle),
                       ),
-                      const SizedBox(width: 4),
+                      SizedBox(width: 4 * u),
                       Text(
-                        seerr ? l10n.vjodRequestIt : l10n.seerrTagReady,
+                        label,
                         style: TextStyle(
-                          color: seerr ? Colors.white : color,
-                          fontSize: 12,
+                          color: kind == 2 ? Colors.white : color,
+                          fontSize: 13 * u,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -5822,10 +5883,12 @@ class _ModernDetailContentState extends State<ModernDetailContent> {
     );
   }
 
-  Widget _vjodRow(List<Widget> children) => Focus(
+  /// A row of cards. Only the first row under the buttons sends Up back to
+  /// them; the others leave Up to the row above.
+  Widget _vjodRow(List<Widget> children, {bool top = false}) => Focus(
     canRequestFocus: false,
     skipTraversal: true,
-    onKeyEvent: _vjodUpToButtons,
+    onKeyEvent: top ? _vjodUpToButtons : null,
     child: SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       clipBehavior: Clip.none,
@@ -6115,7 +6178,7 @@ class _ModernDetailContentState extends State<ModernDetailContent> {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        _vjodRow([
+        _vjodRow(top: true, [
           for (final (i, k) in keys.indexed)
             _vjodChip(
               label: l10n.vjodSeason(k),
@@ -6161,30 +6224,40 @@ class _ModernDetailContentState extends State<ModernDetailContent> {
   Widget _vjodBelowSections(BuildContext context, AggregatedItem item) {
     final l10n = AppLocalizations.of(context);
     final u = _vjodU;
+    // On top: the series' seasons and episodes, or, for a title not here
+    // yet, what can be watched meanwhile.
+    Widget? top;
     if (_vm.isSeerrOnly) {
       final ready = _vm.readyNow;
-      if (ready.isEmpty) return const SizedBox.shrink();
-      return Padding(
-        padding: EdgeInsets.only(top: 8 * u),
-        child: Column(
+      if (ready.isNotEmpty) {
+        top = Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
             _vjodSectionTitle(l10n.vjodMeanwhile),
-            _vjodRow([
+            _vjodRow(top: true, [
               for (final (i, e) in ready.take(8).indexed)
                 _vjodReadyCard(e, focusNode: i == 0 ? _vjodBelowFirst : null),
             ]),
           ],
-        ),
-      );
+        );
+      }
+    } else if (item.type == 'Series') {
+      top = _vjodSeriesSection(context, item, first: _vjodBelowFirst);
     }
-    final isSeries = item.type == 'Series';
-    final series = isSeries
-        ? _vjodSeriesSection(context, item, first: _vjodBelowFirst)
-        : null;
-    final actors = _vm.actors;
-    final similar = _vm.similar;
-    final castFirst = series == null ? _vjodBelowFirst : null;
+
+    // Then the cast and the same-vein titles, side by side, on every page.
+    var actors = _vm.actors;
+    var actorServer = item.serverId;
+    if (actors.isEmpty) {
+      final credits = _vm.seerr?.state.credits?.cast ?? const [];
+      actors = [
+        for (final c in credits.take(12))
+          {'Name': c.name, 'Id': '${c.id}', 'ProfilePath': c.profilePath},
+      ];
+      actorServer = 'seerr';
+    }
+    final castFirst = top == null ? _vjodBelowFirst : null;
     final cast = actors.isEmpty
         ? null
         : Column(
@@ -6192,43 +6265,43 @@ class _ModernDetailContentState extends State<ModernDetailContent> {
             mainAxisSize: MainAxisSize.min,
             children: [
               _vjodSectionTitle(l10n.castMembers),
-              _vjodRow([
+              _vjodRow(top: top == null, [
                 for (final (i, p) in actors.take(_landscape ? 4 : 10).indexed)
                   _vjodPerson(
                     p,
-                    item.serverId,
+                    actorServer,
                     focusNode: i == 0 ? castFirst : null,
                   ),
               ]),
             ],
           );
-    final same = similar.isEmpty
+    final sameTiles = _vjodSameTiles(
+      first: top == null && cast == null ? _vjodBelowFirst : null,
+    );
+    final same = sameTiles.isEmpty
         ? null
         : Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
               _vjodSectionTitle(l10n.vjodSameSpirit),
-              _vjodRow([
-                for (final (i, e) in similar.take(12).indexed)
-                  _vjodPoster(
-                    e,
-                    focusNode: series == null && cast == null && i == 0
-                        ? _vjodBelowFirst
-                        : null,
-                  ),
-              ]),
+              _vjodRow(top: top == null, sameTiles),
             ],
           );
     Widget? pair;
     if (cast != null || same != null) {
       if (_landscape && cast != null && same != null) {
+        // The cast keeps its own width; the posters get what is left and
+        // scroll inside it, so the two never run into each other.
         pair = Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            cast,
+            ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: 4 * 104 * u),
+              child: cast,
+            ),
             SizedBox(width: 50 * u),
-            Expanded(child: same),
+            Expanded(child: ClipRect(child: same)),
           ],
         );
       } else {
@@ -6236,19 +6309,20 @@ class _ModernDetailContentState extends State<ModernDetailContent> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             ?cast,
-            if (cast != null && same != null) SizedBox(height: 24 * u),
+            if (cast != null && same != null) SizedBox(height: 28 * u),
             ?same,
           ],
         );
       }
     }
+    if (top == null && pair == null) return const SizedBox.shrink();
     return Padding(
-      padding: EdgeInsets.only(top: 24 * u),
+      padding: EdgeInsets.only(top: 28 * u),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (series != null) series,
-          if (series != null && pair != null) SizedBox(height: 40 * u),
+          ?top,
+          if (top != null && pair != null) SizedBox(height: 40 * u),
           ?pair,
         ],
       ),
