@@ -30,6 +30,24 @@ const _tvMarkers = [
   'operatv',
 ];
 
+const _debugKey = 'vjod_tv_debug';
+
+/// Whether the diagnostic panel is on: `?tvdebug=1` turns it on and
+/// `?tvdebug=0` off, remembered, since the address loses its query as soon
+/// as the app moves to another screen.
+bool webTvDebugEnabled() {
+  try {
+    final asked = Uri.base.queryParameters['tvdebug'];
+    if (asked == '1' || asked == '0') {
+      web.window.localStorage.setItem(_debugKey, asked!);
+      return asked == '1';
+    }
+    return web.window.localStorage.getItem(_debugKey) == '1';
+  } catch (_) {
+    return false;
+  }
+}
+
 bool isWebTvBrowser() {
   try {
     final forced = Uri.base.queryParameters['tv'];

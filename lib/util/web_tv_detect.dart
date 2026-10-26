@@ -8,3 +8,6 @@ import 'web_tv_detect_stub.dart'
 /// `?tv=1` in the address forces the TV layout on a TV whose browser hides
 /// what it is, and `?tv=0` turns it off; the choice is remembered.
 bool isWebTvBrowser() => impl.isWebTvBrowser();
+
+/// The diagnostic panel of the web app on a TV, on with `?tvdebug=1`.
+bool webTvDebugEnabled() => impl.webTvDebugEnabled();
