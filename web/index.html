@@ -108,7 +108,15 @@
   </style>
 
     <script defer src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
-  <script src="tv_navigation.js" defer></script>
+  <!-- Loaded fresh on every visit: a TV browser keeps an old copy for a
+       while otherwise, and a fix to it would not be seen. -->
+  <script>
+    (function () {
+      var s = document.createElement('script');
+      s.src = 'tv_navigation.js?v=' + Date.now();
+      document.head.appendChild(s);
+    })();
+  </script>
   
   <script>
     (function () {
