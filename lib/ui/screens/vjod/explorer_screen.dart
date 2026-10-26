@@ -7,6 +7,11 @@ import 'package:moonfin_design/moonfin_design.dart';
 import 'package:server_core/server_core.dart';
 
 import '../../../data/models/aggregated_item.dart';
+import '../../../data/repositories/seerr_repository.dart';
+import '../../../data/services/seerr/seerr_api_models.dart';
+import '../../../data/viewmodels/seerr_discover_view_model.dart';
+import '../../../util/seerr_genre_art.dart';
+import '../../widgets/offline_aware_image.dart';
 import '../../../data/services/row_data_source.dart';
 import '../../../data/services/vjod/vjod_collections.dart';
 import '../../../l10n/app_localizations.dart';
@@ -97,11 +102,41 @@ class ExplorerScreen extends StatefulWidget {
 class _ExplorerScreenState extends State<ExplorerScreen> {
   List<AggregatedItem> _palmares = const [];
   List<AggregatedItem> _sagas = const [];
+  List<SeerrGenre> _genres = const [];
+
+  /// The streaming services worth a tile from France.
+  static const _networkIds = {213, 2739, 1024, 2552, 49, 4330, 453, 3353, 4};
 
   @override
   void initState() {
     super.initState();
     unawaited(_loadServerCollections());
+    unawaited(_loadGenres());
+  }
+
+  /// Seerr's genres, each with a duotone backdrop, as on its Discover page.
+  Future<void> _loadGenres() async {
+    try {
+      final repo = await GetIt.instance.getAsync<SeerrRepository>();
+      await repo.ensureInitialized();
+      if (!repo.isAvailable) return;
+      final genres = await repo.getGenreSliderMovies();
+      if (!mounted) return;
+      setState(() => _genres = genres);
+    } catch (e) {
+      debugPrint('[Explorer] Genres failed: $e');
+    }
+  }
+
+  void _openSeerr(String id, String name, String mediaType, String type) {
+    context.push(
+      Destinations.seerrBrowseWith(
+        filterId: id,
+        filterName: name,
+        mediaType: mediaType,
+        filterType: type,
+      ),
+    );
   }
 
   Future<void> _loadServerCollections() async {
@@ -222,9 +257,86 @@ class _ExplorerScreenState extends State<ExplorerScreen> {
                   autofocus: takeFirst(),
                   onTap: () => _openCollection(c, french),
                 ),
+              // Seerr's studios, with their logos, after VJOD's own.
+              if (family == VjodFamily.studios)
+                for (final st in SeerrDiscoverViewModel.popularStudios)
+                  _ExplorerTile(
+                    width: tileW,
+                    height: tileH,
+                    scale: s,
+                    color: const Color(0xFF1C1D22),
+                    title: st.name,
+                    logoUrl: st.logoPath,
+                    autofocus: takeFirst(),
+                    onTap: () => _openSeerr(
+                      st.id.toString(),
+                      st.name,
+                      'movie',
+                      'studio',
+                    ),
+                  ),
             ],
           ),
         );
+
+      if (family == VjodFamily.themes && _genres.isNotEmpty) {
+        children
+          ..add(sectionTitle('Genres'))
+          ..add(
+            Wrap(
+              spacing: gap,
+              runSpacing: gap,
+              children: [
+                for (final g in _genres)
+                  _ExplorerTile(
+                    width: tileW,
+                    height: tileH,
+                    scale: s,
+                    color: _tileHue(g.name),
+                    title: g.name,
+                    imageUrl: seerrGenreBackdropUrl(g.id, g.backdrops),
+                    autofocus: takeFirst(),
+                    onTap: () => _openSeerr(
+                      g.id.toString(),
+                      g.name,
+                      'movie',
+                      'genre',
+                    ),
+                  ),
+              ],
+            ),
+          );
+      }
+
+      if (family == VjodFamily.series) {
+        children
+          ..add(sectionTitle(french ? 'Plateformes' : 'Streaming services'))
+          ..add(
+            Wrap(
+              spacing: gap,
+              runSpacing: gap,
+              children: [
+                for (final n in SeerrDiscoverViewModel.popularNetworks)
+                  if (_networkIds.contains(n.id))
+                    _ExplorerTile(
+                      width: tileW,
+                      height: tileH,
+                      scale: s,
+                      color: const Color(0xFF1C1D22),
+                      title: n.name,
+                      logoUrl: n.logoPath,
+                      autofocus: takeFirst(),
+                      onTap: () => _openSeerr(
+                        n.id.toString(),
+                        n.name,
+                        'tv',
+                        'network',
+                      ),
+                    ),
+              ],
+            ),
+          );
+      }
     }
 
     void serverSection(String title, List<AggregatedItem> items) {
@@ -320,6 +432,12 @@ class _ExplorerTile extends StatelessWidget {
   final bool autofocus;
   final VoidCallback onTap;
 
+  /// A studio's or a service's logo, drawn in place of the name.
+  final String? logoUrl;
+
+  /// Artwork behind the name, such as a genre's duotone backdrop.
+  final String? imageUrl;
+
   const _ExplorerTile({
     required this.width,
     required this.height,
@@ -329,7 +447,16 @@ class _ExplorerTile extends StatelessWidget {
     required this.autofocus,
     required this.onTap,
     this.chip,
+    this.logoUrl,
+    this.imageUrl,
   });
+
+  Widget _nameText(double s) => Text(
+    title.toUpperCase(),
+    maxLines: 2,
+    overflow: TextOverflow.ellipsis,
+    style: vjodDisplay(24 * s).copyWith(height: 1.05),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -341,13 +468,47 @@ class _ExplorerTile extends StatelessWidget {
         duration: const Duration(milliseconds: 120),
         width: width,
         height: height,
-        padding: EdgeInsets.all(14 * s),
+        padding: imageUrl != null ? EdgeInsets.zero : EdgeInsets.all(14 * s),
+        clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(6),
           color: color,
           boxShadow: vjodFocusRing(s, on: focused),
         ),
-        child: Column(
+        child: logoUrl != null
+            ? Padding(
+                padding: EdgeInsets.all(10 * s),
+                child: OfflineAwareImage(
+                  imageUrl: logoUrl!,
+                  fit: BoxFit.contain,
+                  errorWidget: (_, _, _) =>
+                      Align(alignment: Alignment.bottomLeft, child: _nameText(s)),
+                ),
+              )
+            : imageUrl != null
+            ? Stack(
+                fit: StackFit.expand,
+                children: [
+                  Positioned.fill(
+                    child: OfflineAwareImage(
+                      imageUrl: imageUrl!,
+                      fit: BoxFit.cover,
+                      errorWidget: (_, _, _) => const SizedBox.shrink(),
+                    ),
+                  ),
+                  const Positioned.fill(
+                    child: ColoredBox(color: Color(0x4D000000)),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.all(14 * s),
+                    child: Align(
+                      alignment: Alignment.bottomLeft,
+                      child: _nameText(s),
+                    ),
+                  ),
+                ],
+              )
+            : Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -372,12 +533,7 @@ class _ExplorerTile extends StatelessWidget {
               )
             else
               const SizedBox.shrink(),
-            Text(
-              title.toUpperCase(),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: vjodDisplay(24 * s).copyWith(height: 1.05),
-            ),
+            _nameText(s),
           ],
         ),
       ),
