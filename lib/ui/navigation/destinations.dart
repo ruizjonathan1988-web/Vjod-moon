@@ -77,6 +77,7 @@ class Destinations {
   static const enRoute = '/en-route';
   static const bientot = '/bientot';
   static const explorer = '/explorer';
+  static const tv = '/tv';
   static const folderView = '/folders';
   static const folderBrowse = '/folder/:folderId';
   static const collectionBrowse = '/collection/:collectionId';
