@@ -218,40 +218,27 @@
     // About four steps a second, a little quicker while held.
     if (now - lastPress < (held > 6 ? 150 : 240)) return;
     lastPress = now;
-    // A wheel turn for the screens that scroll like a page (grids, lists),
-    // then an arrow for the ones the remote's highlight drives. Both go the
-    // same way, so either one is enough to move the screen.
+    flash(dir);
+    diag.pushes++;
+    // Best: the app's own remote. It presses the key on whatever has the
+    // focus, exactly as the TV app's remote does, on every screen.
+    if (typeof window.vjodTvKey === 'function') {
+      diag.target = 'app';
+      var taken = false;
+      try { taken = !!window.vjodTvKey(dir); } catch (e) {}
+      diag.keys++;
+      if (taken) diag.keysTaken++;
+      showDiag();
+      if (taken) return;
+    }
+    // Otherwise a wheel turn, for the screens that scroll like a page.
     var w = window.innerWidth, h = window.innerHeight;
     var amount = held > 6 ? 240 : 120;
     if (dir === 'down' || dir === 'up') {
-      // Low on the screen rather than in the middle: on a library or a
-      // collection the middle is often the header (title, sort, letters),
-      // which doesn't scroll, while the grid sits below it.
       wheel(w / 2, h * 0.75, 0, dir === 'down' ? amount : -amount);
     } else {
       wheel(w / 2, mouseY >= 0 ? mouseY : h / 2,
         dir === 'right' ? amount : -amount, 0);
-    }
-    flash(dir);
-    diag.pushes++;
-    var k = ARROWS[dir];
-    var target = keyTarget();
-    diag.target = target.tagName.toLowerCase();
-    sending = true;
-    try {
-      ['keydown', 'keyup'].forEach(function (type) {
-        var free = target.dispatchEvent(new KeyboardEvent(type, {
-          key: k[0], code: k[0], keyCode: k[1], which: k[1],
-          bubbles: true, cancelable: true, composed: true
-        }));
-        if (type === 'keydown') {
-          diag.keys++;
-          // The app cancels a key it acted on.
-          if (!free) diag.keysTaken++;
-        }
-      });
-    } finally {
-      sending = false;
     }
     showDiag();
   }
@@ -414,18 +401,14 @@
   var KNOWN_BACK = ['Escape', 'GoBack', 'BrowserBack', 'Backspace'];
 
   function relay(type, original) {
-    var target = keyTarget();
-    var ev = new KeyboardEvent(type, {
-      key: 'Escape',
-      code: 'Escape',
-      keyCode: 27,
-      which: 27,
-      bubbles: true,
-      cancelable: true
-    });
-    target.dispatchEvent(ev);
     original.preventDefault();
     original.stopImmediatePropagation();
+    if (type !== 'keydown') return;
+    if (typeof window.vjodTvKey === 'function') {
+      try { window.vjodTvKey('back'); } catch (e) {}
+    } else {
+      history.back();
+    }
   }
 
   ['keydown', 'keyup'].forEach(function (type) {
