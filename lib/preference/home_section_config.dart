@@ -234,7 +234,7 @@ class HomeSectionConfig {
     HomeSectionConfig(
       type: HomeSectionType.vjodMiniSeries,
       enabled: true,
-      order: 14,
+      order: 15,
     ),
     HomeSectionConfig(
       type: HomeSectionType.seerrForYou,
@@ -245,6 +245,11 @@ class HomeSectionConfig {
       type: HomeSectionType.vjodShortGems,
       enabled: true,
       order: 13,
+    ),
+    HomeSectionConfig(
+      type: HomeSectionType.vjodAmbianceOfDay,
+      enabled: true,
+      order: 14,
     ),
     HomeSectionConfig(
       type: HomeSectionType.vjodFeelGood,
@@ -259,7 +264,7 @@ class HomeSectionConfig {
     HomeSectionConfig(
       type: HomeSectionType.vjodOutsideHabits,
       enabled: true,
-      order: 16,
+      order: 17,
     ),
     HomeSectionConfig(
       type: HomeSectionType.vjodBinge,
@@ -532,7 +537,7 @@ class HomeSectionConfig {
     HomeSectionConfig(
       type: HomeSectionType.seasonal,
       enabled: true,
-      order: 15,
+      order: 16,
     ),
     HomeSectionConfig(
       type: HomeSectionType.onNow,
@@ -619,6 +624,7 @@ class HomeSectionConfig {
     HomeSectionType.vjodEpic: HomeSectionType.vjodFeelGood,
     HomeSectionType.vjodOutsideHabits: HomeSectionType.vjodEpic,
     HomeSectionType.vjodBinge: HomeSectionType.vjodOutsideHabits,
+    HomeSectionType.vjodAmbianceOfDay: HomeSectionType.vjodShortGems,
   };
 
   /// [config] placed right after [leader], everything below moved down one.

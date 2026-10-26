@@ -535,6 +535,26 @@ VjodCollection vjodThemeOfDay(DateTime now) {
   return yearRound[dayIndex.abs() % yearRound.length];
 }
 
+/// Today's mood row: one of the moods a day, the same all day, skipping the
+/// ones that already have a row of their own on Home ([onHome]) and the
+/// ones that only hold what the library has. Null when none is left.
+VjodCollection? vjodAmbianceOfDay(DateTime now, {Set<String> onHome = const {}}) {
+  final moods = [
+    for (final c in vjodCollections)
+      if (c.family == VjodFamily.ambiances &&
+          !c.readyOnly &&
+          c.inSeason(now) &&
+          !onHome.contains(c.id))
+        c,
+  ];
+  if (moods.isEmpty) return null;
+  final dayIndex = DateTime(now.year, now.month, now.day)
+      .difference(DateTime(2026))
+      .inDays;
+  // Offset from the theme's cycle, so the two rows don't change in step.
+  return moods[(dayIndex.abs() + 3) % moods.length];
+}
+
 /// The name a VJOD home row goes by in the settings: its collection's, or
 /// "Thème du jour" for the row that changes every day.
 String vjodSectionLabel(String? collectionId, bool french) {

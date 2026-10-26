@@ -6650,7 +6650,12 @@ class _ContentRowsState extends State<_ContentRows>
     // The mock-up: what to continue in wide stills, everything else in
     // posters, whatever the per-row settings say.
     if (_vjodTheme) {
-      return row.id == 'resume' || row.id == 'nextUp'
+      // The rows looked at to pick something back up (what to resume, the
+      // requests that came in) are wide, so they stand apart from the
+      // posters of the rows that suggest.
+      return row.id == 'resume' ||
+              row.id == 'nextUp' ||
+              row.id == HomeViewModel.myRequestsRowId
           ? ImageType.thumb
           : ImageType.poster;
     }

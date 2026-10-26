@@ -615,6 +615,10 @@ enum HomeSectionType {
   /// "Hors de vos habitudes": a collection away from the viewer's usual
   /// genres, a different one each day.
   vjodOutsideHabits('vjod_outside_habits'),
+
+  /// "Ambiance du jour": one of Explorer's moods, a different one each day,
+  /// so the moods rotate on Home instead of each holding a row.
+  vjodAmbianceOfDay('vjod_ambiance_of_day'),
   none('none');
 
   const HomeSectionType(this.serializedName);
@@ -649,7 +653,8 @@ enum HomeSectionType {
       vjodCollectionId != null ||
       this == HomeSectionType.vjodThemeOfDay ||
       this == HomeSectionType.vjodMood ||
-      this == HomeSectionType.vjodOutsideHabits;
+      this == HomeSectionType.vjodOutsideHabits ||
+      this == HomeSectionType.vjodAmbianceOfDay;
 
   /// A VJOD row that reads the library alone, so shows without Seerr.
   bool get isVjodLibraryRow =>

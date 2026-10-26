@@ -34,6 +34,7 @@ void main() {
       HomeSectionType.seerrWatchlist,
       HomeSectionType.frenchMovies,
       HomeSectionType.vjodShortGems,
+      HomeSectionType.vjodAmbianceOfDay,
       HomeSectionType.vjodMiniSeries,
       HomeSectionType.seasonal,
       HomeSectionType.vjodOutsideHabits,

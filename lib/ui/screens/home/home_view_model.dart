@@ -877,11 +877,10 @@ class HomeViewModel extends ChangeNotifier {
   }
 
   /// Single row sections, which a layout can hold hundreds of, and whose row
-  /// takes the section's id. VJOD's Seerr rows too: each is two Seerr pages,
-  /// so the ones below the screen wait until Home scrolls near them.
+  /// takes the section's id. Only those: a section with no placeholder row
+  /// (VJOD's, among others) would never be scrolled near, so never load.
   static bool _isDeferrable(HomeSectionConfig cfg) =>
-      (cfg.isPluginDynamic && (cfg.pluginSection?.isNotEmpty ?? false)) ||
-      (cfg.isBuiltin && cfg.type.isVjodRow && !cfg.type.isVjodLibraryRow);
+      cfg.isPluginDynamic && (cfg.pluginSection?.isNotEmpty ?? false);
 
   /// The key a deferred section waits under: the id of the row standing in
   /// for it, which is what the screen reports when it nears that row.
@@ -1064,6 +1063,7 @@ class HomeViewModel extends ChangeNotifier {
       case HomeSectionType.vjodBinge:
       case HomeSectionType.vjodMood:
       case HomeSectionType.vjodOutsideHabits:
+      case HomeSectionType.vjodAmbianceOfDay:
         return row.id == cfg.type.serializedName;
       case HomeSectionType.seerrUpcoming:
         return row.id == upcomingRowId;
@@ -1449,6 +1449,7 @@ class HomeViewModel extends ChangeNotifier {
       case HomeSectionType.vjodBinge:
       case HomeSectionType.vjodMood:
       case HomeSectionType.vjodOutsideHabits:
+      case HomeSectionType.vjodAmbianceOfDay:
         return {type.serializedName};
       case HomeSectionType.seerrUpcoming:
         return const {'seerrUpcoming'};
@@ -1834,6 +1835,7 @@ class HomeViewModel extends ChangeNotifier {
       case HomeSectionType.vjodBinge:
       case HomeSectionType.vjodMood:
       case HomeSectionType.vjodOutsideHabits:
+      case HomeSectionType.vjodAmbianceOfDay:
         return _loadVjodRow(section, l10n);
       case HomeSectionType.seerrUpcoming:
         return _loadUpcomingRow(l10n, forceRefresh: forceRefresh);
@@ -2337,6 +2339,7 @@ class HomeViewModel extends ChangeNotifier {
       case HomeSectionType.vjodBinge:
       case HomeSectionType.vjodMood:
       case HomeSectionType.vjodOutsideHabits:
+      case HomeSectionType.vjodAmbianceOfDay:
         return null;
       case HomeSectionType.seerrForYou:
         return HomeRow(
@@ -4099,6 +4102,13 @@ class HomeViewModel extends ChangeNotifier {
   /// everywhere.
   static int get _vjodDay => DateTime.now().difference(DateTime(2026)).inDays;
 
+  /// The collections that have a row of their own on Home, switched on.
+  Set<String> _vjodCollectionsOnHome() => {
+    for (final c in _prefs.activeHomeSectionConfigs)
+      if (c.isBuiltin && c.type.vjodCollectionId != null)
+        c.type.vjodCollectionId!,
+  };
+
   /// Picks tonight's mood, or drops it when it was already the one, then
   /// redraws the VJOD rows with it.
   Future<void> setVjodMood(String? moodName, AppLocalizations l10n) async {
@@ -4208,12 +4218,18 @@ class HomeViewModel extends ChangeNotifier {
     }
 
     final themeOfDay = type == HomeSectionType.vjodThemeOfDay;
+    final ambianceOfDay = type == HomeSectionType.vjodAmbianceOfDay;
     final collection = themeOfDay
         ? vjodThemeOfDay(now)
+        : ambianceOfDay
+        ? vjodAmbianceOfDay(now, onHome: _vjodCollectionsOnHome())
         : vjodCollectionById(type.vjodCollectionId);
     if (collection == null) return [];
     final String title;
-    if (!themeOfDay) {
+    if (ambianceOfDay) {
+      title =
+          '${french ? 'Ambiance du jour' : 'Mood of the day'} · ${collection.title(french)}';
+    } else if (!themeOfDay) {
       title = collection.title(french);
     } else if (collection.months.isNotEmpty) {
       title = '${french ? 'De saison' : 'In season'} · ${collection.title(french)}';
@@ -4369,6 +4385,7 @@ class HomeViewModel extends ChangeNotifier {
       // rows never tell the same story.
       final onHome = <String>{
         vjodThemeOfDay(now).id,
+        ?vjodAmbianceOfDay(now, onHome: _vjodCollectionsOnHome())?.id,
         for (final t in HomeSectionType.values)
           if (t.vjodCollectionId case final id?) id,
       };

@@ -124,6 +124,10 @@ class _HomeRowsImageTypeScreenState extends State<HomeRowsImageTypeScreen> {
           l10n.localeName.startsWith('fr')
               ? 'VJOD · Hors de vos habitudes'
               : 'VJOD · Off your beaten track',
+        HomeSectionType.vjodAmbianceOfDay =>
+          l10n.localeName.startsWith('fr')
+              ? 'VJOD · Ambiance du jour'
+              : 'VJOD · Mood of the day',
         HomeSectionType.seerrRecentRequests => l10n.recentRequests,
         HomeSectionType.seerrWatchlist => l10n.yourWatchlist,
         HomeSectionType.seerrRecentlyAdded => l10n.recentlyAdded,
