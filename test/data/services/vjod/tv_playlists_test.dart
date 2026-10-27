@@ -41,6 +41,39 @@ void main() {
     });
   });
 
+  group('parseSharedUrl', () {
+    test('splits an Xtream get.php link into portal, user and password', () {
+      final p = parseSharedUrl(
+        '  http://host.example:8080/get.php?username=u1&password=p1&type=m3u_plus ',
+        id: 'x',
+      )!;
+      expect(p.kind, TvPlaylistKind.xtream);
+      expect(p.url, 'http://host.example:8080');
+      expect(p.username, 'u1');
+      expect(p.password, 'p1');
+      expect(p.name, 'host.example');
+      expect(
+        p.m3uUrl,
+        'http://host.example:8080/get.php'
+        '?username=u1&password=p1&type=m3u_plus&output=ts',
+      );
+    });
+
+    test('keeps a plain M3U link as m3u', () {
+      final p = parseSharedUrl('https://iptv-org.github.io/iptv/fr.m3u', id: 'y')!;
+      expect(p.kind, TvPlaylistKind.m3u);
+      expect(p.url, 'https://iptv-org.github.io/iptv/fr.m3u');
+      expect(p.m3uUrl, 'https://iptv-org.github.io/iptv/fr.m3u');
+    });
+
+    test('rejects empty or non-http input', () {
+      expect(parseSharedUrl(null, id: 'z'), isNull);
+      expect(parseSharedUrl('   ', id: 'z'), isNull);
+      expect(parseSharedUrl('ftp://host/x', id: 'z'), isNull);
+      expect(parseSharedUrl('not a url', id: 'z'), isNull);
+    });
+  });
+
   group('TvPlaylists encode/decode', () {
     test('round-trips a mixed list', () {
       final list = [

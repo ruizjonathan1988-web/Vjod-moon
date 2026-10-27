@@ -418,13 +418,18 @@ class _PlaylistDialogState extends State<_PlaylistDialog> {
   @override
   void initState() {
     super.initState();
-    final e = widget.existing;
-    _name = TextEditingController(text: e?.name ?? '');
-    _url = TextEditingController(text: e?.url ?? widget.seedUrl ?? '');
-    _user = TextEditingController(text: e?.username ?? '');
-    _pass = TextEditingController(text: e?.password ?? '');
-    _epg = TextEditingController(text: e?.epgUrl ?? '');
-    _kind = e?.kind ?? TvPlaylistKind.m3u;
+    // A shared link is read into a draft (Xtream split into its fields) so the
+    // form opens filled; the viewer still reviews and saves it.
+    final seed = e ??
+        (widget.seedUrl != null
+            ? parseSharedUrl(widget.seedUrl, id: 'draft')
+            : null);
+    _name = TextEditingController(text: seed?.name ?? '');
+    _url = TextEditingController(text: seed?.url ?? widget.seedUrl ?? '');
+    _user = TextEditingController(text: seed?.username ?? '');
+    _pass = TextEditingController(text: seed?.password ?? '');
+    _epg = TextEditingController(text: seed?.epgUrl ?? '');
+    _kind = seed?.kind ?? TvPlaylistKind.m3u;
   }
 
   @override

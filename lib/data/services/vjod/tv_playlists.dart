@@ -74,6 +74,37 @@ class TvPlaylist {
   }
 }
 
+/// Reads a link shared from another app into a draft source, so the add form
+/// opens already filled: an Xtream `get.php` link is split into its portal,
+/// username and password; anything else is kept as a plain M3U URL. The name
+/// is guessed from the host. The viewer still reviews and saves it.
+TvPlaylist? parseSharedUrl(String? raw, {required String id}) {
+  final text = raw?.trim();
+  if (text == null || text.isEmpty) return null;
+  final uri = Uri.tryParse(text);
+  if (uri == null || !(uri.isScheme('http') || uri.isScheme('https'))) {
+    return null;
+  }
+  final name = uri.host.isEmpty ? '' : uri.host;
+  final q = uri.queryParameters;
+  final isXtream = (uri.path.endsWith('get.php') ||
+          uri.path.endsWith('player_api.php')) &&
+      q['username'] != null &&
+      q['password'] != null;
+  if (isXtream) {
+    final port = uri.hasPort ? ':${uri.port}' : '';
+    return TvPlaylist(
+      id: id,
+      name: name,
+      url: '${uri.scheme}://${uri.host}$port',
+      kind: TvPlaylistKind.xtream,
+      username: q['username'] ?? '',
+      password: q['password'] ?? '',
+    );
+  }
+  return TvPlaylist(id: id, name: name, url: text);
+}
+
 /// Reads and writes the viewer's saved TV sources as a JSON list. Bad or
 /// partial entries are skipped rather than throwing, so a hand-edited or
 /// half-written store still opens.
