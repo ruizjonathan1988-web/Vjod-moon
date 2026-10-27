@@ -138,7 +138,11 @@ class AppUpdateService {
     final lastCheckMs = _store.getInt(_lastCheckMsKey);
     if (enforceCooldown && lastCheckMs != null && lastCheckMs > 0) {
       final lastCheckAt = DateTime.fromMillisecondsSinceEpoch(lastCheckMs, isUtc: true);
-      if (now.difference(lastCheckAt) < _checkCooldown) {
+      // A perso build is republished several times a day, so it looks again
+      // every hour rather than once a day.
+      final cooldown =
+          isPersoBuild ? const Duration(hours: 1) : _checkCooldown;
+      if (now.difference(lastCheckAt) < cooldown) {
         return const DesktopUpdateCheckResult(
           status: DesktopUpdateCheckStatus.rateLimited,
         );
