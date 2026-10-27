@@ -823,6 +823,9 @@ class SeerrRepository {
   Future<void> retryRequest(int requestId) =>
       _withClient((c) => c.retryRequest(requestId));
 
+  Future<List<dynamic>> getServiceServers({required bool sonarr}) =>
+      _withClient((c) => c.getServiceServers(sonarr: sonarr));
+
   Future<SeerrRequestCounts> getRequestCount() => _withClient(
     (c) async => SeerrRequestCounts.fromJson(await c.getRequestCount()),
   );

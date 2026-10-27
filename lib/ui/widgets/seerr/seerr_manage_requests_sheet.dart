@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../data/services/seerr/seerr_api_models.dart';
 import '../../../data/viewmodels/seerr_media_detail_view_model.dart';
@@ -55,6 +56,19 @@ class _SeerrManageRequestsSheetState extends State<_SeerrManageRequestsSheet> {
       return;
     }
     setState(() {});
+  }
+
+  Future<void> _openInService(BuildContext context, SeerrRequest request) async {
+    final l10n = AppLocalizations.of(context);
+    final url = await widget.vm.serviceUrlForRequest(request);
+    if (!context.mounted) return;
+    if (url == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.seerrServiceLinkUnavailable)),
+      );
+      return;
+    }
+    await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
   }
 
   @override
@@ -114,6 +128,15 @@ class _SeerrManageRequestsSheetState extends State<_SeerrManageRequestsSheet> {
             icon: Icons.search_rounded,
             onPressed:
                 state.isRequesting ? null : () => widget.vm.retryRequest(request.id),
+          ),
+          const SizedBox(height: 10),
+          // Opens the title straight in Radarr or Sonarr, like Seerr does.
+          SeerrDialogButton(
+            label: request.type == 'movie'
+                ? l10n.seerrOpenInRadarr
+                : l10n.seerrOpenInSonarr,
+            icon: Icons.open_in_new_rounded,
+            onPressed: () => _openInService(context, request),
           ),
         ],
       ],

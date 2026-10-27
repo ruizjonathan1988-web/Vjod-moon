@@ -598,6 +598,18 @@ class SeerrHttpClient {
 
   /// The languages TMDB knows, served by seerr so the filter list matches
   /// what the discover queries accept.
+  /// The Radarr or Sonarr servers Seerr knows, for a direct link to a title.
+  /// Admin-only: a non-admin gets a 403, which the caller turns into none.
+  Future<List<dynamic>> getServiceServers({required bool sonarr}) async {
+    final response = await _dio.get(
+      _apiUrl(sonarr ? 'settings/sonarr' : 'settings/radarr'),
+      options: _authOptions(),
+    );
+    _requireSuccess(response, 'getServiceServers');
+    final data = response.data;
+    return data is List ? data : const [];
+  }
+
   Future<List<dynamic>> getLanguages() async {
     final response = await _dio.get(
       _apiUrl('languages'),

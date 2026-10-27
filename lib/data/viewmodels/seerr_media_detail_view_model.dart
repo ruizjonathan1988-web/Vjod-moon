@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart' show AppLifecycleState, WidgetsBinding;
 
 import '../../preference/seerr_preferences.dart';
 import '../repositories/seerr_repository.dart';
+import '../services/seerr/arr_links.dart';
 import '../services/seerr/for_you_service.dart';
 import '../services/seerr/seerr_api_models.dart';
 import '../services/seerr/seerr_download_progress.dart';
@@ -746,6 +747,36 @@ class SeerrMediaDetailViewModel extends ChangeNotifier {
     await _runRequestMutation(
       () => _repo.retryRequest(requestId),
       'Request retried',
+    );
+  }
+
+  List<dynamic>? _radarrServers;
+  List<dynamic>? _sonarrServers;
+
+  /// A direct link to this request's title in Radarr or Sonarr, like the Seerr
+  /// web UI offers, or null when it cannot be built (no rights, no slug). The
+  /// server lists are fetched once and kept.
+  Future<String?> serviceUrlForRequest(SeerrRequest request) async {
+    final media = request.media;
+    if (media == null) return null;
+    final isMovie = request.type == 'movie';
+    try {
+      if (isMovie) {
+        _radarrServers ??= await _repo.getServiceServers(sonarr: false);
+      } else {
+        _sonarrServers ??= await _repo.getServiceServers(sonarr: true);
+      }
+    } catch (_) {
+      return null;
+    }
+    final servers = (isMovie ? _radarrServers : _sonarrServers) ?? const [];
+    return buildArrUrl(
+      servers,
+      serviceId: request.is4k ? media.serviceId4k : media.serviceId,
+      slug: request.is4k
+          ? media.externalServiceSlug4k
+          : media.externalServiceSlug,
+      isMovie: isMovie,
     );
   }
 
