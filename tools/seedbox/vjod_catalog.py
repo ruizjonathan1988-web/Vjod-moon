@@ -242,7 +242,74 @@ def enrich(cfg, rows):
     log(f"TMDB : {done} cherchés, {found} trouvés.")
 
 
+def setup():
+    """Pose les questions une par une et écrit les réglages."""
+    import getpass
+    try:
+        with open(CONFIG, encoding="utf-8") as f:
+            old = json.load(f)
+    except (OSError, ValueError):
+        old = {}
+
+    def ask(label, key, secret=False, default=""):
+        current = old.get(key, default)
+        hint = " (laisser vide pour garder l'actuel)" if current else ""
+        if secret:
+            value = getpass.getpass(f"{label}{hint} : ")
+        else:
+            shown = f" [{current}]" if current and not secret else ""
+            value = input(f"{label}{shown} : ")
+        value = value.strip()
+        return value if value else current
+
+    print("Réglages du catalogue VJOD (Ctrl+C pour annuler)\n")
+    cfg = {
+        "portal": ask("Adresse du fournisseur Xtream (ex. http://exemple.com:8080)", "portal").rstrip("/"),
+        "username": ask("Identifiant Xtream", "username"),
+        "password": ask("Mot de passe Xtream (ne s'affiche pas)", "password", secret=True),
+        "seerr_url": ask("Adresse de Seerr (ex. https://...), vide pour s'en passer", "seerr_url").rstrip("/"),
+        "seerr_api_key": "",
+        "languages": old.get("languages", ["FR", "EN", "RU", "CN"]),
+        "lookups_per_night": old.get("lookups_per_night", 8000),
+        "lookups_per_second": old.get("lookups_per_second", 4),
+    }
+    if cfg["seerr_url"]:
+        cfg["seerr_api_key"] = ask("Clé API Seerr (Paramètres > Général)", "seerr_api_key", secret=True)
+    langs = input(f"Langues de la maison, par priorité [{','.join(cfg['languages'])}] : ").strip()
+    if langs:
+        cfg["languages"] = [l.strip().upper() for l in langs.split(",") if l.strip()]
+    missing = [k for k in ("portal", "username", "password") if not cfg[k]]
+    if missing:
+        sys.exit("Il manque : " + ", ".join(missing) + ". Rien n'est enregistré.")
+    os.makedirs(BASE_DIR, exist_ok=True)
+    fd = os.open(CONFIG, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        json.dump(cfg, f, ensure_ascii=False, indent=2)
+    os.chmod(CONFIG, 0o600)
+    print("\nRéglages enregistrés (lisibles par toi seul).")
+    print("Vérification du compte Xtream…")
+    try:
+        base = cfg["portal"]
+        url = f"{base}/player_api.php?" + urllib.parse.urlencode(
+            {"username": cfg["username"], "password": cfg["password"]})
+        info = get_json(url, timeout=30)
+        status = (info.get("user_info") or {}).get("status", "?") if isinstance(info, dict) else "?"
+        print(f"  Fournisseur : compte {status}")
+    except Exception as e:
+        print(f"  Fournisseur injoignable ou identifiants refusés ({e})")
+    if cfg["seerr_url"]:
+        try:
+            get_json(cfg["seerr_url"] + "/api/v1/settings/main",
+                     headers={"X-Api-Key": cfg["seerr_api_key"]}, timeout=20)
+            print("  Seerr : OK")
+        except Exception as e:
+            print(f"  Seerr : échec ({e})")
+
+
 def main():
+    if "--setup" in sys.argv:
+        setup()
+        return
     try:
         with open(CONFIG, encoding="utf-8") as f:
             cfg = json.load(f)
