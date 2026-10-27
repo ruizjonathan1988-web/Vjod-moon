@@ -4,6 +4,7 @@ import 'dart:ui';
 import '../../theme/focus_foreground.dart';
 import '../../widgets/bounded_network_image.dart';
 import '../../widgets/floating_notification.dart';
+import '../../../data/services/vjod/xtream_catalog.dart';
 import '../../../data/services/seerr/taste_profile.dart';
 import '../../../data/services/seerr/for_you_ranker.dart' show forYouKey;
 import '../../widgets/offline_aware_image.dart';
@@ -5836,6 +5837,83 @@ class _HorizontalActionRowState extends State<_HorizontalActionRow> {
 }
 
 class DetailActionButtonsState extends State<DetailActionButtons> {
+  /// Plays the title from the IPTV provider when it has it: a film at once,
+  /// a series on its seasons. With copies in several languages, a sheet asks
+  /// which.
+  Widget? _providerPlayButton(
+    BuildContext context, {
+    FocusNode? focusNode,
+    bool autofocus = false,
+  }) {
+    final copies = viewModel.providerCopies;
+    final catalog = viewModel.providerCatalog;
+    if (copies.isEmpty || catalog == null) return null;
+    final isSeries = copies.first.kind == XtreamKind.series;
+    void open(XtreamTitle copy) {
+      if (isSeries) {
+        context.push(
+          Destinations.providerSeries(
+            id: copy.id,
+            name: copy.name,
+            poster: copy.poster,
+          ),
+        );
+      } else {
+        context.push(Destinations.trailer(url: catalog.movieUrl(copy)));
+      }
+    }
+
+    final langs = {for (final c in copies) c.tag}.where((t) => t.isNotEmpty);
+    final label = copies.length == 1 && copies.first.tag.isNotEmpty
+        ? 'Regarder · IPTV ${copies.first.tag}'
+        : 'Regarder · IPTV';
+    return _DetailActionButton(
+      label: label,
+      icon: Icons.play_arrow_rounded,
+      isPrimary: true,
+      focusNode: focusNode,
+      autofocus: autofocus,
+      onPressed: () async {
+        if (copies.length == 1) {
+          open(copies.first);
+          return;
+        }
+        final picked = await showModalBottomSheet<XtreamTitle>(
+          context: context,
+          builder: (sheetContext) => SafeArea(
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                ListTile(
+                  title: Text(
+                    langs.isEmpty
+                        ? 'Chez le fournisseur IPTV'
+                        : 'Chez le fournisseur IPTV · ${langs.join(', ')}',
+                  ),
+                ),
+                for (final (i, copy) in copies.indexed)
+                  ListTile(
+                    autofocus: i == 0,
+                    leading: const Icon(Icons.play_arrow_rounded),
+                    title: Text(copy.name),
+                    subtitle: Text(
+                      [
+                        if (copy.tag.isNotEmpty) copy.tag,
+                        if (copy.year != null) '${copy.year}',
+                        if (copy.extension.isNotEmpty) copy.extension,
+                      ].join(' · '),
+                    ),
+                    onTap: () => Navigator.of(sheetContext).pop(copy),
+                  ),
+              ],
+            ),
+          ),
+        );
+        if (picked != null && context.mounted) open(picked);
+      },
+    );
+  }
+
   int? get _selectedAudioIndex => viewModel.selectedAudioIndex;
   set _selectedAudioIndex(int? value) => viewModel.selectedAudioIndex = value;
 
@@ -7258,7 +7336,19 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
     // reaches for that anchor still finds it. The request entry then leaves the
     // arranged row, since it is already leading it.
     final Widget? primaryAction;
-    if (viewModel.isSeerrOnly) {
+    // Copies of the title at the IPTV provider play at once, so they lead,
+    // ahead of asking for a download, which stays right beside them.
+    final providerAction = viewModel.isSeerrOnly
+        ? _providerPlayButton(
+            context,
+            focusNode: _tvPlayFocusNode,
+            autofocus: autofocusPlay,
+          )
+        : null;
+    if (providerAction != null) {
+      primaryAction = providerAction;
+      byButton.removeWhere((button, _) => !button.availableInSeerrOnly);
+    } else if (viewModel.isSeerrOnly) {
       // One slot covers both tracks, since the sheet it opens carries the
       // quality switch. It is built off the HD track, falling back to the 4K
       // one for a viewer who is only allowed that.

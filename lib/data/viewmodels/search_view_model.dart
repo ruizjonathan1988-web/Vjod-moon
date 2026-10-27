@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
-import 'package:get_it/get_it.dart';
 import 'package:server_core/server_core.dart';
 
 import '../../l10n/current_app_localizations.dart';
@@ -12,10 +11,8 @@ import '../repositories/multi_server_repository.dart';
 import '../repositories/search_repository.dart';
 import '../repositories/seerr_repository.dart';
 import '../services/seerr/seerr_api_models.dart';
-import '../services/vjod/tv_playlists.dart';
+import '../services/vjod/provider_catalog_access.dart';
 import '../services/vjod/xtream_catalog.dart';
-import '../../preference/seerr_preferences.dart';
-import '../../preference/user_preferences.dart';
 
 class SearchResultGroup {
   final String title;
@@ -101,20 +98,8 @@ class SearchViewModel extends ChangeNotifier {
   /// The provider those results came from, to build their stream URLs.
   XtreamCatalog? get providerCatalog => _providerCatalog();
 
-  XtreamCatalog? _providerCatalog() {
-    // A browser page can't reach a plain-HTTP provider from an HTTPS site,
-    // and kids never get the provider's unfiltered catalogue.
-    if (kIsWeb || _scopedParentId != null) return null;
-    final getIt = GetIt.instance;
-    if (!getIt.isRegistered<SeerrPreferences>()) return null;
-    if (getIt.isRegistered<UserPreferences>() &&
-        getIt<UserPreferences>().get(UserPreferences.kidsModeEnabled)) {
-      return null;
-    }
-    return XtreamCatalog.forPlaylists(
-      TvPlaylists.decode(getIt<SeerrPreferences>().vjodTvPlaylistsJson),
-    );
-  }
+  XtreamCatalog? _providerCatalog() =>
+      _scopedParentId != null ? null : currentProviderCatalog();
 
   /// Starts downloading the provider's lists as soon as search opens.
   void warmUpProvider() => _providerCatalog()?.warmUp();

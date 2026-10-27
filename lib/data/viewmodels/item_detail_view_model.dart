@@ -28,6 +28,8 @@ import 'seerr_discover_view_model.dart';
 import 'seerr_media_detail_view_model.dart';
 import '../models/upcoming_episode_info.dart';
 import '../services/upcoming_episode_service.dart';
+import '../services/vjod/provider_catalog_access.dart';
+import '../services/vjod/xtream_catalog.dart';
 
 enum CollectionSortOption {
   alphabetical,
@@ -474,6 +476,42 @@ class ItemDetailViewModel extends ChangeNotifier {
   bool _isSeerrOnly = false;
   bool get isSeerrOnly => _isSeerrOnly;
 
+  /// The IPTV provider's copies of a title that is not in the library, every
+  /// language it has. Empty until the provider's catalogue has been read, and
+  /// for good when the profile has no provider or it lacks the title.
+  List<XtreamTitle> _providerCopies = const [];
+  List<XtreamTitle> get providerCopies => _providerCopies;
+
+  /// The provider those copies play from.
+  XtreamCatalog? _providerCatalog;
+  XtreamCatalog? get providerCatalog => _providerCatalog;
+
+  Future<void> _loadProviderCopies(SeerrMediaDetailState state) async {
+    final catalog = currentProviderCatalog();
+    if (catalog == null) return;
+    final date = state.movie?.releaseDate ?? state.tv?.firstAirDate ?? '';
+    final year = date.length >= 4 ? int.tryParse(date.substring(0, 4)) : null;
+    try {
+      final copies = await catalog.copiesOf(
+        kind: state.isTv ? XtreamKind.series : XtreamKind.movie,
+        tmdbId: state.tmdbId,
+        titles: [
+          state.displayTitle,
+          ?state.tv?.name,
+          ?state.tv?.title,
+          ?_seerrOnlyTitle,
+        ],
+        year: year,
+      );
+      if (_isDisposed || copies.isEmpty) return;
+      _providerCatalog = catalog;
+      _providerCopies = copies;
+      notifyListeners();
+    } catch (_) {
+      // A provider that doesn't answer leaves the page as Seerr built it.
+    }
+  }
+
   /// The library id of a title asked for by TMDB id that turned out to be in
   /// the library after all. The screen swaps itself for the real item, which
   /// has playback and everything else a synthetic one cannot offer.
@@ -847,6 +885,7 @@ class ItemDetailViewModel extends ChangeNotifier {
     _state = ItemDetailState.ready;
     notifyListeners();
     unawaited(_loadReadyNow(state));
+    unawaited(_loadProviderCopies(state));
 
     // Everything else in _loadSecondary needs a library id, but ratings are
     // keyed by TMDB id, which this does have.

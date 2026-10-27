@@ -128,4 +128,71 @@ void main() {
       expect(XtreamCatalog.forPlaylists(const []), isNull);
     });
   });
+
+  group('titleMatchKey', () {
+    test('drops accents, bracketed years, quality tags and punctuation', () {
+      expect(titleMatchKey('Dune : Deuxième Partie (2024) [4K]'), 'dune deuxieme partie');
+      expect(titleMatchKey("Le Fabuleux Destin d'Amélie Poulain - 2001"), 'le fabuleux destin d amelie poulain');
+    });
+
+    test('keeps a bare number that is part of the title', () {
+      expect(titleMatchKey('Blade Runner 2049'), 'blade runner 2049');
+      expect(titleMatchKey('1917'), '1917');
+    });
+  });
+
+  group('findProviderCopies', () {
+    final all = [
+      ...parseVodStreams(jsonEncode([
+        {'stream_id': 1, 'name': 'FR - Dune : Deuxième partie (2024)'},
+        {'stream_id': 2, 'name': 'EN - Dune: Part Two', 'tmdb': '693134'},
+        {'stream_id': 3, 'name': 'FR - Dune (1984)'},
+        {'stream_id': 4, 'name': 'FR - Dune (2021)'},
+        {'stream_id': 5, 'name': 'FR - Blade Runner'},
+        {'stream_id': 6, 'name': 'FR - Blade Runner 2049 (2017)'},
+        {'stream_id': 7, 'name': 'EN - Dune 2021'},
+        {'stream_id': 8, 'name': 'FR - Dune', 'tmdb': '841'},
+      ])),
+      ...parseSeriesList(jsonEncode([
+        {'series_id': 50, 'name': 'FR - Dune (2021)'},
+      ])),
+    ];
+
+    test('finds every language by TMDB id, then by title and year', () {
+      final copies = findProviderCopies(
+        all,
+        kind: XtreamKind.movie,
+        tmdbId: 693134,
+        titles: ['Dune : Deuxième partie'],
+        year: 2024,
+      );
+      expect(copies.map((c) => c.id), ['2', '1']);
+    });
+
+    test('the year tells remakes apart, a bare year counts only when it is the one', () {
+      final copies = findProviderCopies(
+        all,
+        kind: XtreamKind.movie,
+        tmdbId: 438631,
+        titles: ['Dune'],
+        year: 2021,
+      );
+      // 8 is filed under another TMDB id, 3 is from 1984, 50 is a series.
+      expect(copies.map((c) => c.id), ['4', '7']);
+    });
+
+    test('Blade Runner 2049 is not Blade Runner', () {
+      final copies = findProviderCopies(
+        all,
+        kind: XtreamKind.movie,
+        titles: ['Blade Runner 2049'],
+        year: 2017,
+      );
+      expect(copies.map((c) => c.id), ['6']);
+    });
+
+    test('nothing to look for, nothing found', () {
+      expect(findProviderCopies(all, kind: XtreamKind.movie), isEmpty);
+    });
+  });
 }

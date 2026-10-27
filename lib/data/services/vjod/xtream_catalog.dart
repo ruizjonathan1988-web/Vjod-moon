@@ -40,6 +40,13 @@ class XtreamTitle {
   /// [name] folded for matching, computed once.
   final String searchKey;
 
+  /// The TMDB id the provider filed the title under, or empty. Not every
+  /// provider sends one.
+  final String tmdbId;
+
+  /// The year from the provider's fields or from a `(2021)` in the name.
+  final int? year;
+
   const XtreamTitle({
     required this.kind,
     required this.id,
@@ -48,6 +55,8 @@ class XtreamTitle {
     required this.poster,
     required this.extension,
     required this.searchKey,
+    this.tmdbId = '',
+    this.year,
   });
 
   /// The name with its language tag, as shown under a poster.
@@ -114,6 +123,45 @@ int _int(Object? value, [int fallback = 0]) =>
 
 List<Object?> _list(Object? decoded) => decoded is List ? decoded : const [];
 
+final _yearInName = RegExp(r'[\(\[]\s*((?:19|20)\d{2})\s*[\)\]]|\s-\s((?:19|20)\d{2})\s*$');
+final _bareYearAtEnd = RegExp(r'\s((?:19|20)\d{2})\s*$');
+
+/// The year of a provider entry: its own field when it sends one, else a
+/// `(2021)` or a trailing year in the name.
+int? _yearOf(Map entry, String name) {
+  for (final key in const ['year', 'releaseDate', 'release_date', 'releasedate']) {
+    final match = RegExp(r'(?:19|20)\d{2}').firstMatch(_str(entry[key]));
+    if (match != null) return int.parse(match.group(0)!);
+  }
+  // A bare trailing number is left alone: in `Blade Runner 2049` it is the
+  // title, not the year.
+  final m = _yearInName.firstMatch(name);
+  final y = m == null ? null : (m.group(1) ?? m.group(2));
+  return y == null ? null : int.tryParse(y);
+}
+
+String _tmdbOf(Map entry) {
+  for (final key in const ['tmdb', 'tmdb_id', 'tmdbId']) {
+    final value = _str(entry[key]);
+    if (RegExp(r'^\d+$').hasMatch(value) && value != '0') return value;
+  }
+  return '';
+}
+
+/// A title reduced to what two spellings of it share: folded, without the
+/// year in brackets, the quality tags or the punctuation. `Dune : Deuxième
+/// Partie (2024) [4K]` and `dune deuxieme partie` give the same key. A bare
+/// trailing number stays, since it can be the title (`Blade Runner 2049`).
+String titleMatchKey(String name) {
+  var text = foldForSearch(name);
+  text = text.replaceAll(RegExp(r'[\(\[][^\)\]]*[\)\]]'), ' ');
+  text = text.replaceAll(RegExp(r'\s-\s(?:19|20)\d{2}\s*$'), ' ');
+  text = text.replaceAll(RegExp(r'&'), ' and ');
+  text = text.replaceAll(RegExp(r"[^\p{L}\p{N}]+", unicode: true), ' ');
+  text = text.replaceAll(RegExp(r'\b(?:4k|uhd|fhd|hd|sd|1080p|720p|2160p|multi|vostfr|vf|vo)\b'), ' ');
+  return text.trim().replaceAll(RegExp(r'\s+'), ' ');
+}
+
 /// The films of a `get_vod_streams` answer. Entries without an id or a name
 /// are skipped; a repeated id is kept once.
 List<XtreamTitle> parseVodStreams(String body) {
@@ -135,6 +183,8 @@ List<XtreamTitle> parseVodStreams(String body) {
         poster: _str(entry['stream_icon']),
         extension: ext.isEmpty ? 'mp4' : ext,
         searchKey: foldForSearch(split.name),
+        tmdbId: _tmdbOf(entry),
+        year: _yearOf(entry, split.name),
       ),
     );
   }
@@ -160,6 +210,8 @@ List<XtreamTitle> parseSeriesList(String body) {
         poster: _str(entry['cover']),
         extension: '',
         searchKey: foldForSearch(split.name),
+        tmdbId: _tmdbOf(entry),
+        year: _yearOf(entry, split.name),
       ),
     );
   }
@@ -246,6 +298,57 @@ List<XtreamTitle> searchTitles(
   return [for (final s in scored.take(limit)) s.$2];
 }
 
+/// The provider's copies of one title, every language it has them in: the
+/// ones filed under [tmdbId], and the ones whose name is one of [titles]
+/// with the same year give or take one (or no year to compare). Films match
+/// films and series match series.
+List<XtreamTitle> findProviderCopies(
+  List<XtreamTitle> all, {
+  required XtreamKind kind,
+  int tmdbId = 0,
+  List<String> titles = const [],
+  int? year,
+  int limit = 8,
+}) {
+  final tmdb = tmdbId > 0 ? '$tmdbId' : '';
+  final keys = {
+    for (final t in titles)
+      if (titleMatchKey(t) case final k when k.isNotEmpty) k,
+  };
+  if (tmdb.isEmpty && keys.isEmpty) return const [];
+  final byTmdb = <XtreamTitle>[];
+  final byName = <XtreamTitle>[];
+  for (final title in all) {
+    if (title.kind != kind) continue;
+    if (tmdb.isNotEmpty && title.tmdbId == tmdb) {
+      byTmdb.add(title);
+      continue;
+    }
+    // A title filed under another TMDB id is another title, whatever its name.
+    if (tmdb.isNotEmpty && title.tmdbId.isNotEmpty) continue;
+    final key = titleMatchKey(title.name);
+    final y = title.year;
+    if (keys.contains(key)) {
+      if (year != null && y != null && (y - year).abs() > 1) continue;
+      byName.add(title);
+      continue;
+    }
+    // `Dune 2021` is `Dune` only when 2021 is the year being looked for.
+    final bare = _bareYearAtEnd.firstMatch(key);
+    if (bare != null &&
+        year != null &&
+        int.parse(bare.group(1)!) == year &&
+        keys.contains(key.substring(0, bare.start).trim())) {
+      byName.add(title);
+    }
+  }
+  final seen = <String>{};
+  return [
+    for (final t in [...byTmdb, ...byName])
+      if (seen.add(t.id)) t,
+  ].take(limit).toList();
+}
+
 /// The provider's catalogue for one saved Xtream source. The film and series
 /// lists are fetched once, the first time a search needs them, and kept for
 /// the session; a failed fetch is retried on the next search.
@@ -328,6 +431,21 @@ class XtreamCatalog {
     });
     return future;
   }
+
+  /// The provider's copies of a title, see [findProviderCopies]. Waits for
+  /// the catalogue the first time.
+  Future<List<XtreamTitle>> copiesOf({
+    required XtreamKind kind,
+    int tmdbId = 0,
+    List<String> titles = const [],
+    int? year,
+  }) async => findProviderCopies(
+    await _all(),
+    kind: kind,
+    tmdbId: tmdbId,
+    titles: titles,
+    year: year,
+  );
 
   /// Films and series whose name matches [query].
   Future<List<XtreamTitle>> search(String query, {int limit = 40}) async =>

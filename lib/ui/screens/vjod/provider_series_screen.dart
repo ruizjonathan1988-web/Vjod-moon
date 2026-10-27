@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../data/services/vjod/tv_playlists.dart';
+import '../../../data/services/vjod/provider_catalog_access.dart';
 import '../../../data/services/vjod/xtream_catalog.dart';
-import '../../../preference/seerr_preferences.dart';
 import '../../navigation/destinations.dart';
 
 /// A series read straight from the IPTV provider: its seasons and episodes,
@@ -35,9 +33,7 @@ class _ProviderSeriesScreenState extends State<ProviderSeriesScreen> {
   @override
   void initState() {
     super.initState();
-    _catalog = XtreamCatalog.forPlaylists(
-      TvPlaylists.decode(GetIt.instance<SeerrPreferences>().vjodTvPlaylistsJson),
-    );
+    _catalog = currentProviderCatalog();
     _load();
   }
 
