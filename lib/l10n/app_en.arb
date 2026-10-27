@@ -6468,6 +6468,7 @@
   "liveTvSortFrenchTv": "French TV order",
   "liveTvFrenchFavouritesAdded": "{count, plural, =0{No new French channel favourited} =1{1 French channel added to favourites} other{{count} French channels added to favourites}}",
   "@liveTvFrenchFavouritesAdded": {"placeholders": {"count": {"type": "int"}}},
+  "seerrRetrySearch": "Search again",
   "vjodSameSpirit": "In the same vein",
   "vjodCatalogueCount": "{count} here · everything else one press away",
   "@vjodCatalogueCount": {"placeholders": {"count": {"type": "int"}}},
