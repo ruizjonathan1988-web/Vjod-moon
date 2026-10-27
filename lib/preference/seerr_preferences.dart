@@ -132,6 +132,20 @@ class SeerrPreferences {
   Future<void> setVjodTvPlaylistsJson(String value) =>
       _store.setString(_userKey('vjod_tv_playlists'), value);
 
+  /// The language tags (`FR`, `EN`, `RU`…) this profile watches the IPTV
+  /// provider's films and series in, most wanted first. Empty means every
+  /// language, in the provider's order.
+  List<String> get vjodProviderLanguages =>
+      (_store.getString(_userKey('vjod_provider_languages')) ?? '')
+          .split(',')
+          .map((t) => t.trim().toUpperCase())
+          .where((t) => t.isNotEmpty)
+          .toList();
+  Future<void> setVjodProviderLanguages(List<String> tags) => _store.setString(
+    _userKey('vjod_provider_languages'),
+    tags.map((t) => t.trim().toUpperCase()).where((t) => t.isNotEmpty).join(','),
+  );
+
   /// Which external player the TV tab opens (a [TvApp] id). Empty means the
   /// default.
   String get vjodTvApp => _store.getString(_userKey('vjod_tv_app')) ?? '';

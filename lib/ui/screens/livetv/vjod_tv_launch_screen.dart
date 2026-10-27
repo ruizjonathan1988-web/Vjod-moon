@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:get_it/get_it.dart';
 import 'package:moonfin_design/moonfin_design.dart';
 
+import '../../../data/services/vjod/provider_catalog_access.dart';
 import '../../../data/services/vjod/tv_playlists.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../preference/seerr_preferences.dart';
@@ -38,7 +39,9 @@ class _VjodTvLaunchScreenState extends State<VjodTvLaunchScreen> {
     super.initState();
     _playlists = TvPlaylists.decode(_prefs.vjodTvPlaylistsJson);
     _app = TvApp.byId(_prefs.vjodTvApp.isEmpty ? null : _prefs.vjodTvApp);
+    _languages = _prefs.vjodProviderLanguages;
     _refreshInstalled();
+    _loadLanguageCounts();
     final shared = widget.addUrl;
     if (shared != null && shared.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _promptShared(shared));
@@ -89,8 +92,131 @@ class _VjodTvLaunchScreenState extends State<VjodTvLaunchScreen> {
     }
   }
 
-  Future<void> _savePlaylists() =>
-      _prefs.setVjodTvPlaylistsJson(TvPlaylists.encode(_playlists));
+  Future<void> _savePlaylists() async {
+    await _prefs.setVjodTvPlaylistsJson(TvPlaylists.encode(_playlists));
+    _loadLanguageCounts();
+  }
+
+  /// The languages this profile watches the provider's films and series in,
+  /// most wanted first.
+  List<String> _languages = const [];
+
+  /// Every language tag the provider has, with how many titles; null while
+  /// its catalogue is being read or when there is no Xtream source.
+  List<MapEntry<String, int>>? _languageCounts;
+  bool _languagesLoading = false;
+
+  Future<void> _loadLanguageCounts() async {
+    final catalog = currentProviderCatalog();
+    // No setState before the first await: this also runs from initState,
+    // whose first build reads these fields as they are.
+    await Future<void>.value();
+    if (!mounted) return;
+    if (catalog == null) {
+      setState(() => _languageCounts = null);
+      return;
+    }
+    setState(() => _languagesLoading = true);
+    try {
+      final counts = await catalog.languageCounts();
+      if (mounted) setState(() => _languageCounts = counts);
+    } catch (_) {
+      // Left on the usual languages; the provider may answer next time.
+    } finally {
+      if (mounted) setState(() => _languagesLoading = false);
+    }
+  }
+
+  Future<void> _toggleLanguage(String tag) async {
+    final next = [..._languages];
+    if (!next.remove(tag)) next.add(tag);
+    setState(() => _languages = next);
+    await _prefs.setVjodProviderLanguages(next);
+  }
+
+  Widget _languagesSection(double s) {
+    final counts = {for (final e in _languageCounts ?? const []) e.key: e.value};
+    final tags = <String>[
+      ..._languages,
+      for (final e in _languageCounts ?? const <MapEntry<String, int>>[])
+        if (!_languages.contains(e.key)) e.key,
+      if (_languageCounts == null)
+        for (final t in const ['FR', 'EN', 'RU', 'CN'])
+          if (!_languages.contains(t)) t,
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Langues des films et séries', style: vjodDisplay(26 * s)),
+        SizedBox(height: 6 * s),
+        Text(
+          _languages.isEmpty
+              ? "Choisis les langues de ce profil : les versions du fournisseur "
+                    "dans ces langues passent en premier dans la recherche et "
+                    "se lancent d'un clic sur les fiches. Rien de coché : "
+                    "toutes les langues, au choix à chaque fois."
+              : "Ce profil regarde d'abord en ${_languages.join(', puis ')}. "
+                    "Les autres langues restent proposées par un appui long "
+                    "sur « Regarder · IPTV ».",
+          style: TextStyle(
+            color: vjodInk.withValues(alpha: 0.55),
+            fontSize: 15 * s,
+          ),
+        ),
+        SizedBox(height: 12 * s),
+        if (_languagesLoading && _languageCounts == null)
+          Padding(
+            padding: EdgeInsets.only(bottom: 10 * s),
+            child: Text(
+              'Lecture du catalogue du fournisseur…',
+              style: TextStyle(
+                color: vjodInk.withValues(alpha: 0.5),
+                fontSize: 14 * s,
+              ),
+            ),
+          ),
+        Wrap(
+          spacing: 10 * s,
+          runSpacing: 10 * s,
+          children: [
+            for (final tag in tags)
+              VjodFocusable(
+                onTap: () => _toggleLanguage(tag),
+                builder: (context, focused) {
+                  final rank = _languages.indexOf(tag);
+                  final on = rank >= 0;
+                  final count = counts[tag];
+                  return AnimatedContainer(
+                    duration: const Duration(milliseconds: 120),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 16 * s,
+                      vertical: 8 * s,
+                    ),
+                    decoration: BoxDecoration(
+                      color: on ? vjodInk : vjodButton,
+                      borderRadius: BorderRadius.circular(999),
+                      boxShadow: vjodFocusRing(s * 0.6, on: focused),
+                    ),
+                    child: Text(
+                      [
+                        if (on) '${rank + 1}.',
+                        tag,
+                        if (count != null) '($count)',
+                      ].join(' '),
+                      style: TextStyle(
+                        color: on ? vjodPage : vjodInk,
+                        fontSize: 16 * s,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  );
+                },
+              ),
+          ],
+        ),
+      ],
+    );
+  }
 
   Future<void> _addOrEdit([TvPlaylist? existing]) async {
     final result = await showDialog<TvPlaylist>(
@@ -205,6 +331,10 @@ class _VjodTvLaunchScreenState extends State<VjodTvLaunchScreen> {
             _playlistTile(p, s),
             SizedBox(height: 10 * s),
           ],
+        if (_playlists.any((p) => p.kind == TvPlaylistKind.xtream)) ...[
+          SizedBox(height: 34 * s),
+          _languagesSection(s),
+        ],
       ],
     );
   }

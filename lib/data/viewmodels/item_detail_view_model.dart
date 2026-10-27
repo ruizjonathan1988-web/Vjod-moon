@@ -505,7 +505,7 @@ class ItemDetailViewModel extends ChangeNotifier {
       );
       if (_isDisposed || copies.isEmpty) return;
       _providerCatalog = catalog;
-      _providerCopies = copies;
+      _providerCopies = orderByLanguages(copies, currentProviderLanguages());
       notifyListeners();
     } catch (_) {
       // A provider that doesn't answer leaves the page as Seerr built it.

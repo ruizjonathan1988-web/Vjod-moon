@@ -418,7 +418,10 @@ class SearchViewModel extends ChangeNotifier {
     final catalog = _providerCatalog();
     if (catalog == null) return const [];
     try {
-      return await catalog.search(query);
+      return await catalog.search(
+        query,
+        preferredTags: currentProviderLanguages(),
+      );
     } catch (_) {
       return const [];
     }

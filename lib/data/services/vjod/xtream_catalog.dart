@@ -273,10 +273,51 @@ XtreamSeriesInfo parseSeriesInfo(String body) {
 /// with the query, then one with a word that does, then one holding every
 /// word of the query anywhere. Shorter names win a tie, so `Dune` comes
 /// before `Dune: Part Two`.
+/// Where [tag] comes in [preferred]: its place in the list, or after all of
+/// them when it isn't there. Read loosely, so `CN` and `ZH` are one language,
+/// as are `EN`, `UK` and `US`.
+int languageRank(String tag, List<String> preferred) {
+  if (preferred.isEmpty) return 0;
+  final t = _canonicalTag(tag);
+  for (var i = 0; i < preferred.length; i++) {
+    if (_canonicalTag(preferred[i]) == t) return i;
+  }
+  return preferred.length;
+}
+
+String _canonicalTag(String tag) => switch (tag.toUpperCase()) {
+  'ZH' || 'CHN' || 'CHINA' || 'CHINESE' => 'CN',
+  'UK' || 'US' || 'USA' || 'ENG' => 'EN',
+  'FRA' || 'FRENCH' || 'VF' || 'VFF' || 'VFQ' => 'FR',
+  'RUS' || 'RUSSIA' => 'RU',
+  final other => other,
+};
+
+/// [copies] with the profile's languages first, in its order, and the rest
+/// after in the provider's order.
+List<XtreamTitle> orderByLanguages(
+  List<XtreamTitle> copies,
+  List<String> preferred,
+) {
+  if (preferred.isEmpty) return copies;
+  final indexed = copies.indexed.toList()
+    ..sort((a, b) {
+      final byLang = languageRank(a.$2.tag, preferred)
+          .compareTo(languageRank(b.$2.tag, preferred));
+      return byLang != 0 ? byLang : a.$1.compareTo(b.$1);
+    });
+  return [for (final e in indexed) e.$2];
+}
+
+/// Whether [tag] is one of the [preferred] languages.
+bool isPreferredLanguage(String tag, List<String> preferred) =>
+    preferred.isNotEmpty && languageRank(tag, preferred) < preferred.length;
+
 List<XtreamTitle> searchTitles(
   List<XtreamTitle> all,
   String query, {
   int limit = 40,
+  List<String> preferredTags = const [],
 }) {
   final q = foldForSearch(query.trim());
   if (q.length < 2) return const [];
@@ -293,6 +334,9 @@ List<XtreamTitle> searchTitles(
   scored.sort((a, b) {
     final byRank = a.$1.compareTo(b.$1);
     if (byRank != 0) return byRank;
+    final byLang = languageRank(a.$2.tag, preferredTags)
+        .compareTo(languageRank(b.$2.tag, preferredTags));
+    if (byLang != 0) return byLang;
     return a.$2.name.length.compareTo(b.$2.name.length);
   });
   return [for (final s in scored.take(limit)) s.$2];
@@ -447,9 +491,29 @@ class XtreamCatalog {
     year: year,
   );
 
-  /// Films and series whose name matches [query].
-  Future<List<XtreamTitle>> search(String query, {int limit = 40}) async =>
-      searchTitles(await _all(), query, limit: limit);
+  /// Films and series whose name matches [query], the [preferredTags]
+  /// languages first among equally good matches.
+  Future<List<XtreamTitle>> search(
+    String query, {
+    int limit = 40,
+    List<String> preferredTags = const [],
+  }) async => searchTitles(
+    await _all(),
+    query,
+    limit: limit,
+    preferredTags: preferredTags,
+  );
+
+  /// How many films and series the provider has in each language tag, most
+  /// first. Titles without a tag are left out.
+  Future<List<MapEntry<String, int>>> languageCounts() async {
+    final counts = <String, int>{};
+    for (final t in await _all()) {
+      if (t.tag.isEmpty) continue;
+      counts[t.tag] = (counts[t.tag] ?? 0) + 1;
+    }
+    return counts.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+  }
 
   /// The seasons and episodes of a series.
   Future<XtreamSeriesInfo> seriesInfo(String seriesId) async => parseSeriesInfo(

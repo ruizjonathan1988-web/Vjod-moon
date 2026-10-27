@@ -4,6 +4,7 @@ import 'dart:ui';
 import '../../theme/focus_foreground.dart';
 import '../../widgets/bounded_network_image.dart';
 import '../../widgets/floating_notification.dart';
+import '../../../data/services/vjod/provider_catalog_access.dart';
 import '../../../data/services/vjod/xtream_catalog.dart';
 import '../../../data/services/seerr/taste_profile.dart';
 import '../../../data/services/seerr/for_you_ranker.dart' show forYouKey;
@@ -5863,54 +5864,75 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
       }
     }
 
-    final langs = {for (final c in copies) c.tag}.where((t) => t.isNotEmpty);
-    final label = copies.length == 1 && copies.first.tag.isNotEmpty
-        ? 'Regarder · IPTV ${copies.first.tag}'
-        : 'Regarder · IPTV';
+    final preferred = currentProviderLanguages();
+    final first = copies.first;
+    // The profile's own language plays in one press; the other versions sit
+    // behind a long press. Without a preference, a single copy plays at once
+    // and several ask which.
+    final direct =
+        copies.length == 1 || isPreferredLanguage(first.tag, preferred);
+    final langs = [
+      for (final t in {for (final c in copies) c.tag})
+        if (t.isNotEmpty) t,
+    ];
+    final label = direct
+        ? (first.tag.isNotEmpty
+              ? 'Regarder · IPTV ${first.tag}'
+              : 'Regarder · IPTV')
+        : (langs.isEmpty
+              ? 'Regarder · IPTV'
+              : 'Regarder · IPTV ${langs.take(3).join('/')}');
+
+    Future<void> choose() async {
+      final picked = await showModalBottomSheet<XtreamTitle>(
+        context: context,
+        builder: (sheetContext) => SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              ListTile(
+                title: Text(
+                  langs.isEmpty
+                      ? 'Chez le fournisseur IPTV'
+                      : 'Chez le fournisseur IPTV · ${langs.join(', ')}',
+                ),
+              ),
+              for (final (i, copy) in copies.indexed)
+                ListTile(
+                  autofocus: i == 0,
+                  leading: Icon(
+                    isPreferredLanguage(copy.tag, preferred)
+                        ? Icons.star_rounded
+                        : Icons.play_arrow_rounded,
+                  ),
+                  title: Text(
+                    copy.tag.isEmpty
+                        ? copy.name
+                        : '${copy.tag} · ${copy.name}',
+                  ),
+                  subtitle: Text(
+                    [
+                      if (copy.year != null) '${copy.year}',
+                      if (copy.extension.isNotEmpty) copy.extension,
+                    ].join(' · '),
+                  ),
+                  onTap: () => Navigator.of(sheetContext).pop(copy),
+                ),
+            ],
+          ),
+        ),
+      );
+      if (picked != null && context.mounted) open(picked);
+    }
+
     return _DetailActionButton(
       label: label,
       icon: Icons.play_arrow_rounded,
       isPrimary: true,
       focusNode: focusNode,
       autofocus: autofocus,
-      onPressed: () async {
-        if (copies.length == 1) {
-          open(copies.first);
-          return;
-        }
-        final picked = await showModalBottomSheet<XtreamTitle>(
-          context: context,
-          builder: (sheetContext) => SafeArea(
-            child: ListView(
-              shrinkWrap: true,
-              children: [
-                ListTile(
-                  title: Text(
-                    langs.isEmpty
-                        ? 'Chez le fournisseur IPTV'
-                        : 'Chez le fournisseur IPTV · ${langs.join(', ')}',
-                  ),
-                ),
-                for (final (i, copy) in copies.indexed)
-                  ListTile(
-                    autofocus: i == 0,
-                    leading: const Icon(Icons.play_arrow_rounded),
-                    title: Text(copy.name),
-                    subtitle: Text(
-                      [
-                        if (copy.tag.isNotEmpty) copy.tag,
-                        if (copy.year != null) '${copy.year}',
-                        if (copy.extension.isNotEmpty) copy.extension,
-                      ].join(' · '),
-                    ),
-                    onTap: () => Navigator.of(sheetContext).pop(copy),
-                  ),
-              ],
-            ),
-          ),
-        );
-        if (picked != null && context.mounted) open(picked);
-      },
+      onPressed: () => direct ? open(first) : choose(),
+      onLongPress: copies.length > 1 ? choose : null,
     );
   }
 

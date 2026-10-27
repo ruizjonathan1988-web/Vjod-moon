@@ -195,4 +195,36 @@ void main() {
       expect(findProviderCopies(all, kind: XtreamKind.movie), isEmpty);
     });
   });
+
+  group('languages', () {
+    final copies = parseVodStreams(jsonEncode([
+      {'stream_id': 1, 'name': 'EN - Dune'},
+      {'stream_id': 2, 'name': 'RU - Dune'},
+      {'stream_id': 3, 'name': 'Dune'},
+      {'stream_id': 4, 'name': 'FR - Dune'},
+      {'stream_id': 5, 'name': 'ZH - Dune'},
+    ]));
+
+    test('the profile languages come first, in its order', () {
+      expect(
+        orderByLanguages(copies, ['FR', 'RU']).map((c) => c.id),
+        ['4', '2', '1', '3', '5'],
+      );
+    });
+
+    test('no preference keeps the provider order', () {
+      expect(orderByLanguages(copies, const []).map((c) => c.id), ['1', '2', '3', '4', '5']);
+    });
+
+    test('CN and ZH, EN and UK are one language', () {
+      expect(isPreferredLanguage('ZH', ['CN']), isTrue);
+      expect(isPreferredLanguage('UK', ['EN']), isTrue);
+      expect(isPreferredLanguage('RU', ['EN']), isFalse);
+      expect(isPreferredLanguage('FR', const []), isFalse);
+    });
+
+    test('search puts the profile language first among equal matches', () {
+      expect(searchTitles(copies, 'dune', preferredTags: ['RU']).first.id, '2');
+    });
+  });
 }
