@@ -42,6 +42,7 @@ import '../../widgets/emby_premiere_dialog.dart';
 import '../../util/error_message.dart';
 import 'channel_tune_observer.dart';
 import 'live_tv_guide_screen.dart';
+import '../../../data/services/vjod/channel_grouping.dart';
 import '../../screensaver/screensaver_controller.dart';
 
 const _kGuideResizeDuration = Duration(milliseconds: 250);
@@ -240,6 +241,7 @@ class _LiveTvPlayerScreenState extends State<LiveTvPlayerScreen>
       _screensaverController.setPlaybackActive,
     );
     _currentIndex = widget.startIndex;
+    _buildChannelGroups();
     _applyPlayerDisplayMode();
     _applySubtitleStyle();
     _prefs.addListener(_applySubtitleStyle);
@@ -948,12 +950,64 @@ class _LiveTvPlayerScreenState extends State<LiveTvPlayerScreen>
     );
   }
 
-  /// Zaps to the channel [delta] steps away, wrapping around the list, with
-  /// the info banner, the way channel +/- works on a TV box.
+  // Duplicate channels (several "M6") collapsed into groups: each group lists
+  // its variants best-quality first, so a tune picks the best and can fall
+  // back to the next when a stream fails.
+  List<List<int>> _channelGroups = const [];
+  Map<int, int> _groupOfIndex = const {};
+
+  void _buildChannelGroups() {
+    _channelGroups = groupChannelIndices(
+      [for (final c in widget.channels) c.name],
+    );
+    _groupOfIndex = {
+      for (var g = 0; g < _channelGroups.length; g++)
+        for (final i in _channelGroups[g]) i: g,
+    };
+  }
+
+  /// Tries a group's variants in order (best first), starting at
+  /// [preferredIndex] when given, until one plays. Shows the info banner.
+  Future<void> _tuneGroup(int groupIndex, {int? preferredIndex}) async {
+    if (_isSwitching ||
+        groupIndex < 0 ||
+        groupIndex >= _channelGroups.length) {
+      return;
+    }
+    final order = [
+      if (preferredIndex != null) preferredIndex,
+      for (final i in _channelGroups[groupIndex])
+        if (i != preferredIndex) i,
+    ];
+    _isSwitching = true;
+    try {
+      for (final index in order) {
+        setState(() {
+          _currentIndex = index;
+          _currentProgram = null;
+          _infoVisible = true;
+        });
+        final ok = await _playCurrentChannel();
+        if (!mounted || _isStopping) return;
+        if (ok) {
+          _scheduleHide();
+          return;
+        }
+      }
+      // None of the variants played; the failed card from the last try stays.
+      _scheduleHide();
+    } finally {
+      _isSwitching = false;
+    }
+  }
+
+  /// Zaps to the next or previous channel group (so "M6" and its duplicates
+  /// count once), best variant first with fallback, like a TV box.
   void _zapBy(int delta) {
-    final n = widget.channels.length;
-    if (n < 2 || _isSwitching) return;
-    unawaited(_switchChannel((_currentIndex + delta + n) % n));
+    final groups = _channelGroups.length;
+    if (groups < 2 || _isSwitching) return;
+    final current = _groupOfIndex[_currentIndex] ?? 0;
+    unawaited(_tuneGroup((current + delta + groups) % groups));
   }
 
   static final Map<LogicalKeyboardKey, int> _digitKeys = {
@@ -999,8 +1053,15 @@ class _LiveTvPlayerScreenState extends State<LiveTvPlayerScreen>
     final index = widget.channels.indexWhere(
       (c) => (c.number ?? '').replaceAll(RegExp(r'[^0-9]'), '') == entry,
     );
-    if (index >= 0 && index != _currentIndex) {
-      unawaited(_switchChannel(index));
+    if (index >= 0) {
+      // A number dials the channel's best variant, falling back within the
+      // group if the best one does not play.
+      final group = _groupOfIndex[index] ?? -1;
+      if (group >= 0) {
+        unawaited(_tuneGroup(group));
+      } else if (index != _currentIndex) {
+        unawaited(_switchChannel(index));
+      }
     } else {
       _showInfo();
     }
