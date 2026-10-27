@@ -1,0 +1,10 @@
+{
+  "portal": "http://ADRESSE-DU-FOURNISSEUR:PORT",
+  "username": "IDENTIFIANT_XTREAM",
+  "password": "MOT_DE_PASSE_XTREAM",
+  "seerr_url": "https://ADRESSE-DE-TON-SEERR",
+  "seerr_api_key": "CLE_API_SEERR",
+  "languages": ["FR", "EN", "RU", "CN"],
+  "lookups_per_night": 8000,
+  "lookups_per_second": 4
+}

@@ -26,7 +26,10 @@ XtreamCatalog? currentProviderCatalog() {
       getIt<UserPreferences>().get(UserPreferences.kidsModeEnabled)) {
     return null;
   }
-  return XtreamCatalog.forPlaylists(
-    TvPlaylists.decode(getIt<SeerrPreferences>().vjodTvPlaylistsJson),
+  final prefs = getIt<SeerrPreferences>();
+  final catalog = XtreamCatalog.forPlaylists(
+    TvPlaylists.decode(prefs.vjodTvPlaylistsJson),
   );
+  catalog?.serverCatalogUrl = prefs.vjodCatalogServerUrl;
+  return catalog;
 }

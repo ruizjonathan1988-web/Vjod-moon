@@ -132,6 +132,15 @@ class SeerrPreferences {
   Future<void> setVjodTvPlaylistsJson(String value) =>
       _store.setString(_userKey('vjod_tv_playlists'), value);
 
+  /// Where this device fetches the IPTV catalogue the seedbox prepares each
+  /// night, with its HTTP access login inside (`https://user:pass@host/…`).
+  /// One per device, shared by every profile on it. Empty means the provider
+  /// is asked directly.
+  String get vjodCatalogServerUrl =>
+      _store.getString('vjod_catalog_server_url') ?? '';
+  Future<void> setVjodCatalogServerUrl(String value) =>
+      _store.setString('vjod_catalog_server_url', value.trim());
+
   /// The language tags (`FR`, `EN`, `RU`…) this profile watches the IPTV
   /// provider's films and series in, most wanted first. Empty means every
   /// language, in the provider's order.

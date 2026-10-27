@@ -474,10 +474,11 @@ String encodeCatalogCache(
   ],
 });
 
-/// Reads back what [encodeCatalogCache] wrote, or null for anything else.
-({int fetchedAtMs, List<XtreamTitle> titles})? decodeCatalogCache(
-  String data,
-) {
+/// Reads back what [encodeCatalogCache] wrote, or the file the seedbox
+/// prepares each night (the same rows, plus the [account] they were read
+/// with), or null for anything else.
+({int fetchedAtMs, List<XtreamTitle> titles, String account})?
+decodeCatalogCache(String data) {
   try {
     final decoded = jsonDecode(data);
     if (decoded is! Map || decoded['v'] != 1) return null;
@@ -502,7 +503,11 @@ String encodeCatalogCache(
         ),
       );
     }
-    return (fetchedAtMs: fetchedAt, titles: titles);
+    return (
+      fetchedAtMs: fetchedAt,
+      titles: titles,
+      account: _str(decoded['account']),
+    );
   } catch (_) {
     return null;
   }
@@ -579,6 +584,16 @@ class XtreamCatalog {
   /// again.
   static const maxAge = Duration(hours: 24);
 
+  /// With a seedbox preparing it, how often the device looks for the
+  /// night's file. It is small, so twice a day costs little and catches the
+  /// new one the morning after.
+  static const serverCheckAge = Duration(hours: 12);
+
+  /// Where the seedbox publishes the catalogue each night, login included,
+  /// or empty to ask the provider directly. Set by whoever hands this
+  /// catalogue out.
+  String serverCatalogUrl = '';
+
   /// When the catalogue in memory was fetched from the provider.
   DateTime? _fetchedAt;
   bool _refreshing = false;
@@ -610,8 +625,26 @@ class XtreamCatalog {
     await writeCatalogCache(_cacheKey, data);
   }
 
+  /// The seedbox's file when it is for this account and newer than [than];
+  /// null otherwise or when it can't be had. Saved on the device as is.
+  Future<List<XtreamTitle>?> _fetchFromServer({DateTime? than}) async {
+    final url = serverCatalogUrl.trim();
+    if (url.isEmpty) return null;
+    final body = await fetchServerCatalog(url);
+    if (body == null) return null;
+    final cache = await compute(decodeCatalogCache, body);
+    if (cache == null || cache.titles.isEmpty) return null;
+    // A file made for another provider account is someone else's catalogue.
+    if (cache.account.isNotEmpty && cache.account != _cacheKey) return null;
+    final at = DateTime.fromMillisecondsSinceEpoch(cache.fetchedAtMs);
+    if (than != null && !at.isAfter(than)) return null;
+    _fetchedAt = at;
+    unawaited(writeCatalogCache(_cacheKey, body));
+    return cache.titles;
+  }
+
   /// The saved catalogue when there is one, however old (the daily refresh
-  /// takes care of its age); the provider's otherwise.
+  /// takes care of its age); else the seedbox's; else the provider's.
   Future<List<XtreamTitle>> _load() async {
     final saved = await readCatalogCache(_cacheKey);
     if (saved != null) {
@@ -621,7 +654,7 @@ class XtreamCatalog {
         return cache.titles;
       }
     }
-    return _fetchFromProvider();
+    return await _fetchFromServer() ?? _fetchFromProvider();
   }
 
   /// Loads the catalogue into memory (from the device when it was saved
@@ -638,13 +671,23 @@ class XtreamCatalog {
       return;
     }
     final at = _fetchedAt;
+    final age = at == null ? null : DateTime.now().difference(at);
+    final hasServer = serverCatalogUrl.trim().isNotEmpty;
     if (_refreshing ||
-        (at != null && DateTime.now().difference(at) < maxAge)) {
+        (age != null && age < (hasServer ? serverCheckAge : maxAge))) {
       return;
     }
     _refreshing = true;
     try {
-      final fresh = await _fetchFromProvider();
+      // The seedbox's file first; the provider only when there is none, or
+      // when the seedbox has missed a night and the catalogue is past a day
+      // and a half.
+      var fresh = await _fetchFromServer(than: at);
+      if (fresh == null &&
+          (!hasServer || age == null || age > maxAge + serverCheckAge)) {
+        fresh = await _fetchFromProvider();
+      }
+      if (fresh == null) return;
       _titles = Future.value(fresh);
     } catch (_) {
       // Tried again at the next check.

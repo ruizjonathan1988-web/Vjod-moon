@@ -268,6 +268,20 @@ void main() {
       expect(searchTitles(back.titles, 'office').single.id, '2');
     });
 
+    test("reads the seedbox's file with its account", () {
+      final file = jsonEncode({
+        'v': 1,
+        'fetchedAt': 99,
+        'account': '0086c714',
+        'titles': [
+          ['m', '1', 'Dune', 'FR', '', 'mkv', '438631', 2021],
+        ],
+      });
+      final back = decodeCatalogCache(file)!;
+      expect(back.account, '0086c714');
+      expect(back.titles.single.tmdbId, '438631');
+    });
+
     test('anything else reads as nothing', () {
       expect(decodeCatalogCache('not json'), isNull);
       expect(decodeCatalogCache('{"v":2}'), isNull);
@@ -278,6 +292,8 @@ void main() {
       expect(key, catalogCacheKey('http://p:8080', 'user'));
       expect(key, isNot(catalogCacheKey('http://p:8080', 'other')));
       expect(key, matches(RegExp(r'^[0-9a-f]{8}$')));
+      // The seedbox script computes the same, so its file is recognised.
+      expect(catalogCacheKey('http://p:8080', 'user'), '0086c714');
     });
   });
 }

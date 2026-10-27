@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get_it/get_it.dart';
@@ -133,6 +135,64 @@ class _VjodTvLaunchScreenState extends State<VjodTvLaunchScreen> {
     if (!next.remove(tag)) next.add(tag);
     setState(() => _languages = next);
     await _prefs.setVjodProviderLanguages(next);
+  }
+
+  Widget _serverCatalogSection(double s) {
+    final url = Uri.tryParse(_prefs.vjodCatalogServerUrl);
+    final where =
+        url != null && url.host.isNotEmpty ? '${url.host}${url.path}' : null;
+    final isSet = where != null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Catalogue préparé par ma seedbox',
+                style: vjodDisplay(26 * s),
+              ),
+            ),
+            _smallButton(
+              icon: isSet ? Icons.edit_rounded : Icons.add_rounded,
+              label: isSet ? 'Modifier' : 'Ajouter',
+              scale: s,
+              onTap: _editServerCatalog,
+            ),
+          ],
+        ),
+        SizedBox(height: 6 * s),
+        Text(
+          isSet
+              ? "Cet appareil lit le catalogue que ta seedbox prépare chaque "
+                    "nuit ($where). Si elle ne répond pas, il "
+                    "demande directement au fournisseur."
+              : "Optionnel, pour tout l'appareil : l'adresse du fichier que "
+                    "ta seedbox prépare chaque nuit. Le premier chargement est "
+                    "plus rapide et les fiches retrouvent mieux les titres. "
+                    "Sans ça, l'appareil demande au fournisseur.",
+          style: TextStyle(
+            color: vjodInk.withValues(alpha: 0.55),
+            fontSize: 15 * s,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _editServerCatalog() async {
+    final current = Uri.tryParse(_prefs.vjodCatalogServerUrl);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (_) => _ServerCatalogDialog(current: current),
+    );
+    if (result == null || !mounted) return;
+    await _prefs.setVjodCatalogServerUrl(result);
+    if (!mounted) return;
+    setState(() {});
+    // Looks for the seedbox's file now rather than at the next hourly check.
+    final catalog = currentProviderCatalog();
+    if (catalog != null) unawaited(catalog.ensureFresh());
   }
 
   Widget _languagesSection(double s) {
@@ -336,6 +396,8 @@ class _VjodTvLaunchScreenState extends State<VjodTvLaunchScreen> {
         if (_playlists.any((p) => p.kind == TvPlaylistKind.xtream)) ...[
           SizedBox(height: 34 * s),
           _languagesSection(s),
+          SizedBox(height: 34 * s),
+          _serverCatalogSection(s),
         ],
       ],
     );
@@ -660,6 +722,129 @@ class _PlaylistDialogState extends State<_PlaylistDialog> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// The address of the seedbox's nightly catalogue and the HTTP access login
+/// that guards it. Hands back the URL with the login inside, an empty string
+/// to forget it, or null when cancelled.
+class _ServerCatalogDialog extends StatefulWidget {
+  final Uri? current;
+  const _ServerCatalogDialog({this.current});
+
+  @override
+  State<_ServerCatalogDialog> createState() => _ServerCatalogDialogState();
+}
+
+class _ServerCatalogDialogState extends State<_ServerCatalogDialog> {
+  late final TextEditingController _url;
+  late final TextEditingController _user;
+  late final TextEditingController _pass;
+
+  @override
+  void initState() {
+    super.initState();
+    final current = widget.current;
+    final info = current == null ? '' : Uri.decodeComponent(current.userInfo);
+    final colon = info.indexOf(':');
+    _url = TextEditingController(
+      text: current == null || current.host.isEmpty
+          ? ''
+          : current.replace(userInfo: '').toString(),
+    );
+    _user = TextEditingController(
+      text: colon < 0 ? info : info.substring(0, colon),
+    );
+    _pass = TextEditingController(
+      text: colon < 0 ? '' : info.substring(colon + 1),
+    );
+  }
+
+  @override
+  void dispose() {
+    _url.dispose();
+    _user.dispose();
+    _pass.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final uri = Uri.tryParse(_url.text.trim());
+    if (uri == null || uri.host.isEmpty) {
+      Navigator.of(context).pop('');
+      return;
+    }
+    final user = _user.text.trim();
+    final pass = _pass.text;
+    final withLogin = user.isEmpty
+        ? uri.replace(userInfo: '')
+        : uri.replace(
+            userInfo:
+                '${Uri.encodeComponent(user)}:${Uri.encodeComponent(pass)}',
+          );
+    Navigator.of(context).pop(withLogin.toString());
+  }
+
+  Widget _field(TextEditingController c, String label,
+      {TextInputType? keyboard, bool obscure = false}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: TextField(
+        controller: c,
+        keyboardType: keyboard,
+        obscureText: obscure,
+        style: TextStyle(color: vjodInk),
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: TextStyle(color: vjodInk.withValues(alpha: 0.6)),
+          enabledBorder: OutlineInputBorder(
+            borderSide: BorderSide(color: vjodInk.withValues(alpha: 0.2)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderSide: BorderSide(color: vjodRed),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: AppColorScheme.surface,
+      title: Text(
+        'Catalogue de ma seedbox',
+        style: TextStyle(color: vjodInk),
+      ),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _field(
+              _url,
+              'Adresse du fichier (…/vjod/catalog.json.gz)',
+              keyboard: TextInputType.url,
+            ),
+            _field(_user, 'Identifiant HTTP access Ultra.cc'),
+            _field(_pass, 'Mot de passe HTTP access', obscure: true),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(''),
+          child: const Text('Retirer'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Annuler'),
+        ),
+        TextButton(
+          onPressed: _save,
+          child: const Text('Enregistrer'),
+        ),
+      ],
     );
   }
 }
