@@ -95,6 +95,10 @@ class _LiveTvPlayerScreenState extends State<LiveTvPlayerScreen>
   late int _currentIndex;
   bool _infoVisible = true;
   Timer? _hideTimer;
+  // TV-box style: typing digits composes a channel number, shown briefly, then
+  // jumps to that channel.
+  String _numberEntry = '';
+  Timer? _numberEntryTimer;
   bool _isStopping = false;
   bool _isSwitching = false;
   bool _isGuidePickerOpen = false;
@@ -304,6 +308,7 @@ class _LiveTvPlayerScreenState extends State<LiveTvPlayerScreen>
     _screensaverController.setPlaybackActive(false);
     _carouselPrewarm?.dispose();
     _hideTimer?.cancel();
+    _numberEntryTimer?.cancel();
     _seekCommitTimer?.cancel();
     _rewindWindowSub?.cancel();
     _programRefreshTimer?.cancel();
@@ -910,6 +915,95 @@ class _LiveTvPlayerScreenState extends State<LiveTvPlayerScreen>
       if (current != null && !current.isCurrent) return;
       _focusPlayerRoot();
     });
+  }
+
+  /// The big channel number as it is dialled, top-centre, like a TV box.
+  Widget _buildNumberEntryOverlay() {
+    return Positioned(
+      top: MediaQuery.paddingOf(context).top + 32,
+      left: 0,
+      right: 0,
+      child: IgnorePointer(
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+            decoration: BoxDecoration(
+              color: const Color(0xE60B0B0D),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0x33EDEBE6)),
+            ),
+            child: Text(
+              _numberEntry,
+              style: const TextStyle(
+                color: Color(0xFFEDEBE6),
+                fontSize: 56,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 6,
+                fontFeatures: [FontFeature.tabularFigures()],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Zaps to the channel [delta] steps away, wrapping around the list, with
+  /// the info banner, the way channel +/- works on a TV box.
+  void _zapBy(int delta) {
+    final n = widget.channels.length;
+    if (n < 2 || _isSwitching) return;
+    unawaited(_switchChannel((_currentIndex + delta + n) % n));
+  }
+
+  static const Map<LogicalKeyboardKey, int> _digitKeys = {
+    LogicalKeyboardKey.digit0: 0,
+    LogicalKeyboardKey.digit1: 1,
+    LogicalKeyboardKey.digit2: 2,
+    LogicalKeyboardKey.digit3: 3,
+    LogicalKeyboardKey.digit4: 4,
+    LogicalKeyboardKey.digit5: 5,
+    LogicalKeyboardKey.digit6: 6,
+    LogicalKeyboardKey.digit7: 7,
+    LogicalKeyboardKey.digit8: 8,
+    LogicalKeyboardKey.digit9: 9,
+    LogicalKeyboardKey.numpad0: 0,
+    LogicalKeyboardKey.numpad1: 1,
+    LogicalKeyboardKey.numpad2: 2,
+    LogicalKeyboardKey.numpad3: 3,
+    LogicalKeyboardKey.numpad4: 4,
+    LogicalKeyboardKey.numpad5: 5,
+    LogicalKeyboardKey.numpad6: 6,
+    LogicalKeyboardKey.numpad7: 7,
+    LogicalKeyboardKey.numpad8: 8,
+    LogicalKeyboardKey.numpad9: 9,
+  };
+
+  int? _digitFor(LogicalKeyboardKey key) => _digitKeys[key];
+
+  void _onNumberDigit(int digit) {
+    if (widget.channels.length < 2) return;
+    _numberEntryTimer?.cancel();
+    setState(() {
+      final next = '$_numberEntry$digit';
+      _numberEntry = next.length > 4 ? next.substring(next.length - 4) : next;
+    });
+    _numberEntryTimer =
+        Timer(const Duration(milliseconds: 1800), _resolveNumberEntry);
+  }
+
+  void _resolveNumberEntry() {
+    final entry = _numberEntry;
+    if (mounted) setState(() => _numberEntry = '');
+    if (entry.isEmpty) return;
+    final index = widget.channels.indexWhere(
+      (c) => (c.number ?? '').replaceAll(RegExp(r'[^0-9]'), '') == entry,
+    );
+    if (index >= 0 && index != _currentIndex) {
+      unawaited(_switchChannel(index));
+    } else {
+      _showInfo();
+    }
   }
 
   Future<void> _switchChannel(int newIndex) async {
@@ -1968,6 +2062,22 @@ class _LiveTvPlayerScreenState extends State<LiveTvPlayerScreen>
       return KeyEventResult.ignored;
     }
 
+    // Box reflexes, whatever is on screen: channel +/- zaps to the next or
+    // previous channel, and digits dial a channel number.
+    if (event.logicalKey == LogicalKeyboardKey.channelUp) {
+      _zapBy(1);
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.channelDown) {
+      _zapBy(-1);
+      return KeyEventResult.handled;
+    }
+    final digit = _digitFor(event.logicalKey);
+    if (digit != null) {
+      _onNumberDigit(digit);
+      return KeyEventResult.handled;
+    }
+
     switch (event.logicalKey) {
       case LogicalKeyboardKey.arrowUp:
         if (PlatformDetection.isTV) {
@@ -2160,6 +2270,7 @@ class _LiveTvPlayerScreenState extends State<LiveTvPlayerScreen>
                       !_isGuidePickerOpen &&
                       !_isCarouselOpen)
                     _buildChannelFailedCard(),
+                  if (_numberEntry.isNotEmpty) _buildNumberEntryOverlay(),
                 ],
               ),
             ),
