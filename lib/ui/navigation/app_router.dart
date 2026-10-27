@@ -355,7 +355,8 @@ final appRouter = GoRouter(
     ),
     GoRoute(
       path: Destinations.tv,
-      builder: (context, state) => const VjodTvLaunchScreen(),
+      builder: (context, state) =>
+          VjodTvLaunchScreen(addUrl: state.uri.queryParameters['add']),
     ),
     GoRoute(
       path: Destinations.folderView,

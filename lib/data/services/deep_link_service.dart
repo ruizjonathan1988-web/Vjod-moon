@@ -47,6 +47,13 @@ class DeepLinkService {
   /// bypasses a PIN, an always-authenticate setting or Kids Mode.
   static String? routeForDeepLink(Uri uri) {
     if (uri.scheme != 'moonfin') return null;
+    // A playlist link shared from another app: open the TV tab with it ready
+    // to save.
+    if (uri.host == 'tvadd') {
+      final u = uri.queryParameters['u'];
+      if (u == null || u.isEmpty) return null;
+      return '/tv?add=${Uri.encodeQueryComponent(u)}';
+    }
     final id = uri.queryParameters['id'];
     if (id == null || id.isEmpty) return null;
     final serverId = uri.queryParameters['serverId'];

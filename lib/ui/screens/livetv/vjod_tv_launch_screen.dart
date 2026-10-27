@@ -16,7 +16,10 @@ import '../../widgets/vjod/vjod_widgets.dart';
 /// the like) and keeps the legal M3U/Xtream links they found, ready to copy
 /// into that player once. VJOD does not play live TV itself here.
 class VjodTvLaunchScreen extends StatefulWidget {
-  const VjodTvLaunchScreen({super.key});
+  /// A playlist link shared from another app, to offer saving on arrival.
+  final String? addUrl;
+
+  const VjodTvLaunchScreen({super.key, this.addUrl});
 
   @override
   State<VjodTvLaunchScreen> createState() => _VjodTvLaunchScreenState();
@@ -36,6 +39,29 @@ class _VjodTvLaunchScreenState extends State<VjodTvLaunchScreen> {
     _playlists = TvPlaylists.decode(_prefs.vjodTvPlaylistsJson);
     _app = TvApp.byId(_prefs.vjodTvApp.isEmpty ? null : _prefs.vjodTvApp);
     _refreshInstalled();
+    final shared = widget.addUrl;
+    if (shared != null && shared.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _promptShared(shared));
+    }
+  }
+
+  @override
+  void didUpdateWidget(VjodTvLaunchScreen old) {
+    super.didUpdateWidget(old);
+    final shared = widget.addUrl;
+    if (shared != null && shared.isNotEmpty && shared != old.addUrl) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _promptShared(shared));
+    }
+  }
+
+  Future<void> _promptShared(String url) async {
+    final result = await showDialog<TvPlaylist>(
+      context: context,
+      builder: (_) => _PlaylistDialog(seedUrl: url),
+    );
+    if (result == null) return;
+    setState(() => _playlists = [..._playlists, result]);
+    await _savePlaylists();
   }
 
   Future<void> _refreshInstalled() async {
@@ -372,7 +398,10 @@ class _VjodTvLaunchScreenState extends State<VjodTvLaunchScreen> {
 /// phone is where links get pasted.
 class _PlaylistDialog extends StatefulWidget {
   final TvPlaylist? existing;
-  const _PlaylistDialog({this.existing});
+
+  /// A URL to start from, e.g. a link shared from another app.
+  final String? seedUrl;
+  const _PlaylistDialog({this.existing, this.seedUrl});
 
   @override
   State<_PlaylistDialog> createState() => _PlaylistDialogState();
@@ -391,7 +420,7 @@ class _PlaylistDialogState extends State<_PlaylistDialog> {
     super.initState();
     final e = widget.existing;
     _name = TextEditingController(text: e?.name ?? '');
-    _url = TextEditingController(text: e?.url ?? '');
+    _url = TextEditingController(text: e?.url ?? widget.seedUrl ?? '');
     _user = TextEditingController(text: e?.username ?? '');
     _pass = TextEditingController(text: e?.password ?? '');
     _epg = TextEditingController(text: e?.epgUrl ?? '');

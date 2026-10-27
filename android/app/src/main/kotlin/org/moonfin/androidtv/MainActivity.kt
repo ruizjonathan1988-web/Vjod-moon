@@ -325,7 +325,11 @@ class MainActivity : AudioServiceActivity(), GamepadsCompatibleActivity {
     }
 
     private fun deepLinkFrom(intent: Intent?): String? {
-        val itemId = intent?.getStringExtra(WatchNextPublisher.EXTRA_ITEM_ID) ?: return null
+        if (intent == null) return null
+        // A playlist link shared from another app lands in the TV tab, ready
+        // to save. VJOD never fetches or ranks anything; the viewer confirms.
+        tvAddLinkFrom(intent)?.let { return it }
+        val itemId = intent.getStringExtra(WatchNextPublisher.EXTRA_ITEM_ID) ?: return null
         val serverId = intent.getStringExtra(WatchNextPublisher.EXTRA_SERVER_ID)
         val query = if (serverId.isNullOrEmpty()) {
             "id=${Uri.encode(itemId)}"
@@ -333,6 +337,18 @@ class MainActivity : AudioServiceActivity(), GamepadsCompatibleActivity {
             "id=${Uri.encode(itemId)}&serverId=${Uri.encode(serverId)}"
         }
         return "moonfin://item?$query"
+    }
+
+    /// A shared text that carries a playlist link becomes a TV-add deep link.
+    /// Only ACTION_SEND text/plain is read, and only the first http(s) URL in
+    /// it; anything else returns null so normal deep links keep their path.
+    private fun tvAddLinkFrom(intent: Intent): String? {
+        if (intent.action != Intent.ACTION_SEND || intent.type != "text/plain") {
+            return null
+        }
+        val text = intent.getStringExtra(Intent.EXTRA_TEXT) ?: return null
+        val match = Regex("https?://\\S+").find(text) ?: return null
+        return "moonfin://tvadd?u=${Uri.encode(match.value.trim())}"
     }
 
     // audio_service boots the app on an engine of its own whenever something
