@@ -109,7 +109,7 @@ class MediaCard extends StatefulWidget {
   final bool seerrRequestable;
 
   /// A title played from the IPTV provider rather than a file of the
-  /// server's own, tagged Streaming so it never passes for one.
+  /// server's own, tagged IPTV so it never passes for one.
   final bool isProviderStream;
   final Color? focusColor;
   final bool cardFocusExpansion;
@@ -1059,7 +1059,7 @@ class ProviderStreamBadge extends StatelessWidget {
           Icon(Icons.cell_tower_rounded, size: 12, color: Color(0xFF9CC2FF)),
           SizedBox(width: 4),
           Text(
-            'Streaming',
+            'IPTV',
             style: TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.w600,
