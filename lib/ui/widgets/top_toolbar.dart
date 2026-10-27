@@ -167,6 +167,9 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
   bool _toolbarHadFocus = false;
   bool _friendsAvailable = FriendsNavSlot.isAvailable();
   List<AggregatedLibrary> _libraries = [];
+  /// The server answers with live TV channels even though no Live TV library
+  /// shows among the user's views (hidden from My media, or a library scope).
+  bool _serverHasChannels = false;
   Timer? _clockTimer;
   Timer? _librariesReloadDebounce;
   late final ValueNotifier<String> _currentTime;
@@ -443,6 +446,24 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
       if (mounted && !_librariesEqual(_libraries, filtered)) {
         setState(() => _libraries = filtered);
       }
+      if (!filtered.any(isLiveTvLibrary)) unawaited(_probeServerChannels());
+    } catch (_) {}
+  }
+
+  /// A hidden Live TV library must not send the TV tab back to the external
+  /// player's lists: ask the server for a single channel instead.
+  Future<void> _probeServerChannels() async {
+    try {
+      final client = GetIt.instance<MediaServerClient>();
+      final response = await client.liveTvApi.getChannels(
+        limit: 1,
+        enableTotalRecordCount: false,
+        userId: client.userId,
+      );
+      final has = ((response['Items'] as List?) ?? const []).isNotEmpty;
+      if (mounted && has != _serverHasChannels) {
+        setState(() => _serverHasChannels = has);
+      }
     } catch (_) {}
   }
 
@@ -456,7 +477,8 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
 
   /// The server offers live TV of its own (a tuner, the Xtream plugin).
   /// Kids Mode sends /live-tv back to home, so there it counts as none.
-  bool get _jellyfinLiveTv => !_kidsMode && _libraries.any(isLiveTvLibrary);
+  bool get _jellyfinLiveTv =>
+      !_kidsMode && (_serverHasChannels || _libraries.any(isLiveTvLibrary));
 
   /// Where the TV tab goes: Jellyfin's guide when the server has live TV,
   /// the external player's lists otherwise.
