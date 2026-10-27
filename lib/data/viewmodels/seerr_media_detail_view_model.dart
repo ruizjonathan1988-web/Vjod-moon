@@ -740,6 +740,15 @@ class SeerrMediaDetailViewModel extends ChangeNotifier {
     );
   }
 
+  /// Re-sends a request so Radarr/Sonarr searches for it again, for one that
+  /// has been stuck without finding anything.
+  Future<void> retryRequest(int requestId) async {
+    await _runRequestMutation(
+      () => _repo.retryRequest(requestId),
+      'Request retried',
+    );
+  }
+
   Future<void> _runRequestMutation(
     Future<void> Function() mutation,
     String successMessage,

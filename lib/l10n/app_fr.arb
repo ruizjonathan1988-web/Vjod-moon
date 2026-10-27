@@ -9796,6 +9796,7 @@
     "liveTvSearchHint": "Nom ou numéro de chaîne",
     "liveTvSortFrenchTv": "Ordre TV française",
     "liveTvFrenchFavouritesAdded": "{count, plural, =0{Aucune nouvelle chaîne française en favori} =1{1 chaîne française ajoutée aux favoris} other{{count} chaînes françaises ajoutées aux favoris}}",
+    "seerrRetrySearch": "Relancer la recherche",
     "vjodSameSpirit": "Dans le même esprit",
     "vjodCatalogueCount": "{count} chez vous · tout le reste à un geste",
     "vjodToRequest": "À demander",

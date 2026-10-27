@@ -7215,7 +7215,7 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
         ),
       if (seerr != null &&
           seerr.canManageRequests &&
-          seerrPendingRequests(seerr.state).isNotEmpty &&
+          seerr.state.allActiveRequests.isNotEmpty &&
           shows(DetailButton.seerrManage))
         DetailButton.seerrManage: _DetailActionButton(
           label: l10n.manageRequests,
