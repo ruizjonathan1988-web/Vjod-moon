@@ -14,7 +14,12 @@ Le fichier publié contient le compte du fournisseur (VJOD en a besoin pour
 lire les flux) : il est protégé par le mot de passe « HTTP access »
 d'Ultra.cc.
 
-Réglages : ~/vjod-catalog/config.json (voir config.example.json).
+Il dépose aussi, dans une collection Jellyfin « VJOD – réglages », l'adresse
+du fichier publié : VJOD la lit après la connexion à Jellyfin et se règle
+seul, sans rien à saisir sur les appareils.
+
+Réglages : ~/vjod-catalog/config.json (python3 vjod_catalog.py --setup).
+Test du dépôt dans Jellyfin seul : python3 vjod_catalog.py --publish-config
 Sortie   : ~/www/vjod/catalog.json.gz
 """
 import gzip
@@ -318,6 +323,95 @@ def enrich(cfg, rows):
     log(f"TMDB : {done} cherchés, {found} trouvés.")
 
 
+CONFIG_COLLECTION = "VJOD – réglages"
+
+
+def jellyfin_request(cfg, method, path, body=None, timeout=30):
+    url = cfg["jellyfin_url"].rstrip("/") + path
+    headers = {
+        "User-Agent": "VJOD-catalog",
+        "X-Emby-Token": cfg["jellyfin_api_key"],
+        "Authorization": f'MediaBrowser Token="{cfg["jellyfin_api_key"]}"',
+    }
+    data = None
+    if body is not None:
+        data = json.dumps(body).encode("utf-8")
+        headers["Content-Type"] = "application/json"
+    req = urllib.request.Request(url, data=data, method=method, headers=headers)
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        raw = r.read()
+    return json.loads(raw.decode("utf-8")) if raw.strip() else None
+
+
+def config_overview(catalog_url):
+    import base64
+    blob = base64.urlsafe_b64encode(
+        json.dumps({"v": 1, "catalog": catalog_url}, separators=(",", ":")).encode("utf-8")
+    ).decode("ascii").rstrip("=")
+    return (
+        "Réglages automatiques de VJOD (catalogue IPTV de la seedbox). "
+        "Ne pas modifier ni supprimer : la seedbox la met à jour chaque nuit.\n\n"
+        f"VJOD-CONFIG:{blob}"
+    )
+
+
+def publish_jellyfin_config(cfg):
+    """Écrit l'adresse du catalogue dans la collection « VJOD – réglages »,
+    que VJOD lit après la connexion à Jellyfin."""
+    if not (cfg.get("jellyfin_url") and cfg.get("jellyfin_api_key") and cfg.get("catalog_url")):
+        log("Jellyfin non réglé : les appareils devront être réglés à la main.")
+        return False
+    q = urllib.parse.urlencode({
+        "IncludeItemTypes": "BoxSet", "Recursive": "true",
+        "SearchTerm": "VJOD", "Fields": "Overview",
+    })
+    found = jellyfin_request(cfg, "GET", f"/Items?{q}") or {}
+    item_id = next((i["Id"] for i in found.get("Items", []) if i.get("Name") == CONFIG_COLLECTION), None)
+    if not item_id:
+        created = jellyfin_request(
+            cfg, "POST",
+            "/Collections?" + urllib.parse.urlencode({"Name": CONFIG_COLLECTION, "IsLocked": "true"}),
+        ) or {}
+        item_id = created.get("Id")
+        if not item_id:
+            raise RuntimeError("Jellyfin n'a pas créé la collection")
+        log(f"Collection « {CONFIG_COLLECTION} » créée dans Jellyfin.")
+    fields = "Overview,Genres,Tags,Studios,People,ProviderIds,Taglines,DateCreated,SortName"
+    items = (jellyfin_request(cfg, "GET", "/Items?" + urllib.parse.urlencode(
+        {"Ids": item_id, "Fields": fields})) or {}).get("Items", [])
+    if not items:
+        raise RuntimeError("collection introuvable après création")
+    item = items[0]
+    overview = config_overview(cfg["catalog_url"])
+    if item.get("Overview") == overview:
+        log("Réglages VJOD dans Jellyfin : déjà à jour.")
+        return True
+    for key in ("Genres", "Tags", "Studios", "People", "Taglines", "GenreItems",
+                "ArtistItems", "AlbumArtists", "LockedFields"):
+        item.setdefault(key, [])
+    item.setdefault("ProviderIds", {})
+    item["Overview"] = overview
+    jellyfin_request(cfg, "POST", f"/Items/{item_id}", body=item)
+    log("Réglages VJOD écrits dans Jellyfin.")
+    return True
+
+
+def check_catalog_url(url):
+    """Code HTTP du fichier publié, identifiants compris."""
+    import base64
+    u = urllib.parse.urlsplit(url)
+    clean = urllib.parse.urlunsplit((u.scheme, u.hostname + (f":{u.port}" if u.port else ""), u.path, u.query, ""))
+    req = urllib.request.Request(clean, method="HEAD", headers={"User-Agent": "VJOD-catalog"})
+    if u.username:
+        login = f"{urllib.parse.unquote(u.username)}:{urllib.parse.unquote(u.password or '')}"
+        req.add_header("Authorization", "Basic " + base64.b64encode(login.encode()).decode())
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            return r.status
+    except urllib.error.HTTPError as e:
+        return e.code
+
+
 def setup():
     """Pose les questions une par une et écrit les réglages."""
     import getpass
@@ -364,6 +458,26 @@ def setup():
     langs = input(f"Langues de la maison, par priorité [{','.join(cfg['languages'])}] : ").strip()
     if langs:
         cfg["languages"] = [l.strip().upper() for l in langs.split(",") if l.strip()]
+
+    print("\nPour que les appareils se règlent seuls (via Jellyfin) :")
+    cfg["jellyfin_url"] = ask("Adresse de Jellyfin (celle que VJOD utilise)", "jellyfin_url").rstrip("/")
+    cfg["jellyfin_api_key"] = ask("Clé d'API Jellyfin (Tableau de bord > Clés d'API)", "jellyfin_api_key", secret=True)
+    old_url = urllib.parse.urlsplit(old.get("catalog_url", "")) if old.get("catalog_url") else None
+    base_default = ""
+    if old_url and old_url.hostname:
+        base_default = urllib.parse.urlunsplit((old_url.scheme, old_url.hostname, old_url.path.rsplit("/vjod/", 1)[0], "", ""))
+    http_base = input(f"Adresse « HTTP access » d'Ultra.cc (panneau > Connect){' [' + base_default + ']' if base_default else ''} : ").strip() or base_default
+    http_user = input(f"Identifiant HTTP access{' [' + urllib.parse.unquote(old_url.username) + ']' if old_url and old_url.username else ''} : ").strip() \
+        or (urllib.parse.unquote(old_url.username) if old_url and old_url.username else "")
+    import getpass as _gp
+    http_pass = _gp.getpass("Mot de passe HTTP access (laisser vide pour garder l'actuel) : ") \
+        or (urllib.parse.unquote(old_url.password) if old_url and old_url.password else "")
+    if http_base:
+        b = urllib.parse.urlsplit(http_base.rstrip("/"))
+        netloc = b.hostname + (f":{b.port}" if b.port else "")
+        if http_user:
+            netloc = f"{urllib.parse.quote(http_user, safe='')}:{urllib.parse.quote(http_pass, safe='')}@{netloc}"
+        cfg["catalog_url"] = urllib.parse.urlunsplit((b.scheme or "https", netloc, b.path.rstrip("/") + "/vjod/catalog.json.gz", "", ""))
     missing = [k for k in ("portal", "username", "password") if not cfg[k]] if cfg["account_source"] == "config" else []
     if missing:
         sys.exit("Il manque : " + ", ".join(missing) + ". Rien n'est enregistré.")
@@ -391,11 +505,31 @@ def setup():
             print("  Seerr : OK")
         except Exception as e:
             print(f"  Seerr : échec ({e})")
+    if cfg.get("catalog_url"):
+        try:
+            code = check_catalog_url(cfg["catalog_url"])
+            print({200: "  Fichier publié : OK",
+                   404: "  Fichier publié : pas encore là (normal avant la fin du premier lancement)",
+                   401: "  Fichier publié : identifiant ou mot de passe HTTP access refusé"}.get(code, f"  Fichier publié : code {code}"))
+        except Exception as e:
+            print(f"  Fichier publié : injoignable ({e})")
+    if cfg.get("jellyfin_url"):
+        try:
+            jellyfin_request(cfg, "GET", "/System/Info", timeout=20)
+            print("  Jellyfin : OK")
+            publish_jellyfin_config(cfg)
+            print("  Réglages déposés dans Jellyfin : OK")
+        except Exception as e:
+            print(f"  Jellyfin : échec ({e})")
 
 
 def main():
     if "--setup" in sys.argv:
         setup()
+        return
+    if "--publish-config" in sys.argv:
+        with open(CONFIG, encoding="utf-8") as f:
+            publish_jellyfin_config(json.load(f))
         return
     try:
         with open(CONFIG, encoding="utf-8") as f:
@@ -421,6 +555,10 @@ def main():
     os.replace(tmp, OUT)
     with_tmdb = sum(1 for r in rows if r[6])
     log(f"Publié : {len(rows)} titres ({with_tmdb} avec TMDB), {os.path.getsize(OUT) // 1024} Ko → {OUT}")
+    try:
+        publish_jellyfin_config(cfg)
+    except Exception as e:  # le catalogue est publié quand même
+        log(f"Réglages VJOD dans Jellyfin : échec ({e})")
 
 
 if __name__ == "__main__":

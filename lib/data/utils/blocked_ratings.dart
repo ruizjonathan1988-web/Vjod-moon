@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart' show visibleForTesting;
+import '../services/vjod/jellyfin_vjod_config.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../preference/user_preferences.dart';
@@ -54,12 +55,20 @@ List<AggregatedItem> withoutBlockedItems(
   List<AggregatedItem> items, {
   String? fallbackRating,
 }) {
+  // The collection the seedbox keeps VJOD's settings in is plumbing, not
+  // something to watch, so no list ever shows it.
+  final shown = items.any(_isVjodSettings)
+      ? items.where((item) => !_isVjodSettings(item)).toList()
+      : items;
   final filter = activeParentalFilter;
-  if (!filter.isActive) return items;
-  return items
+  if (!filter.isActive) return shown;
+  return shown
       .where((item) => !_isItemBlocked(item, fallbackRating: fallbackRating))
       .toList();
 }
+
+bool _isVjodSettings(AggregatedItem item) =>
+    item.type == 'BoxSet' && item.name == vjodConfigCollectionName;
 
 /// [items] with the blocked ones and the unrated ones dropped.
 ///

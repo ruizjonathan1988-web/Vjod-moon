@@ -1,7 +1,11 @@
 import 'dart:async';
 
+import 'jellyfin_vjod_config.dart';
 import 'provider_catalog_access.dart';
 
+/// Keeps the IPTV provider's catalogue ready, and the device set up from the
+/// settings the seedbox leaves in Jellyfin.
+///
 /// Keeps the IPTV provider's catalogue ready without getting in the way of
 /// the app starting: once home has its rows and a moment more for their
 /// artwork, it loads the catalogue saved on the device, and fetches a fresh
@@ -30,13 +34,16 @@ class ProviderCatalogRefresher {
       if (!homeReady() && waited < _readyTimeout) return;
       wait.cancel();
       Timer(settleDelay, () {
-        _check();
-        Timer.periodic(checkEvery, (_) => _check());
+        unawaited(_check());
+        Timer.periodic(checkEvery, (_) => unawaited(_check()));
       });
     });
   }
 
-  static void _check() {
+  static Future<void> _check() async {
+    // The seedbox's settings come first, from Jellyfin, so a device signed in
+    // for the first time sets itself up before looking for a catalogue.
+    await syncVjodConfigFromServer();
     final catalog = currentProviderCatalog();
     if (catalog == null) return;
     unawaited(catalog.ensureFresh());
