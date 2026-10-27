@@ -5875,13 +5875,15 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
       for (final t in {for (final c in copies) c.tag})
         if (t.isNotEmpty) t,
     ];
+    // The button row is short on room: the language alone, spelled out
+    // ("Regarder en russe"). The sheet behind it names each version in full.
     final label = direct
         ? (first.tag.isNotEmpty
-              ? 'Regarder · IPTV ${first.tag}'
-              : 'Regarder · IPTV')
-        : (langs.isEmpty
-              ? 'Regarder · IPTV'
-              : 'Regarder · IPTV ${langs.take(3).join('/')}');
+              ? 'Regarder ${languageButtonPhrase(first.tag)}'
+              : 'Regarder')
+        : (langs.length == 1
+              ? 'Regarder ${languageButtonPhrase(langs.first)}'
+              : 'Regarder · ${langs.length} langues');
 
     Future<void> choose() async {
       final picked = await showModalBottomSheet<XtreamTitle>(
@@ -5891,10 +5893,9 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
             shrinkWrap: true,
             children: [
               ListTile(
-                title: Text(
-                  langs.isEmpty
-                      ? 'Chez le fournisseur IPTV'
-                      : 'Chez le fournisseur IPTV · ${langs.join(', ')}',
+                title: const Text('Choisir la langue'),
+                subtitle: const Text(
+                  'Lu directement chez le fournisseur IPTV, sans téléchargement',
                 ),
               ),
               for (final (i, copy) in copies.indexed)
@@ -5908,7 +5909,7 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
                   title: Text(
                     copy.tag.isEmpty
                         ? copy.name
-                        : '${copy.tag} · ${copy.name}',
+                        : '${languageName(copy.tag)} · ${copy.name}',
                   ),
                   subtitle: Text(
                     [

@@ -1747,8 +1747,8 @@ class _SearchScreenState extends State<SearchScreen>
     return MediaCard(
       title: title.name,
       subtitle: [
-        if (title.tag.isNotEmpty) title.tag,
         isSeries ? 'Série' : 'Film',
+        if (title.tag.isNotEmpty) languageName(title.tag),
       ].join(' · '),
       imageUrl: title.poster.isEmpty ? null : title.poster,
       width: width,

@@ -5,6 +5,7 @@ import 'package:moonfin_design/moonfin_design.dart';
 
 import '../../../data/services/vjod/provider_catalog_access.dart';
 import '../../../data/services/vjod/tv_playlists.dart';
+import '../../../data/services/vjod/xtream_catalog.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../preference/seerr_preferences.dart';
 import '../../../util/platform_detection.dart';
@@ -155,9 +156,10 @@ class _VjodTvLaunchScreenState extends State<VjodTvLaunchScreen> {
                     "dans ces langues passent en premier dans la recherche et "
                     "se lancent d'un clic sur les fiches. Rien de coché : "
                     "toutes les langues, au choix à chaque fois."
-              : "Ce profil regarde d'abord en ${_languages.join(', puis ')}. "
+              : "Ce profil regarde d'abord en "
+                    "${_languages.map((t) => languageName(t).toLowerCase()).join(', puis en ')}. "
                     "Les autres langues restent proposées par un appui long "
-                    "sur « Regarder · IPTV ».",
+                    "sur « Regarder » dans les fiches.",
           style: TextStyle(
             color: vjodInk.withValues(alpha: 0.55),
             fontSize: 15 * s,
@@ -200,8 +202,8 @@ class _VjodTvLaunchScreenState extends State<VjodTvLaunchScreen> {
                     child: Text(
                       [
                         if (on) '${rank + 1}.',
-                        tag,
-                        if (count != null) '($count)',
+                        languageName(tag),
+                        if (count != null) '· $count',
                       ].join(' '),
                       style: TextStyle(
                         color: on ? vjodPage : vjodInk,

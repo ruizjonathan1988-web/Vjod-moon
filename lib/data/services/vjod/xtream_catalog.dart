@@ -293,6 +293,64 @@ String _canonicalTag(String tag) => switch (tag.toUpperCase()) {
   final other => other,
 };
 
+const _languageNames = {
+  'FR': 'Français',
+  'EN': 'Anglais',
+  'RU': 'Russe',
+  'CN': 'Chinois',
+  'ES': 'Espagnol',
+  'IT': 'Italien',
+  'DE': 'Allemand',
+  'PT': 'Portugais',
+  'BR': 'Brésilien',
+  'AR': 'Arabe',
+  'TR': 'Turc',
+  'NL': 'Néerlandais',
+  'PL': 'Polonais',
+  'JP': 'Japonais',
+  'JA': 'Japonais',
+  'KR': 'Coréen',
+  'KO': 'Coréen',
+  'TH': 'Thaï',
+  'IN': 'Indien',
+  'HI': 'Hindi',
+  'UA': 'Ukrainien',
+  'UK': 'Anglais',
+  'GR': 'Grec',
+  'SE': 'Suédois',
+  'NO': 'Norvégien',
+  'DK': 'Danois',
+  'FI': 'Finnois',
+  'RO': 'Roumain',
+  'HU': 'Hongrois',
+  'CZ': 'Tchèque',
+  'IR': 'Persan',
+  'IL': 'Hébreu',
+  'VN': 'Vietnamien',
+  'PH': 'Philippin',
+  'AL': 'Albanais',
+  'EX-YU': 'Ex-Yougoslavie',
+  'MULTI': 'Multilingue',
+  'MULTI-LANG': 'Multilingue',
+  'MULTI-SUB': 'Multilingue',
+};
+
+/// The language behind a provider tag, spelled out in French (`RU` →
+/// `Russe`). A tag it doesn't know comes back as it is.
+String languageName(String tag) =>
+    _languageNames[_canonicalTag(tag)] ?? _languageNames[tag.toUpperCase()] ?? tag;
+
+/// The short words a play button carries for [tag]: `en russe`, or the tag
+/// itself when the language isn't a known one.
+String languageButtonPhrase(String tag) {
+  if (tag.isEmpty) return '';
+  final name = languageName(tag);
+  if (name == tag || name == 'Multilingue' || name == 'Ex-Yougoslavie') {
+    return '· $name';
+  }
+  return 'en ${name.toLowerCase()}';
+}
+
 /// [copies] with the profile's languages first, in its order, and the rest
 /// after in the provider's order.
 List<XtreamTitle> orderByLanguages(

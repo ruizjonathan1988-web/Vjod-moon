@@ -227,4 +227,21 @@ void main() {
       expect(searchTitles(copies, 'dune', preferredTags: ['RU']).first.id, '2');
     });
   });
+
+  group('languageName', () {
+    test('spells the language out in French', () {
+      expect(languageName('RU'), 'Russe');
+      expect(languageName('ZH'), 'Chinois');
+      expect(languageName('UK'), 'Anglais');
+      expect(languageName('MULTI-LANG'), 'Multilingue');
+      expect(languageName('XYZ'), 'XYZ');
+    });
+
+    test('a play button reads naturally', () {
+      expect(languageButtonPhrase('RU'), 'en russe');
+      expect(languageButtonPhrase('MULTI-LANG'), '· Multilingue');
+      expect(languageButtonPhrase('XYZ'), '· XYZ');
+      expect(languageButtonPhrase(''), '');
+    });
+  });
 }
