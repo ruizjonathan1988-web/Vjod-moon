@@ -18,6 +18,19 @@ List<String> currentProviderLanguages() {
   return getIt<SeerrPreferences>().vjodProviderLanguages;
 }
 
+XtreamAccount? _accountFrom(String json) {
+  if (json.isEmpty) return null;
+  try {
+    return XtreamAccount.fromJson(jsonDecode(json));
+  } catch (_) {
+    return null;
+  }
+}
+
+/// The provider account the house's Jellyfin hands out, if any.
+XtreamAccount? _jellyfinAccount(SeerrPreferences prefs) =>
+    _accountFrom(prefs.vjodJellyfinProviderAccountJson);
+
 /// The provider account the seedbox last handed this device, if any.
 XtreamAccount? _serverAccount(SeerrPreferences prefs) {
   final json = prefs.vjodCatalogServerAccountJson;
@@ -82,8 +95,11 @@ XtreamCatalog? currentProviderCatalog() {
   if (serverUrl.isNotEmpty && fromServer == null) {
     _bootstrapServerAccount(prefs, serverUrl);
   }
+  // The seedbox's file first (set by hand on the owner's devices), then the
+  // account Jellyfin hands out to the whole house, then the profile's own.
   final catalog = XtreamCatalog.forPlaylists([
     ?fromServer?.toPlaylist(),
+    ?_jellyfinAccount(prefs)?.toPlaylist(),
     ...TvPlaylists.decode(prefs.vjodTvPlaylistsJson),
   ]);
   if (catalog == null) return null;
@@ -99,6 +115,7 @@ bool providerAccountFromServer() {
   final getIt = GetIt.instance;
   if (!getIt.isRegistered<SeerrPreferences>()) return false;
   final prefs = getIt<SeerrPreferences>();
-  return prefs.vjodCatalogServerUrl.isNotEmpty &&
-      _serverAccount(prefs) != null;
+  return (prefs.vjodCatalogServerUrl.isNotEmpty &&
+          _serverAccount(prefs) != null) ||
+      _jellyfinAccount(prefs) != null;
 }

@@ -141,6 +141,14 @@ class SeerrPreferences {
   Future<void> setVjodCatalogServerUrl(String value) =>
       _store.setString('vjod_catalog_server_url', value.trim());
 
+  /// The provider account the house's Jellyfin hands out (the seedbox writes
+  /// it into a settings collection each night), as JSON. Per device; every
+  /// profile plays with it unless the seedbox's own file says otherwise.
+  String get vjodJellyfinProviderAccountJson =>
+      _store.getString('vjod_jellyfin_provider_account') ?? '';
+  Future<void> setVjodJellyfinProviderAccountJson(String value) =>
+      _store.setString('vjod_jellyfin_provider_account', value);
+
   /// The provider account the seedbox's file last carried, as JSON. Kept per
   /// device so every profile plays with the account Jellyfin is set to.
   String get vjodCatalogServerAccountJson =>

@@ -14,9 +14,10 @@ Le fichier publié contient le compte du fournisseur (VJOD en a besoin pour
 lire les flux) : il est protégé par le mot de passe « HTTP access »
 d'Ultra.cc.
 
-Il dépose aussi, dans une collection Jellyfin « VJOD – réglages », l'adresse
-du fichier publié : VJOD la lit après la connexion à Jellyfin et se règle
-seul, sans rien à saisir sur les appareils.
+Il dépose aussi, dans une collection Jellyfin « VJOD – réglages », le compte
+du fournisseur (jamais l'accès HTTP de la seedbox, qui ouvre aussi WebDAV) :
+VJOD le lit après la connexion à Jellyfin et se règle seul, sans rien à
+saisir sur les appareils.
 
 Réglages : ~/vjod-catalog/config.json (python3 vjod_catalog.py --setup).
 Test du dépôt dans Jellyfin seul : python3 vjod_catalog.py --publish-config
@@ -343,10 +344,18 @@ def jellyfin_request(cfg, method, path, body=None, timeout=30):
     return json.loads(raw.decode("utf-8")) if raw.strip() else None
 
 
-def config_overview(catalog_url):
+def config_overview(acc):
     import base64
+    payload = {
+        "v": 2,
+        "provider": {
+            "portal": normalize_portal(acc["portal"]),
+            "username": acc["username"],
+            "password": acc["password"],
+        },
+    }
     blob = base64.urlsafe_b64encode(
-        json.dumps({"v": 1, "catalog": catalog_url}, separators=(",", ":")).encode("utf-8")
+        json.dumps(payload, separators=(",", ":")).encode("utf-8")
     ).decode("ascii").rstrip("=")
     return (
         "Réglages automatiques de VJOD (catalogue IPTV de la seedbox). "
@@ -355,10 +364,10 @@ def config_overview(catalog_url):
     )
 
 
-def publish_jellyfin_config(cfg):
-    """Écrit l'adresse du catalogue dans la collection « VJOD – réglages »,
+def publish_jellyfin_config(cfg, acc=None):
+    """Écrit le compte du fournisseur dans la collection « VJOD – réglages »,
     que VJOD lit après la connexion à Jellyfin."""
-    if not (cfg.get("jellyfin_url") and cfg.get("jellyfin_api_key") and cfg.get("catalog_url")):
+    if not (cfg.get("jellyfin_url") and cfg.get("jellyfin_api_key")):
         log("Jellyfin non réglé : les appareils devront être réglés à la main.")
         return False
     q = urllib.parse.urlencode({
@@ -382,7 +391,7 @@ def publish_jellyfin_config(cfg):
     if not items:
         raise RuntimeError("collection introuvable après création")
     item = items[0]
-    overview = config_overview(cfg["catalog_url"])
+    overview = config_overview(acc or account(cfg))
     if item.get("Overview") == overview:
         log("Réglages VJOD dans Jellyfin : déjà à jour.")
         return True
@@ -449,7 +458,7 @@ def setup():
     cfg.update({
         "seerr_url": ask("Adresse de Seerr (ex. https://...), vide pour s'en passer", "seerr_url").rstrip("/"),
         "seerr_api_key": "",
-        "languages": old.get("languages", ["FR", "EN", "RU", "CN"]),
+        "languages": [l.strip(" []'\"").upper() for l in old.get("languages", ["FR", "EN", "RU", "CN"]) if l.strip(" []'\"")],
         "lookups_per_night": old.get("lookups_per_night", 8000),
         "lookups_per_second": old.get("lookups_per_second", 4),
     })
@@ -457,15 +466,17 @@ def setup():
         cfg["seerr_api_key"] = ask("Clé API Seerr (Paramètres > Général)", "seerr_api_key", secret=True)
     langs = input(f"Langues de la maison, par priorité [{','.join(cfg['languages'])}] : ").strip()
     if langs:
-        cfg["languages"] = [l.strip().upper() for l in langs.split(",") if l.strip()]
+        cfg["languages"] = [l.strip(" []'\"").upper() for l in langs.split(",") if l.strip(" []'\"")]
 
-    print("\nPour que les appareils se règlent seuls (via Jellyfin) :")
+    print("\nPour que les appareils de la maison se règlent seuls (via Jellyfin) :")
     cfg["jellyfin_url"] = ask("Adresse de Jellyfin (celle que VJOD utilise)", "jellyfin_url").rstrip("/")
     cfg["jellyfin_api_key"] = ask("Clé d'API Jellyfin (Tableau de bord > Clés d'API)", "jellyfin_api_key", secret=True)
     old_url = urllib.parse.urlsplit(old.get("catalog_url", "")) if old.get("catalog_url") else None
     base_default = ""
     if old_url and old_url.hostname:
         base_default = urllib.parse.urlunsplit((old_url.scheme, old_url.hostname, old_url.path.rsplit("/vjod/", 1)[0], "", ""))
+    print("\nAccès HTTP de la seedbox, pour TES appareils seulement (il n'est jamais")
+    print("déposé dans Jellyfin : c'est aussi l'accès WebDAV à tes fichiers).")
     http_base = input(f"Adresse « HTTP access » d'Ultra.cc (panneau > Connect){' [' + base_default + ']' if base_default else ''} : ").strip() or base_default
     http_user = input(f"Identifiant HTTP access{' [' + urllib.parse.unquote(old_url.username) + ']' if old_url and old_url.username else ''} : ").strip() \
         or (urllib.parse.unquote(old_url.username) if old_url and old_url.username else "")
@@ -513,6 +524,9 @@ def setup():
                    401: "  Fichier publié : identifiant ou mot de passe HTTP access refusé"}.get(code, f"  Fichier publié : code {code}"))
         except Exception as e:
             print(f"  Fichier publié : injoignable ({e})")
+    if cfg.get("catalog_url"):
+        print("\nInvitation pour TES appareils (garde-la pour toi, elle contient ton accès) :")
+        print("  moonfin://vjodcatalog?u=" + urllib.parse.quote(cfg["catalog_url"], safe=""))
     if cfg.get("jellyfin_url"):
         try:
             jellyfin_request(cfg, "GET", "/System/Info", timeout=20)
@@ -556,7 +570,7 @@ def main():
     with_tmdb = sum(1 for r in rows if r[6])
     log(f"Publié : {len(rows)} titres ({with_tmdb} avec TMDB), {os.path.getsize(OUT) // 1024} Ko → {OUT}")
     try:
-        publish_jellyfin_config(cfg)
+        publish_jellyfin_config(cfg, acc)
     except Exception as e:  # le catalogue est publié quand même
         log(f"Réglages VJOD dans Jellyfin : échec ({e})")
 
