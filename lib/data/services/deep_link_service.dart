@@ -54,6 +54,13 @@ class DeepLinkService {
       if (u == null || u.isEmpty) return null;
       return '/tv?add=${Uri.encodeQueryComponent(u)}';
     }
+    // The seedbox's catalogue, sent as an invitation: open the TV tab, which
+    // asks before using it.
+    if (uri.host == 'vjodcatalog') {
+      final u = uri.queryParameters['u'];
+      if (u == null || u.isEmpty) return null;
+      return '/tv?catalog=${Uri.encodeQueryComponent(u)}';
+    }
     final id = uri.queryParameters['id'];
     if (id == null || id.isEmpty) return null;
     final serverId = uri.queryParameters['serverId'];

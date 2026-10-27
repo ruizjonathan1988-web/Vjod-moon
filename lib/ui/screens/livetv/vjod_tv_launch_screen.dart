@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:get_it/get_it.dart';
 import 'package:moonfin_design/moonfin_design.dart';
 
+import '../../../data/services/vjod/catalog_invite.dart';
 import '../../../data/services/vjod/provider_catalog_access.dart';
 import '../../../data/services/vjod/tv_playlists.dart';
 import '../../../data/services/vjod/xtream_catalog.dart';
@@ -23,7 +24,11 @@ class VjodTvLaunchScreen extends StatefulWidget {
   /// A playlist link shared from another app, to offer saving on arrival.
   final String? addUrl;
 
-  const VjodTvLaunchScreen({super.key, this.addUrl});
+  /// The seedbox catalogue's address, sent as an invitation, to offer using
+  /// on arrival.
+  final String? catalogInvite;
+
+  const VjodTvLaunchScreen({super.key, this.addUrl, this.catalogInvite});
 
   @override
   State<VjodTvLaunchScreen> createState() => _VjodTvLaunchScreenState();
@@ -49,6 +54,12 @@ class _VjodTvLaunchScreenState extends State<VjodTvLaunchScreen> {
     if (shared != null && shared.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _promptShared(shared));
     }
+    final invite = widget.catalogInvite;
+    if (invite != null && invite.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _promptCatalogInvite(invite),
+      );
+    }
   }
 
   @override
@@ -58,6 +69,49 @@ class _VjodTvLaunchScreenState extends State<VjodTvLaunchScreen> {
     if (shared != null && shared.isNotEmpty && shared != old.addUrl) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _promptShared(shared));
     }
+  }
+
+  Future<void> _promptCatalogInvite(String url) async {
+    final address = parseCatalogInvite(url);
+    final uri = address == null ? null : Uri.tryParse(address);
+    if (address == null || uri == null || !mounted) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColorScheme.surface,
+        title: Text('Catalogue de la seedbox', style: TextStyle(color: vjodInk)),
+        content: Text(
+          "Utiliser sur cet appareil le catalogue IPTV préparé chaque nuit "
+          "par la seedbox (${uri.host}) ? Le compte du fournisseur viendra "
+          "de là : tu n'as rien d'autre à régler.",
+          style: TextStyle(color: vjodInk.withValues(alpha: 0.8)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Non'),
+          ),
+          TextButton(
+            autofocus: true,
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Activer'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) await _applyCatalogUrl(address);
+  }
+
+  /// Saves the seedbox's address for this device and goes to fetch its file
+  /// now. The account of an earlier address is forgotten, since the new file
+  /// brings its own.
+  Future<void> _applyCatalogUrl(String url) async {
+    await _prefs.setVjodCatalogServerUrl(url);
+    await _prefs.setVjodCatalogServerAccountJson('');
+    if (!mounted) return;
+    setState(() {});
+    final catalog = currentProviderCatalog();
+    if (catalog != null) unawaited(catalog.ensureFresh());
   }
 
   Future<void> _promptShared(String url) async {
@@ -153,6 +207,15 @@ class _VjodTvLaunchScreenState extends State<VjodTvLaunchScreen> {
                 style: vjodDisplay(26 * s),
               ),
             ),
+            if (isSet) ...[
+              _smallButton(
+                icon: Icons.share_rounded,
+                label: 'Copier l\'invitation',
+                scale: s,
+                onTap: _copyInvite,
+              ),
+              SizedBox(width: 10 * s),
+            ],
             _smallButton(
               icon: isSet ? Icons.edit_rounded : Icons.add_rounded,
               label: isSet ? 'Modifier' : 'Ajouter',
@@ -192,12 +255,24 @@ class _VjodTvLaunchScreenState extends State<VjodTvLaunchScreen> {
       builder: (_) => _ServerCatalogDialog(current: current),
     );
     if (result == null || !mounted) return;
-    await _prefs.setVjodCatalogServerUrl(result);
+    await _applyCatalogUrl(result);
+  }
+
+  Future<void> _copyInvite() async {
+    final url = _prefs.vjodCatalogServerUrl;
+    if (url.isEmpty) return;
+    await Clipboard.setData(ClipboardData(text: buildCatalogInvite(url)));
     if (!mounted) return;
-    setState(() {});
-    // Looks for the seedbox's file now rather than at the next hourly check.
-    final catalog = currentProviderCatalog();
-    if (catalog != null) unawaited(catalog.ensureFresh());
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        duration: Duration(seconds: 4),
+        content: Text(
+          "Invitation copiée. Envoie-la en message privé : elle contient "
+          "l'accès à ta seedbox. Ton colocataire la partage vers VJOD "
+          "(ou la colle dans « Modifier »).",
+        ),
+      ),
+    );
   }
 
   Widget _languagesSection(double s) {
@@ -776,6 +851,12 @@ class _ServerCatalogDialogState extends State<_ServerCatalogDialog> {
   }
 
   void _save() {
+    // An invitation pasted in the address field is taken whole, login and all.
+    final pasted = parseCatalogInvite(_url.text);
+    if (pasted != null) {
+      Navigator.of(context).pop(pasted);
+      return;
+    }
     final uri = Uri.tryParse(_url.text.trim());
     if (uri == null || uri.host.isEmpty) {
       Navigator.of(context).pop('');

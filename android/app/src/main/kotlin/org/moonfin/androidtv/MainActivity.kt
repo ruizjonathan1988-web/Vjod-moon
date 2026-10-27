@@ -347,8 +347,15 @@ class MainActivity : AudioServiceActivity(), GamepadsCompatibleActivity {
             return null
         }
         val text = intent.getStringExtra(Intent.EXTRA_TEXT) ?: return null
+        // An invitation to the seedbox's catalogue passes through as it is.
+        Regex("moonfin://vjodcatalog\\?\\S+").find(text)?.let { return it.value.trim() }
         val match = Regex("https?://\\S+").find(text) ?: return null
-        return "moonfin://tvadd?u=${Uri.encode(match.value.trim())}"
+        val url = match.value.trim()
+        // The bare address of the catalogue file counts as an invitation too.
+        if (url.contains("catalog.json")) {
+            return "moonfin://vjodcatalog?u=${Uri.encode(url)}"
+        }
+        return "moonfin://tvadd?u=${Uri.encode(url)}"
     }
 
     // audio_service boots the app on an engine of its own whenever something
