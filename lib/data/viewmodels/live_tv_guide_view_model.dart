@@ -396,7 +396,30 @@ class LiveTvGuideViewModel extends ChangeNotifier {
   DateTime _windowEnd;
   DateTime get windowEnd => _windowEnd;
 
+  String _search = '';
+
+  /// A name/number search over the channel list, on top of the category
+  /// filter. Empty means no search.
+  String get search => _search;
+  void setSearch(String query) {
+    final next = query.trim();
+    if (next == _search) return;
+    _search = next;
+    notifyListeners();
+  }
+
   List<GuideChannel> get filteredChannels {
+    final base = _channelsForFilter();
+    if (_search.isEmpty) return base;
+    final q = _search.toLowerCase();
+    return base
+        .where((ch) =>
+            ch.name.toLowerCase().contains(q) ||
+            (ch.number?.toLowerCase().contains(q) ?? false))
+        .toList();
+  }
+
+  List<GuideChannel> _channelsForFilter() {
     if (_filter == GuideFilter.all) return _channels;
     if (_filter == GuideFilter.favorites) {
       return _channels.where((ch) => ch.isFavorite).toList();

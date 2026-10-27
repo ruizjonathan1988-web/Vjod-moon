@@ -6463,6 +6463,8 @@
   "vjodTvFieldUser": "Username",
   "vjodTvFieldPass": "Password",
   "vjodTvFieldEpg": "XMLTV guide (optional)",
+  "liveTvSearchChannels": "Search channels",
+  "liveTvSearchHint": "Channel name or number",
   "vjodSameSpirit": "In the same vein",
   "vjodCatalogueCount": "{count} here · everything else one press away",
   "@vjodCatalogueCount": {"placeholders": {"count": {"type": "int"}}},

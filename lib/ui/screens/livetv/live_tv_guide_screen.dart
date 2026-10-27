@@ -1260,6 +1260,8 @@ class _LiveTvGuideScreenState extends State<LiveTvGuideScreen>
               overflow: TextOverflow.ellipsis,
             ),
           ),
+          _GuidePillButton(icon: Icons.search, onPressed: _openChannelSearch),
+          const SizedBox(width: 6),
           _GuidePillButton(icon: Icons.sort, onPressed: _openSortDialog),
           const SizedBox(width: 6),
           _GuidePillButton(
@@ -1272,6 +1274,51 @@ class _LiveTvGuideScreenState extends State<LiveTvGuideScreen>
                 ? Icons.view_agenda
                 : Icons.grid_view,
             onPressed: _toggleMobileView,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// A name search over the channel list, filtering what the guide shows.
+  void _openChannelSearch() {
+    final l10n = AppLocalizations.of(context);
+    final controller = TextEditingController(text: _vm.search);
+    void apply(String value) {
+      _vm.setSearch(value);
+      Navigator.of(context).pop();
+    }
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColorScheme.surface,
+        title: Text(
+          l10n.liveTvSearchChannels,
+          style: const TextStyle(color: Colors.white),
+        ),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          style: const TextStyle(color: Colors.white),
+          textInputAction: TextInputAction.search,
+          decoration: InputDecoration(
+            hintText: l10n.liveTvSearchHint,
+            hintStyle: const TextStyle(color: Colors.white54),
+          ),
+          onSubmitted: apply,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              _vm.setSearch('');
+              Navigator.of(ctx).pop();
+            },
+            child: Text(l10n.clear),
+          ),
+          TextButton(
+            onPressed: () => apply(controller.text),
+            child: Text(l10n.search),
           ),
         ],
       ),

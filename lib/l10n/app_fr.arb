@@ -9792,6 +9792,8 @@
     "vjodTvFieldUser": "Identifiant",
     "vjodTvFieldPass": "Mot de passe",
     "vjodTvFieldEpg": "Guide XMLTV (optionnel)",
+    "liveTvSearchChannels": "Rechercher une chaîne",
+    "liveTvSearchHint": "Nom ou numéro de chaîne",
     "vjodSameSpirit": "Dans le même esprit",
     "vjodCatalogueCount": "{count} chez vous · tout le reste à un geste",
     "vjodToRequest": "À demander",
