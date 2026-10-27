@@ -17,7 +17,6 @@ d'Ultra.cc.
 Réglages : ~/vjod-catalog/config.json (voir config.example.json).
 Sortie   : ~/www/vjod/catalog.json.gz
 """
-import glob
 import gzip
 import json
 import os
@@ -122,17 +121,28 @@ def jellyfin_xtream_account():
     """Le compte réglé dans le plugin Xtream de Jellyfin, le plus récemment
     modifié s'il y en a plusieurs (Xtream et Xtream Library). None sinon."""
     import xml.etree.ElementTree as ET
-    # Seulement les dossiers de configuration : jamais les médias, où un
-    # parcours complet prendrait des heures.
+    # Parcours limité aux dossiers de configuration, en sautant les caches,
+    # métadonnées et médias de Jellyfin où il se perdrait.
+    skip = {"metadata", "cache", "transcodes", "log", "logs", "root",
+            "media", "downloads", "www", "movies", "series", "images",
+            "collections", "playlists", "trickplay", "subtitles", "node_modules"}
     roots = [".config", ".apps", ".jellyfin", "jellyfin", ".local/share", "apps"]
-    patterns = [
-        os.path.join(HOME, root, "**", "plugins", "configurations", "*.xml")
-        for root in roots
-        if os.path.isdir(os.path.join(HOME, root))
-    ]
+    paths = []
+    for root in roots:
+        top = os.path.join(HOME, root)
+        if not os.path.isdir(top):
+            continue
+        base_depth = top.rstrip(os.sep).count(os.sep)
+        for dirpath, dirnames, filenames in os.walk(top):
+            depth = dirpath.count(os.sep) - base_depth
+            if depth >= 6:
+                dirnames[:] = []
+            else:
+                dirnames[:] = [d for d in dirnames if d.lower() not in skip]
+            if dirpath.endswith(os.path.join("plugins", "configurations")):
+                paths += [os.path.join(dirpath, f) for f in filenames if f.lower().endswith(".xml")]
     found = []
-    for pattern in patterns:
-        for path in glob.glob(pattern, recursive=True):
+    for path in paths:
             if "xtream" not in os.path.basename(path).lower():
                 continue
             try:
