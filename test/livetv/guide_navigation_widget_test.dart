@@ -509,7 +509,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Every button from the window chevrons through to Recordings.
-    for (var index = 1; index <= 5; index++) {
+    for (var index = 1; index <= 7; index++) {
       await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
       await tester.pumpAndSettle();
       expect(_focusedLabel(), 'GuideWindowBar:$index');
@@ -517,9 +517,9 @@ void main() {
     // The right-hand end refuses rather than escaping the row.
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
     await tester.pumpAndSettle();
-    expect(_focusedLabel(), 'GuideWindowBar:5');
+    expect(_focusedLabel(), 'GuideWindowBar:7');
 
-    for (var index = 4; index >= 0; index--) {
+    for (var index = 6; index >= 0; index--) {
       await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
       await tester.pumpAndSettle();
       expect(_focusedLabel(), 'GuideWindowBar:$index');

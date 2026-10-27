@@ -1003,9 +1003,14 @@ class _LiveTvPlayerScreenState extends State<LiveTvPlayerScreen>
 
   /// Zaps to the next or previous channel group (so "M6" and its duplicates
   /// count once), best variant first with fallback, like a TV box.
+  /// True while the info card on screen was raised by a zap, so the arrows
+  /// keep zapping instead of moving into the controls.
+  bool _infoFromZap = false;
+
   void _zapBy(int delta) {
     final groups = _channelGroups.length;
     if (groups < 2 || _isSwitching) return;
+    _infoFromZap = true;
     final current = _groupOfIndex[_currentIndex] ?? 0;
     unawaited(_tuneGroup((current + delta + groups) % groups));
   }
@@ -2137,6 +2142,23 @@ class _LiveTvPlayerScreenState extends State<LiveTvPlayerScreen>
     if (digit != null) {
       _onNumberDigit(digit);
       return KeyEventResult.handled;
+    }
+
+    // A Fire TV remote has no channel or number keys, so on a TV the arrows
+    // zap while nothing is on screen, as on a box: up for the next channel,
+    // down for the previous one. OK still brings up the controls.
+    final arrow = event.logicalKey == LogicalKeyboardKey.arrowUp ||
+        event.logicalKey == LogicalKeyboardKey.arrowDown;
+    if (!arrow) _infoFromZap = false;
+    if (PlatformDetection.isTV && (!_infoVisible || _infoFromZap)) {
+      if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+        _zapBy(1);
+        return KeyEventResult.handled;
+      }
+      if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+        _zapBy(-1);
+        return KeyEventResult.handled;
+      }
     }
 
     switch (event.logicalKey) {

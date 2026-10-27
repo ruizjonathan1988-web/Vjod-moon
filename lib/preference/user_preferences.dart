@@ -3418,7 +3418,7 @@ class UserPreferences extends ChangeNotifier {
   );
   static final liveTvChannelSortBy = EnumPreference(
     key: 'live_tv_channel_sort_by',
-    defaultValue: ChannelSortBy.number,
+    defaultValue: ChannelSortBy.frenchTv,
     values: ChannelSortBy.values,
   );
 

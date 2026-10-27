@@ -302,7 +302,7 @@ class LiveTvGuideViewModel extends ChangeNotifier {
       ? GetIt.instance<UserPreferences>().get(
           UserPreferences.liveTvChannelSortBy,
         )
-      : ChannelSortBy.number;
+      : ChannelSortBy.frenchTv;
 
   ChannelSortBy _sortBy;
   ChannelSortBy get sortBy => _sortBy;

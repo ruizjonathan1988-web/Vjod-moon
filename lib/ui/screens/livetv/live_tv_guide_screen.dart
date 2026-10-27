@@ -62,9 +62,11 @@ const _kReanchorInputQuiet = Duration(seconds: 1);
 const int _kWindowBarPrevious = 0;
 const int _kWindowBarNow = 1;
 const int _kWindowBarNext = 2;
-const int _kWindowBarSort = 3;
-const int _kWindowBarDate = 4;
-const int _kWindowBarRecordings = 5;
+const int _kWindowBarSearch = 3;
+const int _kWindowBarFrenchFavorites = 4;
+const int _kWindowBarSort = 5;
+const int _kWindowBarDate = 6;
+const int _kWindowBarRecordings = 7;
 const int _kWindowBarLast = _kWindowBarRecordings;
 
 /// Handed to an embedded [LiveTvGuideScreen] so its host's [PopScope] can
@@ -1655,6 +1657,18 @@ class _LiveTvGuideScreenState extends State<LiveTvGuideScreen>
             ),
           ),
           const SizedBox(width: 8),
+          _windowBarButton(
+            _kWindowBarSearch,
+            icon: Icons.search,
+            onPressed: _openChannelSearch,
+          ),
+          const SizedBox(width: 4),
+          _windowBarButton(
+            _kWindowBarFrenchFavorites,
+            icon: Icons.star_border,
+            onPressed: _favoriteFrenchChannels,
+          ),
+          const SizedBox(width: 4),
           _windowBarButton(
             _kWindowBarSort,
             icon: Icons.sort,
