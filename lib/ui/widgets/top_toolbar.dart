@@ -454,6 +454,20 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
     return true;
   }
 
+  /// The server offers live TV of its own (a tuner, the Xtream plugin).
+  /// Kids Mode sends /live-tv back to home, so there it counts as none.
+  bool get _jellyfinLiveTv => !_kidsMode && _libraries.any(isLiveTvLibrary);
+
+  /// Where the TV tab goes: Jellyfin's guide when the server has live TV,
+  /// the external player's lists otherwise.
+  String get _tvRoute =>
+      _jellyfinLiveTv ? Destinations.liveTvGuide : Destinations.tv;
+
+  bool get _isTvActive =>
+      _isActive(Destinations.tv) ||
+      _isActive(Destinations.liveTv) ||
+      _isActive(Destinations.liveTvGuide);
+
   // Kids Mode sends /live-tv back to home, so the guide button would only be a
   // dead end.
   bool get _showLiveTvButton =>
@@ -1001,15 +1015,16 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
           icon: Icons.tv_rounded,
           onTap: () => _openLibrary(series),
         ),
-      // Live TV through an external player (TiviMate and the like). No Seerr
-      // needed; it is the viewer's own IPTV source.
+      // Live TV: Jellyfin's own channels and guide when the server has them
+      // (a tuner or the Xtream plugin), played inside the app; otherwise the
+      // viewer's own IPTV lists, opened in an external player.
       VjodNavItem(
         label: l10n.vjodTvTab,
         icon: Icons.live_tv_rounded,
-        selected: _isActive(Destinations.tv),
+        selected: _isTvActive,
         onTap: () {
-          if (_isActive(Destinations.tv)) return;
-          context.navigateTopLevel(Destinations.tv);
+          if (_isTvActive) return;
+          context.navigateTopLevel(_tvRoute);
         },
       ),
       if (seerr) ...[
@@ -1105,7 +1120,7 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
     final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
     final kids = _kidsMode;
     final seerr = !kids && GetIt.instance<PluginSyncService>().seerrAvailable;
-    final liveTv = _showLiveTvButton;
+    final french = l10n.localeName.startsWith('fr');
     final host = context;
 
     void go(String route) {
@@ -1156,9 +1171,14 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
                 () => go(Destinations.seerrDiscover),
                 subtitle: l10n.vjodMenuDiscoverHint,
               ),
-            if (liveTv)
-              entry(Icons.live_tv_rounded, l10n.liveTv,
-                  () => go(Destinations.liveTvGuide)),
+            // With live TV on the server, the TV tab opens it; the viewer's
+            // own lists for an external player stay one tap away here.
+            if (_jellyfinLiveTv)
+              entry(
+                Icons.playlist_play_rounded,
+                french ? 'Listes IPTV (TiviMate…)' : 'IPTV lists (TiviMate…)',
+                () => go(Destinations.tv),
+              ),
             if (seerr)
               entry(Icons.rule_rounded, l10n.vjodMenuRequests,
                   () => go(Destinations.seerrRequests)),
@@ -1167,7 +1187,7 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
             // harmless shortcut.
             if (TopToolbar.vjodNarrow(host))
               entry(Icons.live_tv_rounded, l10n.vjodTvTab,
-                  () => go(Destinations.tv)),
+                  () => go(_tvRoute)),
           ],
           settings: entry(
             Icons.settings_outlined,
