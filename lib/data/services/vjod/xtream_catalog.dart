@@ -19,6 +19,67 @@ import 'xtream_cache_store.dart';
 
 enum XtreamKind { movie, series }
 
+/// The provider account a catalogue was read with, as the seedbox hands it
+/// out so the devices follow whatever account Jellyfin is set to.
+class XtreamAccount {
+  final String portal;
+  final String username;
+  final String password;
+
+  const XtreamAccount({
+    required this.portal,
+    required this.username,
+    required this.password,
+  });
+
+  bool get isComplete =>
+      portal.isNotEmpty && username.isNotEmpty && password.isNotEmpty;
+
+  Map<String, String> toJson() => {
+    'portal': portal,
+    'username': username,
+    'password': password,
+  };
+
+  static XtreamAccount? fromJson(Object? raw) {
+    if (raw is! Map) return null;
+    final account = XtreamAccount(
+      portal: normalizePortal(_str(raw['portal'])),
+      username: _str(raw['username']),
+      password: _str(raw['password']),
+    );
+    return account.isComplete ? account : null;
+  }
+
+  /// As a saved TV source, so it can stand in for a profile's own.
+  TvPlaylist toPlaylist() => TvPlaylist(
+    id: 'seedbox',
+    name: 'Seedbox',
+    url: portal,
+    kind: TvPlaylistKind.xtream,
+    username: username,
+    password: password,
+  );
+}
+
+/// The same provider address however it was typed: lower-case host, no
+/// default port, no trailing slash. `http://Hote:80/` is `http://hote`. The
+/// seedbox script does the same, so both name an account alike.
+String normalizePortal(String url) {
+  final text = url.trim();
+  final uri = Uri.tryParse(text);
+  if (uri == null || uri.host.isEmpty) {
+    return text.replaceAll(RegExp(r'/+$'), '');
+  }
+  final scheme = uri.scheme.isEmpty ? 'http' : uri.scheme.toLowerCase();
+  final defaultPort =
+      (scheme == 'http' && uri.port == 80) ||
+      (scheme == 'https' && uri.port == 443);
+  final port = uri.hasPort && !defaultPort ? ':${uri.port}' : '';
+  final path = uri.path.replaceAll(RegExp(r'/+$'), '');
+  return '$scheme://${uri.host.toLowerCase()}$port$path';
+}
+
 /// One film or series of the provider's catalogue.
 class XtreamTitle {
   final XtreamKind kind;
@@ -477,7 +538,12 @@ String encodeCatalogCache(
 /// Reads back what [encodeCatalogCache] wrote, or the file the seedbox
 /// prepares each night (the same rows, plus the [account] they were read
 /// with), or null for anything else.
-({int fetchedAtMs, List<XtreamTitle> titles, String account})?
+({
+  int fetchedAtMs,
+  List<XtreamTitle> titles,
+  String account,
+  XtreamAccount? provider,
+})?
 decodeCatalogCache(String data) {
   try {
     final decoded = jsonDecode(data);
@@ -507,6 +573,7 @@ decodeCatalogCache(String data) {
       fetchedAtMs: fetchedAt,
       titles: titles,
       account: _str(decoded['account']),
+      provider: XtreamAccount.fromJson(decoded['provider']),
     );
   } catch (_) {
     return null;
@@ -542,7 +609,7 @@ class XtreamCatalog {
   static XtreamCatalog? forPlaylists(List<TvPlaylist> playlists) {
     for (final p in playlists) {
       if (p.kind != TvPlaylistKind.xtream) continue;
-      final base = p.url.trim().replaceAll(RegExp(r'/+$'), '');
+      final base = normalizePortal(p.url);
       if (base.isEmpty || p.username.isEmpty || p.password.isEmpty) continue;
       final current = _current;
       if (current != null &&
@@ -594,6 +661,11 @@ class XtreamCatalog {
   /// catalogue out.
   String serverCatalogUrl = '';
 
+  /// Told when the seedbox's file was read with another provider account
+  /// than this catalogue's, with that account. Whoever hands catalogues out
+  /// switches to it; the file is already saved under the new account.
+  void Function(XtreamAccount account)? onServerAccount;
+
   /// When the catalogue in memory was fetched from the provider.
   DateTime? _fetchedAt;
   bool _refreshing = false;
@@ -634,6 +706,19 @@ class XtreamCatalog {
     if (body == null) return null;
     final cache = await compute(decodeCatalogCache, body);
     if (cache == null || cache.titles.isEmpty) return null;
+    final provider = cache.provider;
+    // The seedbox follows Jellyfin's account. A file read with another one
+    // means the account changed there: it is saved for that account, and the
+    // device moves over to it.
+    if (provider != null &&
+        catalogCacheKey(provider.portal, provider.username) != _cacheKey) {
+      await writeCatalogCache(
+        catalogCacheKey(provider.portal, provider.username),
+        body,
+      );
+      onServerAccount?.call(provider);
+      return null;
+    }
     // A file made for another provider account is someone else's catalogue.
     if (cache.account.isNotEmpty && cache.account != _cacheKey) return null;
     final at = DateTime.fromMillisecondsSinceEpoch(cache.fetchedAtMs);

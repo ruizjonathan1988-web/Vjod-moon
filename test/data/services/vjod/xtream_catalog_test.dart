@@ -296,4 +296,33 @@ void main() {
       expect(catalogCacheKey('http://p:8080', 'user'), '0086c714');
     });
   });
+
+  group('seedbox account', () {
+    test('a provider address is the same however it was typed', () {
+      expect(normalizePortal('http://Kimora3.clndf.com:80/'), 'http://kimora3.clndf.com');
+      expect(normalizePortal('https://a.b:443'), 'https://a.b');
+      expect(normalizePortal('http://a.b:8080/'), 'http://a.b:8080');
+    });
+
+    test("the seedbox's file carries the account Jellyfin is set to", () {
+      final file = jsonEncode({
+        'v': 1,
+        'fetchedAt': 1,
+        'account': catalogCacheKey('http://p:8080', 'u'),
+        'provider': {'portal': 'http://P:8080/', 'username': 'u', 'password': 'pw'},
+        'titles': [
+          ['m', '1', 'Dune', 'FR', '', 'mkv', '', 2021],
+        ],
+      });
+      final provider = decodeCatalogCache(file)!.provider!;
+      expect(provider.portal, 'http://p:8080');
+      final catalog = XtreamCatalog.forPlaylists([provider.toPlaylist()])!;
+      expect(catalog.base, 'http://p:8080');
+      expect(catalog.password, 'pw');
+    });
+
+    test('an incomplete account is none', () {
+      expect(XtreamAccount.fromJson({'portal': 'http://p', 'username': 'u'}), isNull);
+    });
+  });
 }

@@ -164,13 +164,18 @@ class _VjodTvLaunchScreenState extends State<VjodTvLaunchScreen> {
         SizedBox(height: 6 * s),
         Text(
           isSet
-              ? "Cet appareil lit le catalogue que ta seedbox prépare chaque "
-                    "nuit ($where). Si elle ne répond pas, il "
-                    "demande directement au fournisseur."
-              : "Optionnel, pour tout l'appareil : l'adresse du fichier que "
-                    "ta seedbox prépare chaque nuit. Le premier chargement est "
-                    "plus rapide et les fiches retrouvent mieux les titres. "
-                    "Sans ça, l'appareil demande au fournisseur.",
+              ? (providerAccountFromServer()
+                    ? "Cet appareil lit le catalogue que ta seedbox prépare "
+                          "chaque nuit ($where), avec le compte réglé dans le "
+                          "plugin Xtream de Jellyfin : changer de fournisseur "
+                          "là-bas suffit, tous les profils suivent."
+                    : "Adresse enregistrée ($where). Le compte du "
+                          "fournisseur arrivera avec le premier fichier de la "
+                          "seedbox.")
+              : "Pour tout l'appareil : l'adresse du fichier que ta seedbox "
+                    "prépare chaque nuit. Le compte du fournisseur vient alors "
+                    "de Jellyfin, plus besoin d'en saisir un par profil, et "
+                    "les fiches retrouvent mieux les titres.",
           style: TextStyle(
             color: vjodInk.withValues(alpha: 0.55),
             fontSize: 15 * s,
@@ -393,11 +398,12 @@ class _VjodTvLaunchScreenState extends State<VjodTvLaunchScreen> {
             _playlistTile(p, s),
             SizedBox(height: 10 * s),
           ],
-        if (_playlists.any((p) => p.kind == TvPlaylistKind.xtream)) ...[
+        SizedBox(height: 34 * s),
+        _serverCatalogSection(s),
+        if (_playlists.any((p) => p.kind == TvPlaylistKind.xtream) ||
+            providerAccountFromServer()) ...[
           SizedBox(height: 34 * s),
           _languagesSection(s),
-          SizedBox(height: 34 * s),
-          _serverCatalogSection(s),
         ],
       ],
     );

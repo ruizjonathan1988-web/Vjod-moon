@@ -141,6 +141,13 @@ class SeerrPreferences {
   Future<void> setVjodCatalogServerUrl(String value) =>
       _store.setString('vjod_catalog_server_url', value.trim());
 
+  /// The provider account the seedbox's file last carried, as JSON. Kept per
+  /// device so every profile plays with the account Jellyfin is set to.
+  String get vjodCatalogServerAccountJson =>
+      _store.getString('vjod_catalog_server_account') ?? '';
+  Future<void> setVjodCatalogServerAccountJson(String value) =>
+      _store.setString('vjod_catalog_server_account', value);
+
   /// The language tags (`FR`, `EN`, `RU`…) this profile watches the IPTV
   /// provider's films and series in, most wanted first. Empty means every
   /// language, in the provider's order.

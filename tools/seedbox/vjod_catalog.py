@@ -1,17 +1,23 @@
 #!/usr/bin/env python3
 """Prépare chaque nuit le catalogue du fournisseur IPTV pour VJOD.
 
+Le compte du fournisseur est lu dans les réglages du plugin Xtream de
+Jellyfin : changer de fournisseur dans Jellyfin suffit, la nuit suivante
+le catalogue et le compte publiés suivent, et VJOD avec.
+
 Télécharge les films et séries du compte Xtream, retrouve l'identifiant TMDB
 des titres qui n'en ont pas (via Seerr, quelques milliers par nuit, mémorisés
 d'une nuit à l'autre) et écrit un fichier compact que VJOD lit au lieu
 d'interroger le fournisseur depuis chaque appareil.
 
-Aucun mot de passe n'est écrit dans le fichier publié : la lecture se fait
-toujours directement chez le fournisseur avec le compte du profil.
+Le fichier publié contient le compte du fournisseur (VJOD en a besoin pour
+lire les flux) : il est protégé par le mot de passe « HTTP access »
+d'Ultra.cc.
 
 Réglages : ~/vjod-catalog/config.json (voir config.example.json).
 Sortie   : ~/www/vjod/catalog.json.gz
 """
+import glob
 import gzip
 import json
 import os
@@ -100,15 +106,75 @@ def account_key(base, username):
     return f"{h:08x}"
 
 
+def normalize_portal(url):
+    """http://Hote:80/ et http://hote donnent la même adresse."""
+    u = urllib.parse.urlsplit(url.strip())
+    scheme = (u.scheme or "http").lower()
+    host = (u.hostname or "").lower()
+    port = u.port
+    if port and not ((scheme == "http" and port == 80) or (scheme == "https" and port == 443)):
+        host = f"{host}:{port}"
+    path = u.path.rstrip("/")
+    return f"{scheme}://{host}{path}"
+
+
+def jellyfin_xtream_account():
+    """Le compte réglé dans le plugin Xtream de Jellyfin, le plus récemment
+    modifié s'il y en a plusieurs (Xtream et Xtream Library). None sinon."""
+    import xml.etree.ElementTree as ET
+    # Seulement les dossiers de configuration : jamais les médias, où un
+    # parcours complet prendrait des heures.
+    roots = [".config", ".apps", ".jellyfin", "jellyfin", ".local/share", "apps"]
+    patterns = [
+        os.path.join(HOME, root, "**", "plugins", "configurations", "*.xml")
+        for root in roots
+        if os.path.isdir(os.path.join(HOME, root))
+    ]
+    found = []
+    for pattern in patterns:
+        for path in glob.glob(pattern, recursive=True):
+            if "xtream" not in os.path.basename(path).lower():
+                continue
+            try:
+                root = ET.parse(path).getroot()
+            except (ET.ParseError, OSError):
+                continue
+            fields = {el.tag.lower(): (el.text or "").strip() for el in root.iter()}
+            url = fields.get("baseurl") or fields.get("serverurl") or fields.get("url") or ""
+            user = fields.get("username") or ""
+            pw = fields.get("password") or ""
+            if url.startswith("http") and user and pw and "example.com" not in url:
+                found.append((os.path.getmtime(path), path, url, user, pw))
+    if not found:
+        return None
+    found.sort(reverse=True)
+    _, path, url, user, pw = found[0]
+    return {"portal": url, "username": user, "password": pw, "from": path}
+
+
+def account(cfg):
+    """Le compte à utiliser : celui de Jellyfin quand il est trouvé, sinon
+    celui des réglages."""
+    if cfg.get("account_source", "jellyfin") == "jellyfin":
+        acc = jellyfin_xtream_account()
+        if acc:
+            log(f"Compte lu dans Jellyfin ({acc['from']}).")
+            return acc
+        log("Plugin Xtream de Jellyfin introuvable : compte des réglages utilisé.")
+    if not (cfg.get("portal") and cfg.get("username") and cfg.get("password")):
+        sys.exit("Aucun compte Xtream : ni dans Jellyfin, ni dans les réglages.")
+    return {"portal": cfg["portal"], "username": cfg["username"], "password": cfg["password"]}
+
+
 def get_json(url, headers=None, timeout=180):
     req = urllib.request.Request(url, headers={"User-Agent": "VJOD-catalog", **(headers or {})})
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return json.loads(r.read().decode("utf-8", errors="replace"))
 
 
-def fetch_provider(cfg):
-    base = cfg["portal"].strip().rstrip("/")
-    q = {"username": cfg["username"], "password": cfg["password"]}
+def fetch_provider(acc):
+    base = normalize_portal(acc["portal"])
+    q = {"username": acc["username"], "password": acc["password"]}
     rows, seen = [], set()
     for action, kind, id_key, icon_key in (
         ("get_vod_streams", "m", "stream_id", "stream_icon"),
@@ -263,22 +329,32 @@ def setup():
         return value if value else current
 
     print("Réglages du catalogue VJOD (Ctrl+C pour annuler)\n")
-    cfg = {
-        "portal": ask("Adresse du fournisseur Xtream (ex. http://exemple.com:8080)", "portal").rstrip("/"),
-        "username": ask("Identifiant Xtream", "username"),
-        "password": ask("Mot de passe Xtream (ne s'affiche pas)", "password", secret=True),
+    jf = jellyfin_xtream_account()
+    if jf:
+        print(f"Compte Xtream trouvé dans Jellyfin : {jf['portal']} ({jf['username']})")
+        print("Il sera relu chaque nuit : changer de fournisseur dans Jellyfin suffit.\n")
+        cfg = {"account_source": "jellyfin", "portal": "", "username": "", "password": ""}
+    else:
+        print("Plugin Xtream de Jellyfin introuvable : saisis le compte ici.\n")
+        cfg = {
+            "account_source": "config",
+            "portal": ask("Adresse du fournisseur Xtream (ex. http://exemple.com:8080)", "portal").rstrip("/"),
+            "username": ask("Identifiant Xtream", "username"),
+            "password": ask("Mot de passe Xtream (ne s'affiche pas)", "password", secret=True),
+        }
+    cfg.update({
         "seerr_url": ask("Adresse de Seerr (ex. https://...), vide pour s'en passer", "seerr_url").rstrip("/"),
         "seerr_api_key": "",
         "languages": old.get("languages", ["FR", "EN", "RU", "CN"]),
         "lookups_per_night": old.get("lookups_per_night", 8000),
         "lookups_per_second": old.get("lookups_per_second", 4),
-    }
+    })
     if cfg["seerr_url"]:
         cfg["seerr_api_key"] = ask("Clé API Seerr (Paramètres > Général)", "seerr_api_key", secret=True)
     langs = input(f"Langues de la maison, par priorité [{','.join(cfg['languages'])}] : ").strip()
     if langs:
         cfg["languages"] = [l.strip().upper() for l in langs.split(",") if l.strip()]
-    missing = [k for k in ("portal", "username", "password") if not cfg[k]]
+    missing = [k for k in ("portal", "username", "password") if not cfg[k]] if cfg["account_source"] == "config" else []
     if missing:
         sys.exit("Il manque : " + ", ".join(missing) + ". Rien n'est enregistré.")
     os.makedirs(BASE_DIR, exist_ok=True)
@@ -289,9 +365,10 @@ def setup():
     print("\nRéglages enregistrés (lisibles par toi seul).")
     print("Vérification du compte Xtream…")
     try:
-        base = cfg["portal"]
+        acc = jf or cfg
+        base = normalize_portal(acc["portal"])
         url = f"{base}/player_api.php?" + urllib.parse.urlencode(
-            {"username": cfg["username"], "password": cfg["password"]})
+            {"username": acc["username"], "password": acc["password"]})
         info = get_json(url, timeout=30)
         status = (info.get("user_info") or {}).get("status", "?") if isinstance(info, dict) else "?"
         print(f"  Fournisseur : compte {status}")
@@ -315,14 +392,16 @@ def main():
             cfg = json.load(f)
     except (OSError, ValueError) as e:
         sys.exit(f"Réglages illisibles ({CONFIG}) : {e}")
-    base, rows = fetch_provider(cfg)
+    acc = account(cfg)
+    base, rows = fetch_provider(acc)
     if not rows:
         sys.exit("Catalogue vide : rien n'est publié, l'ancien fichier reste.")
     enrich(cfg, rows)
     payload = {
         "v": 1,
         "fetchedAt": int(time.time() * 1000),
-        "account": account_key(base, cfg["username"]),
+        "account": account_key(base, acc["username"]),
+        "provider": {"portal": base, "username": acc["username"], "password": acc["password"]},
         "titles": [[r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7]] for r in rows],
     }
     os.makedirs(OUT_DIR, exist_ok=True)
