@@ -3,11 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 import 'package:moonfin_design/moonfin_design.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../data/services/app_update_service.dart';
 import '../../l10n/app_localizations.dart';
 import '../../util/platform_detection.dart';
+import 'app_update_dialog.dart';
 import 'status_banner_pill.dart';
 
 /// Floating glass pill announcing a newer GitHub release. Mirrors the offline
@@ -71,6 +71,14 @@ class _AppUpdateBannerState extends State<AppUpdateBanner>
           GetIt.instance<AppUpdateService>().checkForUpdateIfDue;
       final update = await check();
       if (!mounted || update == null) return;
+      // On TV the banner can't be reached with the remote, so the update
+      // offer opens straight away as a dialog the d-pad can use, with the
+      // in-app install inside it.
+      if (PlatformDetection.useLeanbackUi) {
+        await showAppUpdateDialog(context, update);
+        if (mounted) setState(() => _dismissed = true);
+        return;
+      }
       setState(() => _update = update);
       _entrance.forward();
       _autoDismissTimer = Timer(_autoDismissDuration, _dismiss);
@@ -107,12 +115,9 @@ class _AppUpdateBannerState extends State<AppUpdateBanner>
             label: l10n.download,
             tint: tint,
             onTap: () {
-              unawaited(
-                launchUrl(
-                  update.downloadUri,
-                  mode: LaunchMode.externalApplication,
-                ),
-              );
+              // Downloads and installs inside the app, rather than sending
+              // the viewer to the browser.
+              unawaited(showAppUpdateDialog(context, update));
               unawaited(_dismiss());
             },
           ),
