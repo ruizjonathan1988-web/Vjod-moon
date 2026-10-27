@@ -59,12 +59,11 @@ class _LibrarySiblingSwitcherState extends State<LibrarySiblingSwitcher> {
         for (final view in views)
           if (view.collectionType.toLowerCase() == type) view,
       ];
-      // Main libraries first, the language copies after.
-      siblings.sort((a, b) {
-        final left = isSecondaryLibraryName(a.name) ? 1 : 0;
-        final right = isSecondaryLibraryName(b.name) ? 1 : 0;
-        return left.compareTo(right);
-      });
+      // Main libraries first, then the language copies, then the
+      // provider's catalogue.
+      siblings.sort(
+        (a, b) => libraryChipRank(a.name).compareTo(libraryChipRank(b.name)),
+      );
       final hasCopy = siblings.any((s) => isSecondaryLibraryName(s.name));
       if (!mounted) return;
       setState(() => _siblings = hasCopy ? siblings : const []);

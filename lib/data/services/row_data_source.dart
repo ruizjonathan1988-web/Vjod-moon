@@ -23,6 +23,7 @@ import '../utils/playlist_utils.dart';
 import 'package:flutter/foundation.dart';
 import '../repositories/seerr_repository.dart';
 import '../repositories/user_views_repository.dart';
+import '../../util/secondary_library.dart';
 import 'library_scope_service.dart';
 import '../../preference/seerr_preferences.dart';
 import '../viewmodels/seerr_discover_view_model.dart';
@@ -2622,9 +2623,8 @@ class RowDataSource {
           DateTime.now().difference(cached.at) < const Duration(minutes: 5)) {
         drawing = cached.items;
       } else {
-        drawing = _searchVisibleLibraryItems(
+        drawing = _searchOwnMovieLibraries(
           serverId,
-          const ['Movie'],
           (parentId) => _getItemsWithFallback(
             parentId: parentId,
             includeItemTypes: const ['Movie'],
@@ -2657,6 +2657,40 @@ class RowDataSource {
       debugPrint('[RowDataSource] VJOD ready row failed: $e');
       return const [];
     }
+  }
+
+  /// The movie libraries of the server's own files, leaving out an IPTV
+  /// provider's catalogue: "ready tonight" means a file of yours, never a
+  /// stream that may have gone. Falls back to the usual scope when the
+  /// libraries can't be listed.
+  Future<List<AggregatedItem>> _searchOwnMovieLibraries(
+    String serverId,
+    Future<Map<String, dynamic>> Function(String? parentId) search,
+  ) async {
+    List<String>? own;
+    try {
+      if (GetIt.instance.isRegistered<UserViewsRepository>()) {
+        final views = await GetIt.instance<UserViewsRepository>()
+            .getUserViews();
+        final movies = [
+          for (final v in views)
+            if (v.collectionType.toLowerCase() == 'movies') v,
+        ];
+        if (movies.any((v) => isProviderLibraryName(v.name))) {
+          own = [
+            for (final v in movies)
+              if (!isProviderLibraryName(v.name)) v.id,
+          ];
+        }
+      }
+    } catch (_) {}
+    if (own == null) {
+      return _searchVisibleLibraryItems(serverId, const ['Movie'], search);
+    }
+    final responses = await _searchLibraries(own, search);
+    return [
+      for (final response in responses) ..._parseItems(response, serverId),
+    ];
   }
 
   /// Every collection the server holds (the SmartLists palmarès among them),
