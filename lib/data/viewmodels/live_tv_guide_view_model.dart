@@ -8,6 +8,7 @@ import 'package:server_core/server_core.dart';
 
 import '../../preference/preference_constants.dart';
 import '../../preference/user_preferences.dart';
+import '../services/vjod/french_channels.dart';
 
 class GuideChannel {
   final String id;
@@ -333,7 +334,34 @@ class LiveTvGuideViewModel extends ChangeNotifier {
           if (a.isFavorite != b.isFavorite) return a.isFavorite ? -1 : 1;
           return _compareByNumber(a, b);
         };
+      case ChannelSortBy.frenchTv:
+        return (a, b) {
+          final byOrder =
+              frenchTvOrder(a.name).compareTo(frenchTvOrder(b.name));
+          if (byOrder != 0) return byOrder;
+          return _compareByNumber(a, b);
+        };
     }
+  }
+
+  /// Marks the French generalist and sports channels as favourites in one go,
+  /// for a lineup that opens on the channels most people watch. Returns how
+  /// many it newly favourited.
+  Future<int> favoriteFrenchChannels() async {
+    final targets = [
+      for (final ch in _channels)
+        if (!ch.isFavorite && isFrenchFavourite(ch.name)) ch.id,
+    ];
+    var done = 0;
+    for (final id in targets) {
+      try {
+        await toggleChannelFavorite(id);
+        done++;
+      } catch (_) {
+        // Skip the ones the server refused; keep going.
+      }
+    }
+    return done;
   }
 
   static int _compareByName(GuideChannel a, GuideChannel b) =>

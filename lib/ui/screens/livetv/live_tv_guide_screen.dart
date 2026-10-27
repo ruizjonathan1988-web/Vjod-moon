@@ -776,7 +776,7 @@ class _LiveTvGuideScreenState extends State<LiveTvGuideScreen>
                     value: option,
                     autofocus: option == _vm.sortBy,
                     title: Text(
-                      option.displayName,
+                      _sortLabel(option, l10n),
                       style: const TextStyle(color: Colors.white),
                     ),
                   ),
@@ -784,6 +784,24 @@ class _LiveTvGuideScreenState extends State<LiveTvGuideScreen>
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  String _sortLabel(ChannelSortBy option, AppLocalizations l10n) =>
+      option == ChannelSortBy.frenchTv
+          ? l10n.liveTvSortFrenchTv
+          : option.displayName;
+
+  /// Favourites the French generalist and sports channels in one tap.
+  Future<void> _favoriteFrenchChannels() async {
+    final l10n = AppLocalizations.of(context);
+    final count = await _vm.favoriteFrenchChannels();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(l10n.liveTvFrenchFavouritesAdded(count)),
+        duration: const Duration(seconds: 3),
       ),
     );
   }
@@ -1261,6 +1279,11 @@ class _LiveTvGuideScreenState extends State<LiveTvGuideScreen>
             ),
           ),
           _GuidePillButton(icon: Icons.search, onPressed: _openChannelSearch),
+          const SizedBox(width: 6),
+          _GuidePillButton(
+            icon: Icons.star_border,
+            onPressed: _favoriteFrenchChannels,
+          ),
           const SizedBox(width: 6),
           _GuidePillButton(icon: Icons.sort, onPressed: _openSortDialog),
           const SizedBox(width: 6),

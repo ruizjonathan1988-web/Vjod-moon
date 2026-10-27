@@ -798,7 +798,8 @@ enum LibraryGroupBy {
 enum ChannelSortBy {
   number('Channel Number'),
   name('Name'),
-  favoritesFirst('Favorites First');
+  favoritesFirst('Favorites First'),
+  frenchTv('French TV');
 
   const ChannelSortBy(this.displayName);
   final String displayName;
