@@ -6472,6 +6472,7 @@
   "seerrOpenInRadarr": "Open in Radarr",
   "seerrOpenInSonarr": "Open in Sonarr",
   "seerrServiceLinkUnavailable": "Service link unavailable",
+  "liveTvRecent": "Recent",
   "vjodSameSpirit": "In the same vein",
   "vjodCatalogueCount": "{count} here · everything else one press away",
   "@vjodCatalogueCount": {"placeholders": {"count": {"type": "int"}}},

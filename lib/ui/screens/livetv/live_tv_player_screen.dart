@@ -17,6 +17,7 @@ import '../../../playback/subtitle_style.dart';
 import '../../../playback/subtitle_view_config.dart';
 import '../../../data/models/aggregated_item.dart';
 import '../../../data/models/live_tv_recording_state.dart';
+import '../../../data/services/vjod/recent_channels.dart';
 import '../../../data/viewmodels/live_tv_guide_view_model.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../playback/html_video_backend.dart';
@@ -767,6 +768,13 @@ class _LiveTvPlayerScreenState extends State<LiveTvPlayerScreen>
     _seekTarget = null;
     final channel = _currentChannel;
     unawaited(_prefs.set(UserPreferences.liveTvLastChannelId, channel.id));
+    unawaited(_prefs.set(
+      UserPreferences.liveTvRecentChannelIds,
+      pushRecentChannel(
+        _prefs.get(UserPreferences.liveTvRecentChannelIds),
+        channel.id,
+      ),
+    ));
     final item = AggregatedItem(
       id: channel.id,
       serverId: _client.baseUrl,
@@ -1007,10 +1015,17 @@ class _LiveTvPlayerScreenState extends State<LiveTvPlayerScreen>
   /// keep zapping instead of moving into the controls.
   bool _infoFromZap = false;
 
+  /// The channel left by the last zap, and when, so Back right after a zap
+  /// goes back to it, like the "last channel" key of a box.
+  int? _previousIndex;
+  DateTime? _lastZapAt;
+
   void _zapBy(int delta) {
     final groups = _channelGroups.length;
     if (groups < 2 || _isSwitching) return;
     _infoFromZap = true;
+    _previousIndex = _currentIndex;
+    _lastZapAt = DateTime.now();
     final current = _groupOfIndex[_currentIndex] ?? 0;
     unawaited(_tuneGroup((current + delta + groups) % groups));
   }
@@ -2294,6 +2309,20 @@ class _LiveTvPlayerScreenState extends State<LiveTvPlayerScreen>
           return;
         }
         if (_isBackNavigationSuppressed) return;
+        // Back within a few seconds of a zap returns to the channel just left.
+        final previous = _previousIndex;
+        final zappedAt = _lastZapAt;
+        if (previous != null &&
+            zappedAt != null &&
+            previous != _currentIndex &&
+            previous < widget.channels.length &&
+            DateTime.now().difference(zappedAt) < const Duration(seconds: 6)) {
+          _lastZapAt = null;
+          _previousIndex = null;
+          _infoFromZap = true;
+          unawaited(_switchChannel(previous));
+          return;
+        }
         // Back dismisses the on-screen controls first; only exit the player once
         // the OSD is already hidden (e.g. after returning from the EPG overlay,
         // where a focused control otherwise keeps the OSD pinned open).

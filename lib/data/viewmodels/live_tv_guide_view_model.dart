@@ -10,6 +10,7 @@ import '../../preference/preference_constants.dart';
 import '../../preference/user_preferences.dart';
 import '../services/vjod/channel_search.dart';
 import '../services/vjod/french_channels.dart';
+import '../services/vjod/recent_channels.dart';
 
 class GuideChannel {
   final String id;
@@ -195,6 +196,7 @@ enum GuideFilter {
   kids,
   premiere,
   favorites,
+  recent,
 }
 
 enum GuideState { loading, ready, error }
@@ -466,6 +468,13 @@ class LiveTvGuideViewModel extends ChangeNotifier {
     if (_filter == GuideFilter.favorites) {
       return _channels.where((ch) => ch.isFavorite).toList();
     }
+    if (_filter == GuideFilter.recent) {
+      final byId = {for (final ch in _channels) ch.id: ch};
+      return [
+        for (final id in _recentIds())
+          if (byId[id] != null) byId[id]!,
+      ];
+    }
     if (_categoryLoadedFor != _filter) return const [];
     return _channels
         .where((ch) => _categoryPrograms.containsKey(ch.id))
@@ -475,7 +484,9 @@ class LiveTvGuideViewModel extends ChangeNotifier {
   List<GuideProgram> programsForChannel(String channelId) {
     if (_isCategory(_filter)) return _categoryPrograms[channelId] ?? const [];
     final all = _programsByChannel[channelId] ?? [];
-    if (_filter == GuideFilter.all || _filter == GuideFilter.favorites) {
+    if (_filter == GuideFilter.all ||
+        _filter == GuideFilter.favorites ||
+        _filter == GuideFilter.recent) {
       return all;
     }
     return all.where(_matchesFilter).toList();
@@ -521,10 +532,13 @@ class LiveTvGuideViewModel extends ChangeNotifier {
     GuideFilter.kids => p.isKids,
     GuideFilter.premiere => p.isPremiere,
     GuideFilter.favorites => true,
+    GuideFilter.recent => true,
   };
 
   static bool _isCategory(GuideFilter filter) =>
-      filter != GuideFilter.all && filter != GuideFilter.favorites;
+      filter != GuideFilter.all &&
+      filter != GuideFilter.favorites &&
+      filter != GuideFilter.recent;
 
   static bool _matches(GuideFilter filter, GuideProgram p) => switch (filter) {
     GuideFilter.all => true,
@@ -535,6 +549,7 @@ class LiveTvGuideViewModel extends ChangeNotifier {
     GuideFilter.kids => p.isKids,
     GuideFilter.premiere => p.isPremiere,
     GuideFilter.favorites => true,
+    GuideFilter.recent => true,
   };
 
   Future<void> toggleChannelFavorite(String channelId) async {
@@ -694,7 +709,18 @@ class LiveTvGuideViewModel extends ChangeNotifier {
           .toList();
       unawaited(ensureProgramsForChannels(favIds));
     }
+    if (value == GuideFilter.recent) {
+      unawaited(ensureProgramsForChannels(_recentIds()));
+    }
   }
+
+  static List<String> _recentIds() => GetIt.instance
+          .isRegistered<UserPreferences>()
+      ? parseRecentChannels(
+          GetIt.instance<UserPreferences>()
+              .get(UserPreferences.liveTvRecentChannelIds),
+        )
+      : const [];
 
   Future<void> _loadCategoryPrograms() async {
     _resetCategory();

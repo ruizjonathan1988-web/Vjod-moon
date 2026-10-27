@@ -3429,6 +3429,13 @@ class UserPreferences extends ChangeNotifier {
     defaultValue: '',
   );
 
+  /// Channels watched last on this server/account, most recent first, for
+  /// the guide's Recent filter.
+  static final liveTvRecentChannelIds = Preference<String>(
+    key: 'live_tv_recent_channel_ids',
+    defaultValue: '',
+  );
+
   static EnumPreference<LibrarySortBy> librarySortBy(String libraryId) =>
       EnumPreference(
         key: 'library_sort_by_$libraryId',
