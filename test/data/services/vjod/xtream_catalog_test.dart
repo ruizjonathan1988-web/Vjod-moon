@@ -244,4 +244,40 @@ void main() {
       expect(languageButtonPhrase(''), '');
     });
   });
+
+  group('catalogue saved on the device', () {
+    test('reads back what it wrote', () {
+      final titles = [
+        ...parseVodStreams(jsonEncode([
+          {'stream_id': 1, 'name': 'RU - Брат (1997)', 'stream_icon': 'http://i', 'container_extension': 'mkv', 'tmdb': '20992'},
+        ])),
+        ...parseSeriesList(jsonEncode([
+          {'series_id': 2, 'name': 'EN - The Office'},
+        ])),
+      ];
+      final back = decodeCatalogCache(
+        encodeCatalogCache((fetchedAtMs: 1234, titles: titles)),
+      )!;
+      expect(back.fetchedAtMs, 1234);
+      expect(back.titles.length, 2);
+      final film = back.titles.first;
+      expect([film.kind, film.id, film.name, film.tag, film.poster, film.extension, film.tmdbId, film.year],
+          [XtreamKind.movie, '1', 'Брат (1997)', 'RU', 'http://i', 'mkv', '20992', 1997]);
+      expect(back.titles.last.kind, XtreamKind.series);
+      expect(back.titles.last.year, isNull);
+      expect(searchTitles(back.titles, 'office').single.id, '2');
+    });
+
+    test('anything else reads as nothing', () {
+      expect(decodeCatalogCache('not json'), isNull);
+      expect(decodeCatalogCache('{"v":2}'), isNull);
+    });
+
+    test('the file name is stable and hides the account', () {
+      final key = catalogCacheKey('http://p:8080', 'user');
+      expect(key, catalogCacheKey('http://p:8080', 'user'));
+      expect(key, isNot(catalogCacheKey('http://p:8080', 'other')));
+      expect(key, matches(RegExp(r'^[0-9a-f]{8}$')));
+    });
+  });
 }

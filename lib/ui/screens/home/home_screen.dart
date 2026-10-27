@@ -20,6 +20,7 @@ import 'package:playback_core/playback_core.dart';
 import 'package:server_core/server_core.dart' hide ImageType;
 import 'package:window_manager/window_manager.dart';
 
+import '../../../data/services/vjod/provider_catalog_refresher.dart';
 import '../../../data/models/aggregated_item.dart';
 import '../../../data/models/home_row.dart';
 import '../../../data/repositories/mdblist_repository.dart';
@@ -217,6 +218,9 @@ class _HomeShellState extends State<_HomeShell>
   void initState() {
     super.initState();
     _viewModel = GetIt.instance<HomeViewModel>();
+    // The IPTV provider's catalogue loads only once home and its artwork are
+    // up, then refreshes daily.
+    ProviderCatalogRefresher.start(homeReady: () => !_viewModel.isLoading);
     WidgetsBinding.instance.addObserver(this);
     appRouter.routerDelegate.addListener(_onRouteChanged);
     _lastObservedPath = appRouter.routerDelegate.currentConfiguration.uri.path;

@@ -15,6 +15,7 @@ import 'package:http/http.dart' as http;
 
 import '../../../util/accent_folding.dart';
 import 'tv_playlists.dart';
+import 'xtream_cache_store.dart';
 
 enum XtreamKind { movie, series }
 
@@ -451,6 +452,73 @@ List<XtreamTitle> findProviderCopies(
   ].take(limit).toList();
 }
 
+/// The catalogue as it is saved on the device: when it was fetched and one
+/// compact row per title.
+String encodeCatalogCache(
+  ({int fetchedAtMs, List<XtreamTitle> titles}) cache,
+) => jsonEncode({
+  'v': 1,
+  'fetchedAt': cache.fetchedAtMs,
+  'titles': [
+    for (final t in cache.titles)
+      [
+        t.kind == XtreamKind.series ? 's' : 'm',
+        t.id,
+        t.name,
+        t.tag,
+        t.poster,
+        t.extension,
+        t.tmdbId,
+        t.year ?? 0,
+      ],
+  ],
+});
+
+/// Reads back what [encodeCatalogCache] wrote, or null for anything else.
+({int fetchedAtMs, List<XtreamTitle> titles})? decodeCatalogCache(
+  String data,
+) {
+  try {
+    final decoded = jsonDecode(data);
+    if (decoded is! Map || decoded['v'] != 1) return null;
+    final fetchedAt = decoded['fetchedAt'];
+    if (fetchedAt is! int) return null;
+    final titles = <XtreamTitle>[];
+    for (final row in _list(decoded['titles'])) {
+      if (row is! List || row.length < 8) continue;
+      final name = _str(row[2]);
+      final year = _int(row[7]);
+      titles.add(
+        XtreamTitle(
+          kind: row[0] == 's' ? XtreamKind.series : XtreamKind.movie,
+          id: _str(row[1]),
+          name: name,
+          tag: _str(row[3]),
+          poster: _str(row[4]),
+          extension: _str(row[5]),
+          searchKey: foldForSearch(name),
+          tmdbId: _str(row[6]),
+          year: year > 0 ? year : null,
+        ),
+      );
+    }
+    return (fetchedAtMs: fetchedAt, titles: titles);
+  } catch (_) {
+    return null;
+  }
+}
+
+/// A short stable name for a provider account, to file its catalogue under
+/// without writing the password into a file name.
+String catalogCacheKey(String base, String username) {
+  var hash = 0x811c9dc5;
+  for (final unit in utf8.encode('$base|$username')) {
+    hash ^= unit;
+    hash = (hash * 0x01000193) & 0xffffffff;
+  }
+  return hash.toRadixString(16).padLeft(8, '0');
+}
+
 /// The provider's catalogue for one saved Xtream source. The film and series
 /// lists are fetched once, the first time a search needs them, and kept for
 /// the session; a failed fetch is retried on the next search.
@@ -507,7 +575,17 @@ class XtreamCatalog {
     return utf8.decode(response.bodyBytes, allowMalformed: true);
   }
 
-  Future<List<XtreamTitle>> _load() async {
+  /// How old the catalogue may get before the daily refresh fetches it
+  /// again.
+  static const maxAge = Duration(hours: 24);
+
+  /// When the catalogue in memory was fetched from the provider.
+  DateTime? _fetchedAt;
+  bool _refreshing = false;
+
+  String get _cacheKey => catalogCacheKey(base, username);
+
+  Future<List<XtreamTitle>> _fetchFromProvider() async {
     final results = await Future.wait([
       _get(_api('get_vod_streams'), _listTimeout)
           .then((body) => compute(parseVodStreams, body))
@@ -518,12 +596,62 @@ class XtreamCatalog {
     ]);
     final all = [...results[0], ...results[1]];
     if (all.isEmpty) throw StateError('Catalogue du fournisseur vide');
+    final now = DateTime.now();
+    _fetchedAt = now;
+    unawaited(_save(now, all));
     return all;
   }
 
-  /// Starts fetching the lists if they aren't yet, so the first search
-  /// doesn't wait for the whole download.
+  Future<void> _save(DateTime at, List<XtreamTitle> titles) async {
+    final data = await compute(
+      encodeCatalogCache,
+      (fetchedAtMs: at.millisecondsSinceEpoch, titles: titles),
+    );
+    await writeCatalogCache(_cacheKey, data);
+  }
+
+  /// The saved catalogue when there is one, however old (the daily refresh
+  /// takes care of its age); the provider's otherwise.
+  Future<List<XtreamTitle>> _load() async {
+    final saved = await readCatalogCache(_cacheKey);
+    if (saved != null) {
+      final cache = await compute(decodeCatalogCache, saved);
+      if (cache != null && cache.titles.isNotEmpty) {
+        _fetchedAt = DateTime.fromMillisecondsSinceEpoch(cache.fetchedAtMs);
+        return cache.titles;
+      }
+    }
+    return _fetchFromProvider();
+  }
+
+  /// Loads the catalogue into memory (from the device when it was saved
+  /// there), so searches and pages find it ready.
   void warmUp() => unawaited(_all().then<void>((_) {}, onError: (_) {}));
+
+  /// Loads the catalogue, then fetches it again from the provider when it is
+  /// older than [maxAge]. The old one keeps answering until the new one has
+  /// fully arrived, and stays if the provider fails.
+  Future<void> ensureFresh() async {
+    try {
+      await _all();
+    } catch (_) {
+      return;
+    }
+    final at = _fetchedAt;
+    if (_refreshing ||
+        (at != null && DateTime.now().difference(at) < maxAge)) {
+      return;
+    }
+    _refreshing = true;
+    try {
+      final fresh = await _fetchFromProvider();
+      _titles = Future.value(fresh);
+    } catch (_) {
+      // Tried again at the next check.
+    } finally {
+      _refreshing = false;
+    }
+  }
 
   Future<List<XtreamTitle>> _all() {
     final future = _titles ??= _load();
