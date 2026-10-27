@@ -956,7 +956,7 @@ class _LiveTvPlayerScreenState extends State<LiveTvPlayerScreen>
     unawaited(_switchChannel((_currentIndex + delta + n) % n));
   }
 
-  static const Map<LogicalKeyboardKey, int> _digitKeys = {
+  static final Map<LogicalKeyboardKey, int> _digitKeys = {
     LogicalKeyboardKey.digit0: 0,
     LogicalKeyboardKey.digit1: 1,
     LogicalKeyboardKey.digit2: 2,
