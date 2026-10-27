@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import '../../util/provider_stream.dart';
 import '../database/offline_database.dart';
 
 class AggregatedItem {
@@ -256,6 +257,10 @@ class AggregatedItem {
 
   String? get tmdbId => providerIds['Tmdb'] ?? providerIds['tmdb'] ?? providerIds['TMDB'];
   String? get imdbId => providerIds['Imdb'] ?? providerIds['imdb'] ?? providerIds['IMDB'];
+
+  /// Whether this plays from the IPTV provider rather than a file of the
+  /// server's own. Needs Path among the requested fields.
+  bool get isProviderStream => isProviderStreamPath(rawData['Path'] as String?);
 
   List<Map<String, dynamic>> get people => _toListOfMaps(rawData['People']);
 

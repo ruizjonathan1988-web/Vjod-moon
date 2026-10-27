@@ -5746,6 +5746,7 @@ class _ContentRowsState extends State<_ContentRows>
                         : item.seerrStatus,
                     seerrRequestable:
                         item.rawData[HomeViewModel.forYouFlag] == true,
+                    isProviderStream: item.isProviderStream,
                     isGenreFallback: (row.rowType == HomeRowType.genres && row.id == 'genres') &&
                         (() {
                           final primaryAr = item.rawData['PrimaryImageAspectRatio'] as num?;

@@ -107,6 +107,10 @@ class MediaCard extends StatefulWidget {
 
   /// A Seerr title not here yet that can be asked for, tagged as such.
   final bool seerrRequestable;
+
+  /// A title played from the IPTV provider rather than a file of the
+  /// server's own, tagged Streaming so it never passes for one.
+  final bool isProviderStream;
   final Color? focusColor;
   final bool cardFocusExpansion;
   final FocusNode? focusNode;
@@ -161,6 +165,7 @@ class MediaCard extends StatefulWidget {
     this.seerrMediaType,
     this.seerrStatus,
     this.seerrRequestable = false,
+    this.isProviderStream = false,
     this.focusColor,
     this.cardFocusExpansion = true,
     this.focusNode,
@@ -424,6 +429,7 @@ class _MediaCardState extends State<MediaCard> with FocusStateMixin {
                       seerrMediaType: widget.seerrMediaType,
                       seerrStatus: widget.seerrStatus,
                       seerrRequestable: widget.seerrRequestable,
+                      isProviderStream: widget.isProviderStream,
                       imageOverlays: widget.imageOverlays,
                       overlayOccupiesTopLeft: widget.overlayOccupiesTopLeft,
                       animeMarkerItemId: widget.animeMarkerItemId,
@@ -681,6 +687,7 @@ class _CardImage extends StatelessWidget {
 
   /// A Seerr title not here yet that can be asked for, tagged as such.
   final bool seerrRequestable;
+  final bool isProviderStream;
   final List<Widget> imageOverlays;
   final bool overlayOccupiesTopLeft;
   final bool isGenreFallback;
@@ -705,6 +712,7 @@ class _CardImage extends StatelessWidget {
     this.seerrMediaType,
     this.seerrStatus,
     this.seerrRequestable = false,
+    this.isProviderStream = false,
     this.imageOverlays = const [],
     this.overlayOccupiesTopLeft = false,
     this.isGenreFallback = false,
@@ -886,6 +894,14 @@ class _CardImage extends StatelessWidget {
                   )
                 else if (!_showSeerrStatusIndicator && _showWatchedIndicator)
                   Positioned(top: 6, right: 6, child: _buildWatchedIndicator()),
+                if (isProviderStream)
+                  Positioned(
+                    left: 6,
+                    bottom: playedPercentage != null && playedPercentage! > 0
+                        ? 16
+                        : 6,
+                    child: const ProviderStreamBadge(),
+                  ),
                 if (playedPercentage != null && playedPercentage! > 0)
                   Positioned(
                     left: 6,
@@ -1015,6 +1031,45 @@ class _PlaceholderIcon extends StatelessWidget {
         MediaCard.iconForType(itemType),
         size: 32,
         color: AppColorScheme.onSurface.withValues(alpha: 0.38),
+      ),
+    );
+  }
+}
+
+/// Marks a title played from the IPTV provider: streamed, not a file of the
+/// server's own, so it can stop answering one day. Kept apart in shape and
+/// colour from the green Available tick and the red request plus.
+class ProviderStreamBadge extends StatelessWidget {
+  const ProviderStreamBadge({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: const Color(0xCC0E1117),
+        borderRadius: AppRadius.circular(6),
+        border: const Border.fromBorderSide(
+          BorderSide(color: Color(0x6687B5FF), width: 1),
+        ),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.cell_tower_rounded, size: 12, color: Color(0xFF9CC2FF)),
+          SizedBox(width: 4),
+          Text(
+            'Streaming',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFFDDE8FF),
+              letterSpacing: 0.3,
+              decoration: TextDecoration.none,
+              height: 1.1,
+            ),
+          ),
+        ],
       ),
     );
   }

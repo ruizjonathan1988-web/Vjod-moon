@@ -1494,6 +1494,8 @@ class _SearchScreenState extends State<SearchScreen>
       unplayedCount: item.unplayedItemCount,
       playedPercentage: item.playedPercentage,
       itemType: item.type,
+      // The server badge already holds that corner when several are searched.
+      isProviderStream: serverName == null && item.isProviderStream,
       focusColor: focusColor,
       cardFocusExpansion: cardFocusExpansion,
       focusNode: focusNode,

@@ -477,6 +477,24 @@ class _ItemDetailScreenState extends State<ItemDetailScreen>
       });
       return;
     }
+    final ownCopyId = _viewModel.ownCopyId;
+    if (ownCopyId != null && !_seerrRedirectDone) {
+      _seerrRedirectDone = true;
+      // Opened from the provider's stream while the server has its own file:
+      // that file comes first, played straight away if this was a play.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          context.pushReplacement(
+            Destinations.item(
+              ownCopyId,
+              serverId: widget.serverId,
+              autoPlay: widget.autoPlay,
+            ),
+          );
+        }
+      });
+      return;
+    }
     setState(() {});
     final item = _viewModel.item;
     if (item != null) {

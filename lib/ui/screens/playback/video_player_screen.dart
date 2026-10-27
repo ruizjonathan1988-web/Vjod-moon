@@ -45,6 +45,8 @@ import '../../../playback/playback_lifecycle_handler.dart';
 import '../../../playback/playback_profile_diagnostics.dart';
 import '../../../playback/hdr_stream_capability.dart';
 import '../../../data/models/aggregated_item.dart';
+import '../../widgets/floating_notification.dart';
+import '../../widgets/vjod/dead_stream_dialog.dart';
 import '../../../data/repositories/item_mutation_repository.dart';
 import '../../../data/models/media_segment.dart';
 import '../../../data/models/trickplay_info.dart';
@@ -1189,6 +1191,15 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
     if (error == null || error.isEmpty) {
       return;
     }
+    // A provider's stream that stops answering is usually gone for good, so
+    // instead of a passing error the viewer is offered to ask for the title.
+    final current = _queue.currentItem;
+    if (current is AggregatedItem && current.isProviderStream) {
+      if (_deadStreamShown) return;
+      _deadStreamShown = true;
+      unawaited(_onDeadProviderStream(current));
+      return;
+    }
     // These are internal sentinels the manager uses to tag why it gave up,
     // not viewer-facing text.
     if (error == liveStreamLostError || error == streamStarvedError) {
@@ -1204,6 +1215,29 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
       return;
     }
     _showThrottledPlaybackError(error);
+  }
+
+  bool _deadStreamShown = false;
+
+  Future<void> _onDeadProviderStream(AggregatedItem item) async {
+    if (!mounted) return;
+    final choice = await showDeadStreamDialog(context, item);
+    if (!mounted) return;
+    if (choice == DeadStreamChoice.request) {
+      final outcome = await requestDeadStreamTitle(item);
+      if (mounted) {
+        FloatingNotification.show(
+          context,
+          outcome.ok ? 'Demande envoyée' : 'Demande impossible',
+          outcome.message,
+          null,
+          icon: outcome.ok
+              ? Icons.check_circle_outline_rounded
+              : Icons.error_outline_rounded,
+        );
+      }
+    }
+    if (mounted) unawaited(_exitPlayback());
   }
 
   Future<void> _refreshRemoteVolume() async {

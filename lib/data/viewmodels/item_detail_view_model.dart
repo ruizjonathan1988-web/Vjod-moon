@@ -7,6 +7,7 @@ import 'package:dio/dio.dart';
 
 import '../../preference/preference_constants.dart';
 import '../../preference/user_preferences.dart';
+import '../../util/provider_stream.dart';
 import '../models/aggregated_item.dart';
 import '../models/lyrics.dart';
 import '../models/tmdb_item_ref.dart';
@@ -635,19 +636,69 @@ class ItemDetailViewModel extends ChangeNotifier {
         includeItemTypes: [type],
         recursive: true,
         limit: 5,
-        fields: 'ProviderIds',
+        fields: 'ProviderIds,Path',
       );
-      for (final raw in (data['Items'] as List?) ?? const []) {
-        if (raw is! Map) continue;
-        final ids = raw['ProviderIds'];
-        final tmdb = ids is Map ? (ids['Tmdb'] ?? ids['tmdb']) : null;
-        if (raw['Type'] == type && '$tmdb' == '$tmdbId') {
-          final id = raw['Id'];
-          if (id is String && id.isNotEmpty) return id;
-        }
-      }
+      return _bestCopyId(data, type, '$tmdbId');
     } catch (_) {}
     return null;
+  }
+
+  /// The copy of a title worth opening among [data]'s items: a file of the
+  /// main libraries first, then a language copy, and the provider's stream
+  /// only when there is nothing else. [maxRank] leaves out the worse ones.
+  static String? _bestCopyId(
+    Map<String, dynamic> data,
+    String type,
+    String tmdbId, {
+    int maxRank = 2,
+  }) {
+    String? best;
+    var bestRank = maxRank + 1;
+    for (final raw in (data['Items'] as List?) ?? const []) {
+      if (raw is! Map) continue;
+      final ids = raw['ProviderIds'];
+      final tmdb = ids is Map ? (ids['Tmdb'] ?? ids['tmdb']) : null;
+      if (raw['Type'] != type || '$tmdb' != tmdbId) continue;
+      final id = raw['Id'];
+      if (id is! String || id.isEmpty) continue;
+      final rank = copyRankOfPath(raw['Path'] as String?);
+      if (rank < bestRank) {
+        best = id;
+        bestRank = rank;
+      }
+    }
+    return best;
+  }
+
+  String? _ownCopyId;
+
+  /// The server's own file of a title opened from the provider's stream. The
+  /// page stays on its loading state and swaps itself for that one, so the
+  /// viewer's copy always comes first.
+  String? get ownCopyId => _ownCopyId;
+
+  Future<String?> _ownCopyOf(AggregatedItem stream) async {
+    final type = stream.type;
+    final tmdbId = stream.tmdbId;
+    if ((type != 'Movie' && type != 'Series') ||
+        tmdbId == null ||
+        tmdbId.isEmpty) {
+      return null;
+    }
+    try {
+      final data = await _client.itemsApi.getItems(
+        anyProviderIdEquals: 'tmdb.$tmdbId',
+        includeItemTypes: [type!],
+        recursive: true,
+        limit: 5,
+        fields: 'ProviderIds,Path',
+      );
+      final id = _bestCopyId(data, type, tmdbId, maxRank: 0);
+      return id == stream.id ? null : id;
+    } catch (_) {
+      // A lookup that fails leaves the stream's page as it is.
+      return null;
+    }
   }
 
   // Seerr hands back the media server's own id for a title it knows is there.
@@ -973,6 +1024,14 @@ class ItemDetailViewModel extends ChangeNotifier {
           return;
         }
         gate?.observe(candidate);
+        if (candidate.isProviderStream) {
+          final own = await _ownCopyOf(candidate);
+          if (own != null && !_isDisposed) {
+            _ownCopyId = own;
+            notifyListeners();
+            return;
+          }
+        }
         _item = candidate;
       }
       _lyrics = LyricsData.empty;

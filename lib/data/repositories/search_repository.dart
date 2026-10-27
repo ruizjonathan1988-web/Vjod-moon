@@ -2,6 +2,7 @@ import 'package:server_core/server_core.dart';
 
 import '../models/aggregated_item.dart';
 import '../utils/blocked_ratings.dart';
+import '../utils/own_copy_first.dart';
 
 class SearchRepository {
   final MediaServerClient _client;
@@ -9,7 +10,8 @@ class SearchRepository {
   static const _searchFields =
       'Type,UserData,ProductionYear,SeriesName,ParentIndexNumber,IndexNumber,'
       'AlbumArtist,Album,ImageTags,BackdropImageTags,ParentBackdropItemId,'
-      'ParentBackdropImageTags,SeriesId,SeriesPrimaryImageTag,OfficialRating';
+      'ParentBackdropImageTags,SeriesId,SeriesPrimaryImageTag,OfficialRating,'
+      'Path,ProviderIds';
 
   SearchRepository(this._client);
 
@@ -126,7 +128,7 @@ class SearchRepository {
     );
 
     final items = response['Items'] as List? ?? [];
-    return withoutBlockedItems(
+    final found = withoutBlockedItems(
       items.map((item) {
         final data = item as Map<String, dynamic>;
         return AggregatedItem(
@@ -136,5 +138,6 @@ class SearchRepository {
         );
       }).toList(),
     );
+    return withoutStreamDuplicates(found);
   }
 }
