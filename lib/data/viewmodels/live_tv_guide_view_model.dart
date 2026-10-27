@@ -8,6 +8,7 @@ import 'package:server_core/server_core.dart';
 
 import '../../preference/preference_constants.dart';
 import '../../preference/user_preferences.dart';
+import '../services/vjod/channel_search.dart';
 import '../services/vjod/french_channels.dart';
 
 class GuideChannel {
@@ -434,16 +435,29 @@ class LiveTvGuideViewModel extends ChangeNotifier {
     if (next == _search) return;
     _search = next;
     notifyListeners();
+    // Matches can sit past the lazily-loaded prefix of the lineup; fetch their
+    // programs so the results don't show as empty rows.
+    if (next.isNotEmpty) {
+      unawaited(ensureProgramsForChannels(
+        filteredChannels.map((c) => c.id).take(60).toList(),
+      ));
+    }
   }
 
   List<GuideChannel> get filteredChannels {
     final base = _channelsForFilter();
     if (_search.isEmpty) return base;
-    final q = _search.toLowerCase();
+    final now = _now();
     return base
-        .where((ch) =>
-            ch.name.toLowerCase().contains(q) ||
-            (ch.number?.toLowerCase().contains(q) ?? false))
+        .where((ch) => channelMatchesQuery(
+              _search,
+              name: ch.name,
+              number: ch.number,
+              programTitles: [
+                for (final p in _programsByChannel[ch.id] ?? const <GuideProgram>[])
+                  if (p.endDate.isAfter(now)) p.name,
+              ],
+            ))
         .toList();
   }
 

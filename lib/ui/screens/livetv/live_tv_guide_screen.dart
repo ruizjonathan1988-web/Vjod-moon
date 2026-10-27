@@ -1312,6 +1312,12 @@ class _LiveTvGuideScreenState extends State<LiveTvGuideScreen>
     void apply(String value) {
       _vm.setSearch(value);
       Navigator.of(context).pop();
+      // Land on the first result, so OK tunes it straight away.
+      if (_vm.filteredChannels.isNotEmpty) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _focusChannelRow(0);
+        });
+      }
     }
 
     showDialog<void>(
@@ -1660,6 +1666,11 @@ class _LiveTvGuideScreenState extends State<LiveTvGuideScreen>
           _windowBarButton(
             _kWindowBarSearch,
             icon: Icons.search,
+            // Labelled, so it reads as a search box on a TV rather than one
+            // more icon; shows the current query while one is active.
+            label: _vm.search.isEmpty
+                ? AppLocalizations.of(context).liveTvSearchChannels
+                : '« ${_vm.search} »',
             onPressed: _openChannelSearch,
           ),
           const SizedBox(width: 4),
