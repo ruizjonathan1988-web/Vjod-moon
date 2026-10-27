@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
+import 'package:get_it/get_it.dart';
 import 'package:server_core/server_core.dart';
 
 import '../../l10n/current_app_localizations.dart';
@@ -11,6 +12,10 @@ import '../repositories/multi_server_repository.dart';
 import '../repositories/search_repository.dart';
 import '../repositories/seerr_repository.dart';
 import '../services/seerr/seerr_api_models.dart';
+import '../services/vjod/tv_playlists.dart';
+import '../services/vjod/xtream_catalog.dart';
+import '../../preference/seerr_preferences.dart';
+import '../../preference/user_preferences.dart';
 
 class SearchResultGroup {
   final String title;
@@ -88,6 +93,32 @@ class SearchViewModel extends ChangeNotifier {
   List<GameSearchResult> _gameResults = const [];
   List<GameSearchResult> get gameResults => _gameResults;
 
+  /// Films and series read straight from the profile's Xtream provider, with
+  /// nothing stored on the media server.
+  List<XtreamTitle> _providerResults = const [];
+  List<XtreamTitle> get providerResults => _providerResults;
+
+  /// The provider those results came from, to build their stream URLs.
+  XtreamCatalog? get providerCatalog => _providerCatalog();
+
+  XtreamCatalog? _providerCatalog() {
+    // A browser page can't reach a plain-HTTP provider from an HTTPS site,
+    // and kids never get the provider's unfiltered catalogue.
+    if (kIsWeb || _scopedParentId != null) return null;
+    final getIt = GetIt.instance;
+    if (!getIt.isRegistered<SeerrPreferences>()) return null;
+    if (getIt.isRegistered<UserPreferences>() &&
+        getIt<UserPreferences>().get(UserPreferences.kidsModeEnabled)) {
+      return null;
+    }
+    return XtreamCatalog.forPlaylists(
+      TvPlaylists.decode(getIt<SeerrPreferences>().vjodTvPlaylistsJson),
+    );
+  }
+
+  /// Starts downloading the provider's lists as soon as search opens.
+  void warmUpProvider() => _providerCatalog()?.warmUp();
+
   // All games across every game library, fetched once per session and filtered
   // client-side since the plugin exposes no search endpoint.
   Future<List<GameSearchResult>>? _allGamesFuture;
@@ -105,6 +136,7 @@ class SearchViewModel extends ChangeNotifier {
   // takes too long.
   static const _peopleGrace = Duration(seconds: 1);
   static const _peopleTimeout = Duration(seconds: 10);
+  static const _providerGrace = Duration(milliseconds: 1500);
 
   // Counts searches, so people that answer late only fill in their own search.
   int _searchRun = 0;
@@ -162,6 +194,7 @@ class SearchViewModel extends ChangeNotifier {
       _results = const [];
       _seerrResults = const [];
       _gameResults = const [];
+      _providerResults = const [];
       _state = SearchState.idle;
       notifyListeners();
       return;
@@ -198,6 +231,7 @@ class SearchViewModel extends ChangeNotifier {
       final gamesFuture = _scopedParentId != null
           ? Future.value(const <GameSearchResult>[])
           : _fetchGameResults(query);
+      final providerFuture = _fetchProviderResults(query);
 
       final (groups, peopleFuture) = _scopedParentId != null
           ? (
@@ -217,13 +251,19 @@ class SearchViewModel extends ChangeNotifier {
           : await _buildGroupedGlobalResults(query, activeGroups);
       final seerr = await seerrFuture;
       final games = await gamesFuture;
+      // The provider's first answer can mean downloading its whole
+      // catalogue, so the rest of the results only wait a moment for it.
+      final provider = await providerFuture
+          .then<List<XtreamTitle>?>((found) => found)
+          .timeout(_providerGrace, onTimeout: () => null);
 
       // With nothing else to show, the results wait for people instead of
       // coming up empty.
       final hasOtherResults =
           groups.any((g) => g.items.isNotEmpty) ||
           seerr.isNotEmpty ||
-          games.isNotEmpty;
+          games.isNotEmpty ||
+          (provider?.isNotEmpty ?? false);
       final people = hasOtherResults
           ? await peopleFuture
                 .then<List<AggregatedItem>?>((found) => found)
@@ -235,7 +275,17 @@ class SearchViewModel extends ChangeNotifier {
       _results = _withPeople(groups, people ?? const []);
       _seerrResults = seerr;
       _gameResults = games;
+      _providerResults = provider ?? const [];
       _state = SearchState.ready;
+      if (provider == null) {
+        unawaited(
+          providerFuture.then((found) {
+            if (found.isEmpty || run != _searchRun || query != _query) return;
+            _providerResults = found;
+            notifyListeners();
+          }),
+        );
+      }
       if (people == null) {
         unawaited(
           peopleFuture.then((found) {
@@ -373,6 +423,17 @@ class SearchViewModel extends ChangeNotifier {
       if (!repo.isAvailable) return const [];
       final page = await repo.search(query, limit: _resultLimit);
       return page.results.where((item) => !item.isBlacklisted).toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<List<XtreamTitle>> _fetchProviderResults(String query) async {
+    if (query.trim().toLowerCase().startsWith('studio:')) return const [];
+    final catalog = _providerCatalog();
+    if (catalog == null) return const [];
+    try {
+      return await catalog.search(query);
     } catch (_) {
       return const [];
     }

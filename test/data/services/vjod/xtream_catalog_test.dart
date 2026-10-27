@@ -1,0 +1,131 @@
+import 'dart:convert';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:moonfin/data/services/vjod/tv_playlists.dart';
+import 'package:moonfin/data/services/vjod/xtream_catalog.dart';
+
+void main() {
+  group('splitProviderName', () {
+    test('reads the usual language prefixes', () {
+      expect(splitProviderName('FR - Dune (2021)'), (tag: 'FR', name: 'Dune (2021)'));
+      expect(splitProviderName('|EN| The Office'), (tag: 'EN', name: 'The Office'));
+      expect(splitProviderName('[RU] Брат'), (tag: 'RU', name: 'Брат'));
+      expect(splitProviderName('MULTI-LANG - Amélie'), (tag: 'MULTI-LANG', name: 'Amélie'));
+    });
+
+    test('leaves a name without prefix whole', () {
+      expect(splitProviderName('Amélie'), (tag: '', name: 'Amélie'));
+      expect(splitProviderName('Mission: Impossible'), (tag: '', name: 'Mission: Impossible'));
+      expect(splitProviderName('FBI: Most Wanted'), (tag: '', name: 'FBI: Most Wanted'));
+      expect(splitProviderName('X-Men'), (tag: '', name: 'X-Men'));
+    });
+  });
+
+  group('parseVodStreams', () {
+    test('keeps films with an id and a name, once each', () {
+      final body = jsonEncode([
+        {'stream_id': 12, 'name': 'FR - Dune', 'stream_icon': 'http://i/d.jpg', 'container_extension': 'mkv'},
+        {'stream_id': '12', 'name': 'FR - Dune again'},
+        {'stream_id': 13, 'name': 'EN - Heat'},
+        {'name': 'no id'},
+        'junk',
+      ]);
+      final films = parseVodStreams(body);
+      expect(films.map((f) => f.id), ['12', '13']);
+      expect(films.first.extension, 'mkv');
+      expect(films.first.tag, 'FR');
+      expect(films.last.extension, 'mp4');
+      expect(films.first.kind, XtreamKind.movie);
+    });
+  });
+
+  group('parseSeriesInfo', () {
+    test('reads episodes keyed by season', () {
+      final body = jsonEncode({
+        'info': {'plot': 'Une série', 'cover': 'http://c'},
+        'episodes': {
+          '2': [
+            {'id': '22', 'episode_num': 2, 'title': 'FR - Deux', 'container_extension': 'mp4'},
+            {'id': '21', 'episode_num': 1, 'title': 'Un'},
+          ],
+          '1': [
+            {'id': '11', 'episode_num': '1', 'title': '', 'info': {'plot': 'p'}},
+          ],
+        },
+      });
+      final info = parseSeriesInfo(body);
+      expect(info.seasonNumbers, [1, 2]);
+      expect(info.seasons[2]!.map((e) => e.id), ['21', '22']);
+      expect(info.seasons[2]!.last.title, 'Deux');
+      expect(info.seasons[1]!.single.title, 'Épisode 1');
+      expect(info.seasons[1]!.single.extension, 'mkv');
+      expect(info.plot, 'Une série');
+    });
+
+    test('reads episodes sent as a list of seasons', () {
+      final body = jsonEncode({
+        'episodes': [
+          [
+            {'id': '5', 'season': 3, 'episode_num': 1, 'title': 'A'},
+          ],
+        ],
+      });
+      expect(parseSeriesInfo(body).seasonNumbers, [3]);
+    });
+
+    test('survives an empty answer', () {
+      expect(parseSeriesInfo('[]').seasons, isEmpty);
+    });
+  });
+
+  group('searchTitles', () {
+    final all = parseVodStreams(jsonEncode([
+      {'stream_id': 1, 'name': 'FR - Dune : Deuxième partie'},
+      {'stream_id': 2, 'name': 'EN - Dune'},
+      {'stream_id': 3, 'name': 'FR - Les dunes'},
+      {'stream_id': 4, 'name': 'FR - Amélie'},
+    ]));
+
+    test('ranks a name starting with the query first, shorter first', () {
+      expect(searchTitles(all, 'dune').map((t) => t.id), ['2', '1', '3']);
+    });
+
+    test('ignores accents and needs every word', () {
+      expect(searchTitles(all, 'amelie').single.id, '4');
+      expect(searchTitles(all, 'dune partie').single.id, '1');
+    });
+
+    test('a one-letter query finds nothing', () {
+      expect(searchTitles(all, 'd'), isEmpty);
+    });
+  });
+
+  group('XtreamCatalog', () {
+    test('uses the first complete Xtream source and builds play URLs', () {
+      final catalog = XtreamCatalog.forPlaylists(const [
+        TvPlaylist(id: 'a', name: 'm3u', url: 'http://m3u'),
+        TvPlaylist(id: 'b', name: 'x', url: 'http://p:8080/', kind: TvPlaylistKind.xtream),
+        TvPlaylist(
+          id: 'c',
+          name: 'x',
+          url: 'http://p:8080/',
+          kind: TvPlaylistKind.xtream,
+          username: 'u',
+          password: 'p w',
+        ),
+      ])!;
+      final film = parseVodStreams(jsonEncode([
+        {'stream_id': 9, 'name': 'Dune', 'container_extension': 'mkv'},
+      ])).single;
+      expect(catalog.movieUrl(film), 'http://p:8080/movie/u/p%20w/9.mkv');
+      expect(
+        catalog.episodeUrl(const XtreamEpisode(id: '7', season: 1, number: 1, title: 't', extension: 'mp4')),
+        'http://p:8080/series/u/p%20w/7.mp4',
+      );
+    });
+
+    test('no Xtream source, no catalogue', () {
+      expect(XtreamCatalog.forPlaylists(const []), isNull);
+    });
+  });
+}

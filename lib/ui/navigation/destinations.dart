@@ -77,6 +77,7 @@ class Destinations {
   static const enRoute = '/en-route';
   static const bientot = '/bientot';
   static const explorer = '/explorer';
+  static const providerSeriesPath = '/provider-series';
   static const tv = '/tv';
   static const folderView = '/folders';
   static const folderBrowse = '/folder/:folderId';
@@ -297,6 +298,20 @@ class Destinations {
   }
 
   static String photo(String itemId) => '/player/photo/$itemId';
+
+  /// A series read straight from the IPTV provider.
+  static String providerSeries({
+    required String id,
+    required String name,
+    String poster = '',
+  }) => Uri(
+    path: providerSeriesPath,
+    queryParameters: {
+      'id': id,
+      'name': name,
+      if (poster.isNotEmpty) 'poster': poster,
+    },
+  ).toString();
   static String trailer({String? videoId, String? url}) {
     final params = <String, String>{
       if (videoId != null && videoId.isNotEmpty) 'videoId': videoId,

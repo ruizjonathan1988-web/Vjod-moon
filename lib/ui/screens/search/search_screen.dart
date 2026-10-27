@@ -19,6 +19,7 @@ import '../../../data/services/recent_searches_store.dart';
 import '../../../data/services/remote_search_session.dart';
 import '../../../data/services/voice_search_controller.dart';
 import '../../../data/viewmodels/search_view_model.dart';
+import '../../../data/services/vjod/xtream_catalog.dart';
 import '../../../preference/preference_constants.dart';
 import '../../../preference/user_preferences.dart';
 import '../../../preference/seerr_preferences.dart';
@@ -125,6 +126,7 @@ class _SearchScreenState extends State<SearchScreen>
           : null,
     );
     _vm.addListener(_onViewModelChanged);
+    _vm.warmUpProvider();
     _initSeerr();
 
     if (widget.initialQuery != null && widget.initialQuery!.isNotEmpty) {
@@ -352,9 +354,11 @@ class _SearchScreenState extends State<SearchScreen>
       _vm.seerrResults.isNotEmpty &&
       !GetIt.instance<UserPreferences>().get(UserPreferences.kidsModeEnabled);
   bool get _hasGames => _vm.gameResults.isNotEmpty;
+  bool get _hasProvider => _vm.providerResults.isNotEmpty;
 
   int get _tabCount {
-    final hasContent = _vm.results.isNotEmpty || _hasSeerr || _hasGames;
+    final hasContent =
+        _vm.results.isNotEmpty || _hasSeerr || _hasGames || _hasProvider;
     return hasContent ? _leadingTabCount + 1 + _vm.results.length : 0;
   }
 
@@ -1061,7 +1065,10 @@ class _SearchScreenState extends State<SearchScreen>
         }
         return _buildResults();
       case SearchState.ready
-          when _vm.results.isEmpty && _vm.seerrResults.isEmpty:
+          when _vm.results.isEmpty &&
+              _vm.seerrResults.isEmpty &&
+              _vm.gameResults.isEmpty &&
+              _vm.providerResults.isEmpty:
         return Center(
           child: Text(
             AppLocalizations.of(context).noResultsForQuery(_vm.query),
@@ -1107,7 +1114,8 @@ class _SearchScreenState extends State<SearchScreen>
     final totalCount =
         _vm.results.fold<int>(0, (s, g) => s + g.items.length) +
         _vm.seerrResults.length +
-        _vm.gameResults.length;
+        _vm.gameResults.length +
+        _vm.providerResults.length;
     // VJOD names the tabs the mock-up's way: "À demander · 5".
     final vjod =
         ThemeRegistry.active.id == ThemeRegistry.vjodId ||
@@ -1296,14 +1304,17 @@ class _SearchScreenState extends State<SearchScreen>
 
     final hasSeerr = _vm.seerrResults.isNotEmpty;
     final hasGames = _vm.gameResults.isNotEmpty;
+    final hasProvider = _hasProvider;
     _allRowIds = [
       for (final g in groups) g.itemTypes.first,
+      if (hasProvider) 'provider',
       if (hasSeerr) 'seerr',
       if (hasGames) 'games',
     ];
     // Library groups come first, then the Seerr and Games rows when present.
     final rowLens = <int>[
       for (final g in groups) g.items.length,
+      if (hasProvider) _vm.providerResults.length,
       if (hasSeerr) _vm.seerrResults.length,
       if (hasGames) _vm.gameResults.length,
     ];
@@ -1334,8 +1345,31 @@ class _SearchScreenState extends State<SearchScreen>
         ),
       );
     }
+    if (hasProvider) {
+      final providerRow = groups.length;
+      const cardWidth = 108.0;
+      rows.add(
+        LibraryRow(
+          key: _allRowKey(providerRow),
+          title: 'Chez le fournisseur IPTV',
+          rowHeight: cardWidth / (2 / 3) + 56,
+          children: [
+            for (var c = 0; c < _vm.providerResults.length; c++)
+              _providerResultCard(
+                index: c,
+                width: cardWidth,
+                focusColor: focusColor,
+                cardFocusExpansion: cardFocusExpansion,
+                focusNode: _allCardNode(providerRow, c),
+                onNavKey: (node, event) =>
+                    _onAllCardKey(providerRow, c, rowLens, event),
+              ),
+          ],
+        ),
+      );
+    }
     if (hasSeerr) {
-      final seerrRow = groups.length;
+      final seerrRow = groups.length + (hasProvider ? 1 : 0);
       final cardWidth = 108.0;
       final seerrLabel = GetIt.instance<SeerrPreferences>().labelOrDefault(
         l10n.seerr,
@@ -1360,7 +1394,8 @@ class _SearchScreenState extends State<SearchScreen>
       );
     }
     if (hasGames) {
-      final gamesRow = groups.length + (hasSeerr ? 1 : 0);
+      final gamesRow =
+          groups.length + (hasProvider ? 1 : 0) + (hasSeerr ? 1 : 0);
       final cardWidth = 108.0;
       rows.add(
         LibraryRow(
@@ -1695,6 +1730,53 @@ class _SearchScreenState extends State<SearchScreen>
         event: event,
       ),
     );
+  }
+
+  // A film or series read straight from the IPTV provider: a film plays at
+  // once, a series opens its seasons.
+  Widget _providerResultCard({
+    required int index,
+    required double width,
+    required Color focusColor,
+    required bool cardFocusExpansion,
+    required FocusNode? focusNode,
+    required KeyEventResult Function(FocusNode, KeyEvent)? onNavKey,
+  }) {
+    final title = _vm.providerResults[index];
+    final isSeries = title.kind == XtreamKind.series;
+    return MediaCard(
+      title: title.name,
+      subtitle: [
+        if (title.tag.isNotEmpty) title.tag,
+        isSeries ? 'Série' : 'Film',
+      ].join(' · '),
+      imageUrl: title.poster.isEmpty ? null : title.poster,
+      width: width,
+      aspectRatio: 2 / 3,
+      itemType: isSeries ? 'Series' : 'Movie',
+      isProviderStream: true,
+      focusColor: focusColor,
+      cardFocusExpansion: cardFocusExpansion,
+      focusNode: focusNode,
+      onKeyEvent: onNavKey,
+      onTap: () => _openProviderTitle(title),
+    );
+  }
+
+  void _openProviderTitle(XtreamTitle title) {
+    final catalog = _vm.providerCatalog;
+    if (catalog == null) return;
+    if (title.kind == XtreamKind.series) {
+      context.push(
+        Destinations.providerSeries(
+          id: title.id,
+          name: title.name,
+          poster: title.poster,
+        ),
+      );
+    } else {
+      context.push(Destinations.trailer(url: catalog.movieUrl(title)));
+    }
   }
 
   // Shared game card body, used by both the grid and the All-tab rows.

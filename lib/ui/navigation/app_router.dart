@@ -30,6 +30,7 @@ import '../screens/browse/favorites_screen.dart';
 import '../screens/seerr/en_route_screen.dart';
 import '../screens/seerr/bientot_screen.dart';
 import '../screens/vjod/explorer_screen.dart';
+import '../screens/vjod/provider_series_screen.dart';
 import '../screens/livetv/vjod_tv_launch_screen.dart';
 import '../screens/browse/folder_browse_screen.dart';
 import '../screens/browse/library_browse_screen.dart';
@@ -352,6 +353,17 @@ final appRouter = GoRouter(
     GoRoute(
       path: Destinations.explorer,
       builder: (context, state) => const ExplorerScreen(),
+    ),
+    GoRoute(
+      path: Destinations.providerSeriesPath,
+      builder: (context, state) {
+        final q = state.uri.queryParameters;
+        return ProviderSeriesScreen(
+          seriesId: q['id'] ?? '',
+          name: q['name'] ?? '',
+          poster: q['poster'] ?? '',
+        );
+      },
     ),
     GoRoute(
       path: Destinations.tv,
