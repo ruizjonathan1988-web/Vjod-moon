@@ -13,11 +13,15 @@ class ProviderSeriesScreen extends StatefulWidget {
   final String name;
   final String poster;
 
+  /// The quality picked on the title's page (`4K`…), empty for the default.
+  final String quality;
+
   const ProviderSeriesScreen({
     super.key,
     required this.seriesId,
     required this.name,
     this.poster = '',
+    this.quality = '',
   });
 
   @override
@@ -48,7 +52,10 @@ class _ProviderSeriesScreenState extends State<ProviderSeriesScreen> {
       _info = null;
     });
     try {
-      final info = await catalog.seriesInfo(widget.seriesId);
+      final info = await catalog.seriesInfo(
+        widget.seriesId,
+        quality: widget.quality,
+      );
       if (!mounted) return;
       setState(() {
         _info = info;

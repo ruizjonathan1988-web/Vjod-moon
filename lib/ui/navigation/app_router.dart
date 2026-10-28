@@ -363,6 +363,7 @@ final appRouter = GoRouter(
           seriesId: q['id'] ?? '',
           name: q['name'] ?? '',
           poster: q['poster'] ?? '',
+          quality: q['q'] ?? '',
         );
       },
     ),

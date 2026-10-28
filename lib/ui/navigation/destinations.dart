@@ -306,12 +306,14 @@ class Destinations {
     required String id,
     required String name,
     String poster = '',
+    String quality = '',
   }) => Uri(
     path: providerSeriesPath,
     queryParameters: {
       'id': id,
       'name': name,
       if (poster.isNotEmpty) 'poster': poster,
+      if (quality.isNotEmpty) 'q': quality,
     },
   ).toString();
   static String trailer({String? videoId, String? url}) {

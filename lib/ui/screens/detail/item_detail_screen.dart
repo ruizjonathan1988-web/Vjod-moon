@@ -6,6 +6,7 @@ import '../../widgets/bounded_network_image.dart';
 import '../../widgets/floating_notification.dart';
 import '../../../data/services/vjod/provider_catalog_access.dart';
 import '../../../data/services/vjod/xtream_catalog.dart';
+import '../../../data/services/vjod/ma_tv.dart' show MaTvDevice;
 import '../../../data/services/seerr/taste_profile.dart';
 import '../../../data/services/seerr/for_you_ranker.dart' show forYouKey;
 import '../../widgets/offline_aware_image.dart';
@@ -5839,8 +5840,10 @@ class _HorizontalActionRowState extends State<_HorizontalActionRow> {
 
 class DetailActionButtonsState extends State<DetailActionButtons> {
   /// Plays the title from the IPTV provider when it has it: a film at once,
-  /// a series on its seasons. With copies in several languages, a sheet asks
-  /// which.
+  /// a series on its seasons. Each copy is a language, and each language may
+  /// come in several qualities; the button plays the profile's language in the
+  /// best quality the device takes, and a sheet (long press, or a press when
+  /// nothing is preferred) lets the viewer pick language and quality.
   Widget? _providerPlayButton(
     BuildContext context, {
     FocusNode? focusNode,
@@ -5850,22 +5853,37 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
     final catalog = viewModel.providerCatalog;
     if (copies.isEmpty || catalog == null) return null;
     final isSeries = copies.first.kind == XtreamKind.series;
-    void open(XtreamTitle copy) {
+    void open(XtreamTitle copy, String quality) {
+      // Only a title Ma TV keeps in several qualities is asked for one.
+      final q = copy.qualities.length > 1 ? quality : '';
       if (isSeries) {
         context.push(
           Destinations.providerSeries(
             id: copy.id,
             name: copy.name,
             poster: copy.poster,
+            quality: q,
           ),
         );
       } else {
-        context.push(Destinations.trailer(url: catalog.movieUrl(copy)));
+        context.push(
+          Destinations.trailer(url: catalog.movieUrl(copy, quality: q)),
+        );
       }
     }
 
     final preferred = currentProviderLanguages();
+    final maxHeight = MaTvDevice.maxHeight;
     final first = copies.first;
+    final firstQuality = defaultQuality(first.qualities, maxHeight);
+    // Every version on offer: each language in each of its qualities.
+    final versions = [
+      for (final c in copies)
+        if (c.qualities.isEmpty)
+          (copy: c, quality: '')
+        else
+          for (final q in c.qualities) (copy: c, quality: q),
+    ];
     // The profile's own language plays in one press; the other versions sit
     // behind a long press. Without a preference, a single copy plays at once
     // and several ask which.
@@ -5875,55 +5893,67 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
       for (final t in {for (final c in copies) c.tag})
         if (t.isNotEmpty) t,
     ];
-    // The button row is short on room: the language alone, spelled out
-    // ("Regarder en russe"). The sheet behind it names each version in full.
+    // The button row is short on room: the language spelled out and the
+    // quality ("Regarder en russe · 4K"). The sheet names each version in full.
+    final qualitySuffix = firstQuality.isEmpty ? '' : ' · $firstQuality';
     final label = direct
         ? (first.tag.isNotEmpty
-              ? 'Regarder ${languageButtonPhrase(first.tag)}'
-              : 'Regarder')
+                  ? 'Regarder ${languageButtonPhrase(first.tag)}'
+                  : 'Regarder') +
+              qualitySuffix
         : (langs.length == 1
               ? 'Regarder ${languageButtonPhrase(langs.first)}'
               : 'Regarder · ${langs.length} langues');
 
     Future<void> choose() async {
-      final picked = await showModalBottomSheet<XtreamTitle>(
-        context: context,
-        builder: (sheetContext) => SafeArea(
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              ListTile(
-                title: const Text('Choisir la langue'),
-                subtitle: const Text(
-                  'Lu directement chez le fournisseur IPTV, sans téléchargement',
-                ),
+      final picked =
+          await showModalBottomSheet<({XtreamTitle copy, String quality})>(
+            context: context,
+            builder: (sheetContext) => SafeArea(
+              child: ListView(
+                shrinkWrap: true,
+                children: [
+                  ListTile(
+                    title: const Text('Choisir la langue et la qualité'),
+                    subtitle: const Text(
+                      'Lu directement chez le fournisseur IPTV, sans téléchargement',
+                    ),
+                  ),
+                  for (final (i, v) in versions.indexed)
+                    ListTile(
+                      autofocus: i == 0,
+                      leading: Icon(
+                        isPreferredLanguage(v.copy.tag, preferred)
+                            ? Icons.star_rounded
+                            : Icons.play_arrow_rounded,
+                      ),
+                      title: Text(
+                        [
+                          v.copy.tag.isEmpty
+                              ? v.copy.name
+                              : '${languageName(v.copy.tag)} · ${v.copy.name}',
+                          if (v.quality.isNotEmpty) v.quality,
+                        ].join(' · '),
+                      ),
+                      subtitle: Text(
+                        [
+                          if (v.quality.isNotEmpty &&
+                              v.quality ==
+                                  defaultQuality(v.copy.qualities, maxHeight))
+                            'Conseillée pour cet appareil',
+                          if (v.copy.year != null) '${v.copy.year}',
+                          if (v.copy.extension.isNotEmpty) v.copy.extension,
+                        ].join(' · '),
+                      ),
+                      onTap: () => Navigator.of(sheetContext).pop(v),
+                    ),
+                ],
               ),
-              for (final (i, copy) in copies.indexed)
-                ListTile(
-                  autofocus: i == 0,
-                  leading: Icon(
-                    isPreferredLanguage(copy.tag, preferred)
-                        ? Icons.star_rounded
-                        : Icons.play_arrow_rounded,
-                  ),
-                  title: Text(
-                    copy.tag.isEmpty
-                        ? copy.name
-                        : '${languageName(copy.tag)} · ${copy.name}',
-                  ),
-                  subtitle: Text(
-                    [
-                      if (copy.year != null) '${copy.year}',
-                      if (copy.extension.isNotEmpty) copy.extension,
-                    ].join(' · '),
-                  ),
-                  onTap: () => Navigator.of(sheetContext).pop(copy),
-                ),
-            ],
-          ),
-        ),
-      );
-      if (picked != null && context.mounted) open(picked);
+            ),
+          );
+      if (picked != null && context.mounted) {
+        open(picked.copy, picked.quality);
+      }
     }
 
     return _DetailActionButton(
@@ -5932,8 +5962,8 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
       isPrimary: true,
       focusNode: focusNode,
       autofocus: autofocus,
-      onPressed: () => direct ? open(first) : choose(),
-      onLongPress: copies.length > 1 ? choose : null,
+      onPressed: () => direct ? open(first, firstQuality) : choose(),
+      onLongPress: versions.length > 1 ? choose : null,
     );
   }
 
