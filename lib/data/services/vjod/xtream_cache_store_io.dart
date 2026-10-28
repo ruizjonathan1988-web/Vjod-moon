@@ -21,6 +21,14 @@ Future<String?> readCatalogCache(String key) async {
   }
 }
 
+/// Drops the catalogue saved under [key], if any.
+Future<void> deleteCatalogCache(String key) async {
+  try {
+    final file = await _file(key);
+    if (await file.exists()) await file.delete();
+  } catch (_) {}
+}
+
 /// Downloads the catalogue the seedbox prepared at [url], unpacking it when
 /// it is gzipped. A login inside the URL (`https://user:pass@host/…`) is sent
 /// as HTTP basic auth, which Ultra.cc's HTTP access asks for. Null on any

@@ -127,6 +127,30 @@ class XtreamTitle {
     this.qualities = const [],
   });
 
+  /// A title as Ma TV's search answers it (`/tv/api/vod/...`).
+  factory XtreamTitle.fromMaTv(Map j) {
+    final kind = j['kind'] == 'series' ? XtreamKind.series : XtreamKind.movie;
+    final name = _str(j['name']);
+    final year = _int(j['year']);
+    return XtreamTitle(
+      kind: kind,
+      id: _str(j['id']),
+      name: name,
+      tag: _str(j['tag']),
+      poster: _str(j['poster']),
+      extension: kind == XtreamKind.movie
+          ? (_str(j['ext']).isEmpty ? 'mp4' : _str(j['ext']))
+          : '',
+      searchKey: foldForSearch(name),
+      tmdbId: _str(j['tmdb']),
+      year: year > 0 ? year : null,
+      qualities: [
+        for (final q in (j['qualities'] is List ? j['qualities'] as List : const []))
+          if (_str(q).isNotEmpty) _str(q),
+      ],
+    );
+  }
+
   /// The name with its language tag, as shown under a poster.
   String get label => tag.isEmpty ? name : '$name · $tag';
 }
@@ -708,8 +732,107 @@ class XtreamCatalog {
   }
 
   /// Where this catalogue is read from, in words.
-  String get sourceName =>
-      base.endsWith('/tv/xc') ? 'Ma TV' : (Uri.tryParse(base)?.host ?? base);
+  String get sourceName => isMaTv ? 'Ma TV' : (Uri.tryParse(base)?.host ?? base);
+
+  // ---------------------------------------------------------------- Ma TV
+  // Ma TV merges several providers into a few hundred thousand titles: far
+  // too many to keep on a phone or a TV box and to go through on each page.
+  // So the seedbox is asked instead (a page, a row of posters, a search),
+  // and nothing of it is kept on the device.
+
+  /// Whether this is Ma TV's catalogue, searched on the seedbox.
+  bool get isMaTv => base.endsWith('/tv/xc');
+
+  static const _maTvTimeout = Duration(seconds: 15);
+
+  Uri _vodApi(String what, Map<String, String> query) =>
+      Uri.parse('${base.substring(0, base.length - 6)}/tv/api/vod/$what')
+          .replace(queryParameters: {...query, 'k': password});
+
+  Future<Object?> _maTvGet(String what, Map<String, String> query) async {
+    final body = await _get(_vodApi(what, query), _maTvTimeout);
+    return jsonDecode(body);
+  }
+
+  static List<XtreamTitle> _titlesOf(Object? list) => [
+    for (final j in (list is List ? list : const []))
+      if (j is Map) XtreamTitle.fromMaTv(j),
+  ];
+
+  /// Posters' answers, by `kind:tmdb` (an empty list for a title Ma TV lacks).
+  final _byTmdbRemote = <String, List<XtreamTitle>>{};
+  final _askedTmdb = <String>{};
+  final _pendingTmdb = <XtreamKind, Set<String>>{};
+  Timer? _tmdbTimer;
+
+  List<XtreamTitle> _copiesNowRemote(XtreamKind kind, String tmdbId) {
+    final key = '${kind.name}:$tmdbId';
+    final known = _byTmdbRemote[key];
+    if (known != null) return known;
+    if (_askedTmdb.add(key)) {
+      (_pendingTmdb[kind] ??= <String>{}).add(tmdbId);
+      // The posters of a row ask together, in one request.
+      _tmdbTimer ??= Timer(const Duration(milliseconds: 250), _askTmdb);
+    }
+    return const [];
+  }
+
+  Future<void> _askTmdb() async {
+    _tmdbTimer = null;
+    final batches = {
+      for (final e in _pendingTmdb.entries) e.key: e.value.toList(),
+    };
+    _pendingTmdb.clear();
+    var found = false;
+    for (final MapEntry(key: kind, value: ids) in batches.entries) {
+      for (var i = 0; i < ids.length; i += 150) {
+        final part = ids.sublist(i, i + 150 > ids.length ? ids.length : i + 150);
+        try {
+          final answer = await _maTvGet('tmdb', {
+            'kind': kind.name,
+            'ids': part.join(','),
+          });
+          for (final id in part) {
+            final copies = answer is Map ? _titlesOf(answer[id]) : const <XtreamTitle>[];
+            _byTmdbRemote['${kind.name}:$id'] = copies;
+            if (copies.isNotEmpty) found = true;
+          }
+        } catch (_) {
+          // Asked again the next time these posters show.
+          for (final id in part) {
+            _askedTmdb.remove('${kind.name}:$id');
+          }
+        }
+      }
+    }
+    if (found) loaded.value++;
+  }
+
+  /// Checks that Ma TV answers and has a catalogue, for the settings line.
+  /// A Ma TV without one is passed over for a while (see [recentlyFailed]).
+  Future<void> _checkMaTv() async {
+    try {
+      final answer = await _maTvGet('langs', const {});
+      final langs = answer is Map && answer['langs'] is List
+          ? answer['langs'] as List
+          : const [];
+      var total = 0;
+      for (final l in langs) {
+        if (l is List && l.length > 1) total += _int(l[1]);
+      }
+      if (langs.isEmpty) {
+        throw StateError('catalogue pas encore construit (Relire films et séries)');
+      }
+      _failedAt.remove(_cacheKey);
+      status.value =
+          'Ma TV : $total titres en ${langs.length} langues, cherchés sur la seedbox';
+      // What an earlier version downloaded of it is no longer needed.
+      unawaited(deleteCatalogCache(_cacheKey));
+    } catch (e) {
+      _failedAt[_cacheKey] = DateTime.now();
+      status.value = 'Ma TV : échec (${_why(e)})';
+    }
+  }
 
   /// Said after the counts when the last fetch came back incomplete.
   String _statusNote = '';
@@ -748,6 +871,7 @@ class XtreamCatalog {
   /// The copies of a TMDB title in the catalogue already in memory: empty
   /// while it loads (then [loaded] fires) or when the provider lacks it.
   List<XtreamTitle> copiesNow(XtreamKind kind, String tmdbId) {
+    if (isMaTv) return _copiesNowRemote(kind, tmdbId);
     final index = _byTmdb;
     if (index == null) {
       warmUp();
@@ -893,12 +1017,19 @@ class XtreamCatalog {
 
   /// Loads the catalogue into memory (from the device when it was saved
   /// there), so searches and pages find it ready.
-  void warmUp() => unawaited(_all().then<void>((_) {}, onError: (_) {}));
+  void warmUp() {
+    if (isMaTv) {
+      if (status.value.isEmpty) unawaited(_checkMaTv());
+      return;
+    }
+    unawaited(_all().then<void>((_) {}, onError: (_) {}));
+  }
 
   /// Loads the catalogue, then fetches it again from the provider when it is
   /// older than [maxAge]. The old one keeps answering until the new one has
   /// fully arrived, and stays if the provider fails.
   Future<void> ensureFresh() async {
+    if (isMaTv) return _checkMaTv();
     try {
       await _all();
     } catch (_) {
@@ -932,6 +1063,7 @@ class XtreamCatalog {
   }
 
   Future<List<XtreamTitle>> _all() {
+    if (isMaTv) return Future.value(const <XtreamTitle>[]);
     final fresh = _titles == null;
     final future = _titles ??= _load();
     if (fresh) {
@@ -953,6 +1085,29 @@ class XtreamCatalog {
     int tmdbId = 0,
     List<String> titles = const [],
     int? year,
+  }) async {
+    if (isMaTv) {
+      final answer = await _maTvGet('find', {
+        'kind': kind.name,
+        if (tmdbId > 0) 'tmdb': '$tmdbId',
+        't': titles.where((t) => t.trim().isNotEmpty).join('\n'),
+        if (year != null) 'year': '$year',
+      });
+      return _titlesOf(answer is Map ? answer['copies'] : null);
+    }
+    return _copiesOfLocal(
+      kind: kind,
+      tmdbId: tmdbId,
+      titles: titles,
+      year: year,
+    );
+  }
+
+  Future<List<XtreamTitle>> _copiesOfLocal({
+    required XtreamKind kind,
+    int tmdbId = 0,
+    List<String> titles = const [],
+    int? year,
   }) async => findProviderCopies(
     await _all(),
     kind: kind,
@@ -967,16 +1122,36 @@ class XtreamCatalog {
     String query, {
     int limit = 40,
     List<String> preferredTags = const [],
-  }) async => searchTitles(
-    await _all(),
-    query,
-    limit: limit,
-    preferredTags: preferredTags,
-  );
+  }) async {
+    if (isMaTv) {
+      if (foldForSearch(query.trim()).length < 2) return const [];
+      final answer = await _maTvGet('search', {
+        'q': query.trim(),
+        'limit': '$limit',
+        if (preferredTags.isNotEmpty) 'prefer': preferredTags.join(','),
+      });
+      return _titlesOf(answer is Map ? answer['titles'] : null);
+    }
+    return searchTitles(
+      await _all(),
+      query,
+      limit: limit,
+      preferredTags: preferredTags,
+    );
+  }
 
   /// How many films and series the provider has in each language tag, most
   /// first. Titles without a tag are left out.
   Future<List<MapEntry<String, int>>> languageCounts() async {
+    if (isMaTv) {
+      final answer = await _maTvGet('langs', const {});
+      return [
+        for (final l in (answer is Map && answer['langs'] is List
+            ? answer['langs'] as List
+            : const []))
+          if (l is List && l.length > 1) MapEntry(_str(l[0]), _int(l[1])),
+      ];
+    }
     final counts = <String, int>{};
     for (final t in await _all()) {
       if (t.tag.isEmpty) continue;
