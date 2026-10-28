@@ -156,7 +156,10 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
       ('sub-create-cc-track', 'yes'),
     ]) {
       try {
-        await p.setProperty(kv.$1, kv.$2);
+        // NativePlayer's web stub has no setProperty: go through dynamic, as
+        // the media_kit backend does.
+        final dynamic native = p;
+        await Future<void>.value(native.setProperty(kv.$1, kv.$2));
       } catch (_) {}
     }
   }
