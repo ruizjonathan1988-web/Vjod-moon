@@ -91,6 +91,13 @@ class TvSource {
   final bool playing;
   final int busy;
 
+  /// Fluidity measured over 15 s by the nightly test, 0-100.
+  final int? fluidity;
+
+  /// What real viewing gave: minutes watched and provider cuts in them.
+  final double? liveMinutes;
+  final int? liveCuts;
+
   const TvSource({
     required this.key,
     required this.rank,
@@ -108,6 +115,9 @@ class TvSource {
     this.sticky = false,
     this.playing = false,
     this.busy = 0,
+    this.fluidity,
+    this.liveMinutes,
+    this.liveCuts,
   });
 
   factory TvSource.fromJson(Map<String, dynamic> j) => TvSource(
@@ -127,6 +137,9 @@ class TvSource {
     sticky: j['sticky'] == true,
     playing: j['playing'] == true,
     busy: (j['busy'] as num?)?.toInt() ?? 0,
+    fluidity: (j['flu'] as num?)?.toInt(),
+    liveMinutes: (j['live_min'] as num?)?.toDouble(),
+    liveCuts: (j['live_cuts'] as num?)?.toInt(),
   );
 
   /// "1080p", or the quality the provider announces when never measured.
@@ -150,6 +163,15 @@ class TvSource {
     if (b != null && b > 0) parts.add('${_decimal(b / 1000, french)} Mb/s');
     final ms = openMs;
     if (ms != null && ms > 0) parts.add('${_decimal(ms / 1000, french)} s');
+    final flu = fluidity;
+    if (flu != null) parts.add(french ? 'fluidité $flu' : 'smoothness $flu');
+    final lm = liveMinutes;
+    if (lm != null && lm >= 2) {
+      final cuts = liveCuts ?? 0;
+      parts.add(french
+          ? (cuts == 0 ? 'sans coupure en vrai' : '$cuts coupure${cuts > 1 ? 's' : ''} en ${lm.round()} min')
+          : (cuts == 0 ? 'no cuts so far' : '$cuts cuts in ${lm.round()} min'));
+    }
     return parts.join(' · ');
   }
 
