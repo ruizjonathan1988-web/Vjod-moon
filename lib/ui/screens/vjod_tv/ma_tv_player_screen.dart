@@ -59,7 +59,9 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
   static const _noPictureGiveUp = Duration(seconds: 30);
 
   final _client = MaTvClient();
-  late final TvSourcesClient _sources = _client.sourcesClient();
+  // Built each time: the caps it carries follow the quality chosen and the
+  // connection measured.
+  TvSourcesClient get _sources => _client.sourcesClient();
   final _focus = FocusNode(debugLabel: 'MaTvPlayer');
   final _listCatScroll = ScrollController();
   final _listChanScroll = ScrollController();
@@ -133,12 +135,21 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     _subs.add(_player.stream.width.listen((w) {
       if ((w ?? 0) > 0 && !_picture) {
         _picture = true;
-        if (mounted) setState(() => _status = null);
+        final opened = _openedAt;
+        if (!mounted) return;
+        // How long the picture took, shown a moment: the number to compare
+        // from one source, channel or box to another.
+        final secs = opened == null ? null : DateTime.now().difference(opened).inMilliseconds / 1000;
+        setState(() => _status = secs == null ? null : 'Image en ${secs.toStringAsFixed(1).replaceAll('.', ',')} s');
+        Timer(const Duration(seconds: 4), () {
+          if (mounted && (_status ?? '').startsWith('Image en')) setState(() => _status = null);
+        });
       }
     }));
     _subs.add(_player.stream.buffering.listen((b) {
       if (!mounted || !_picture) return;
       setState(() => _status = b ? 'Mise en mémoire…' : null);
+      if (b) _onStall();
     }));
     _subs.add(_player.stream.error.listen((e) {
       if (!mounted || _picture) return;
@@ -167,7 +178,10 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     // the link to the seedbox drops, keep the buffer modest on TV boxes.
     for (final kv in const [
       ('network-timeout', '15'),
-      ('demuxer-lavf-analyzeduration', '1'),
+      // Read less of the stream before showing it: ffmpeg's default probe
+      // (5 MB) alone is several seconds on a live channel.
+      ('demuxer-lavf-analyzeduration', '0.6'),
+      ('demuxer-lavf-probesize', '700000'),
       ('cache', 'yes'),
       ('demuxer-readahead-secs', '8'),
       ('stream-lavf-o', 'reconnect=1,reconnect_streamed=1,reconnect_on_network_error=1,reconnect_delay_max=4'),
@@ -180,6 +194,47 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
         await Future<void>.value(native.setProperty(kv.$1, kv.$2));
       } catch (_) {}
     }
+  }
+
+  // ---------------------------------------------------------------- adapting to the connection
+  final List<DateTime> _stalls = [];
+  DateTime? _lighterAt;
+
+  /// The picture keeps stopping to fill its buffer: the connection carries
+  /// less than this source needs. Three stalls in a minute move to a lighter
+  /// source (smaller picture or lower rate), for this time only.
+  void _onStall() {
+    if (_replaying != null) return;
+    final now = DateTime.now();
+    _stalls
+      ..removeWhere((t) => now.difference(t) > const Duration(seconds: 60))
+      ..add(now);
+    if (_stalls.length < 3) return;
+    if (_lighterAt != null && now.difference(_lighterAt!) < const Duration(seconds: 45)) return;
+    _lighterAt = now;
+    _stalls.clear();
+    unawaited(_goLighter());
+  }
+
+  Future<void> _goLighter() async {
+    final ch = _channel;
+    final data = await _sources.channel(ch.number);
+    if (!mounted || data == null || data.sources.length < 2) return;
+    final cur = data.current;
+    int weight(TvSource s) => (s.kbps ?? 0) > 0 ? s.kbps! : ((s.height ?? 0) > 0 ? s.height! * 6 : 4000);
+    final curWeight = cur == null ? 1 << 30 : weight(cur);
+    if (cur?.kbps != null && cur!.kbps! > 0) MaTvDevice.lowerTo((cur.kbps! * 0.9).round());
+    final lighter = data.sources.where((s) => s.key != cur?.key && s.ok != false && weight(s) < curWeight).toList()
+      ..sort((a, b) => weight(b).compareTo(weight(a)));
+    if (lighter.isEmpty) {
+      setState(() => _status = 'Connexion faible et aucune source plus légère');
+      return;
+    }
+    final pick = lighter.first;
+    await _sources.prefer(data.id, pick.key);
+    if (!mounted) return;
+    setState(() => _status = 'Connexion faible : source plus légère (${pick.resolutionLabel.isEmpty ? pick.quality : pick.resolutionLabel})');
+    _showBanner(time: const Duration(seconds: 5));
   }
 
   void _screensaver(bool on) {
@@ -357,6 +412,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
       if (ch.replayDays > 0) (icon: Icons.history_rounded, label: 'Replay de la chaîne'),
       (icon: fav ? Icons.star_rounded : Icons.star_border_rounded, label: fav ? 'Retirer des favoris' : 'Ajouter aux favoris'),
       (icon: Icons.grid_view_rounded, label: 'Grille des programmes'),
+      (icon: Icons.high_quality_rounded, label: 'Qualité : ${MaTvDevice.qualityLabel}'),
       if (!widget.kids) (icon: Icons.tune_rounded, label: 'Sources'),
       (icon: Icons.list_rounded, label: 'Liste des chaînes'),
     ];
@@ -394,6 +450,17 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
         _openList();
       case 'Grille des programmes':
         await _openGrid();
+      case final String q when q.startsWith('Qualité'):
+        {
+          await MaTvDevice.nextQuality();
+          if (!mounted) return;
+          setState(() {});
+          // Reopen with the new ceiling: the relay picks the source again.
+          _zapTimer?.cancel();
+          _zapTimer = Timer(const Duration(milliseconds: 1500), () {
+            if (mounted && _replaying == null) _open(_channel, _client.liveUri(_channel));
+          });
+        }
       default:
         await _toggleFavorite();
         setState(() {});
@@ -403,9 +470,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
   Future<void> _openGrid() async {
     setState(() => _overlay = _Overlay.none);
     final pick = await Navigator.of(context).push<MaTvGuidePick>(
-      MaterialPageRoute(
-        builder: (_) => MaTvGuideScreen(channels: _list, startIndex: _index, categoryLabel: _catLabel),
-      ),
+      maTvRoute((_) => MaTvGuideScreen(channels: _list, startIndex: _index, categoryLabel: _catLabel)),
     );
     if (!mounted) return;
     _focus.requestFocus();
@@ -470,10 +535,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     setState(() => _listCat = i);
     List<MaTvChannel>? chans;
     if (c.kind == 'fav' || c.kind == 'recent') {
-      final all = await _client.allChannels();
-      final byId = {for (final ch in all ?? const <MaTvChannel>[]) ch.id: ch};
-      final ids = c.kind == 'fav' ? MaTvMemory.favorites : MaTvMemory.recent;
-      chans = [for (final id in ids) if (byId[id] case final MaTvChannel ch) ch];
+      chans = await _client.channelsByIds(c.kind == 'fav' ? MaTvMemory.favorites : MaTvMemory.recent);
     } else {
       chans = await _client.channels(c.id);
     }

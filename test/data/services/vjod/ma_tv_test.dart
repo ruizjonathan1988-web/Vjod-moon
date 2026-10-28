@@ -97,4 +97,14 @@ void main() {
     expect(r.queryParameters['start'], '${s(t0)}');
     expect(r.queryParameters['dur'], '45');
   });
+
+  test('what the device tells the relay: codecs, picture ceiling, connection', () {
+    final caps = MaTvDevice.capsSync;
+    expect(caps, startsWith('h264'));
+    expect(caps, contains(';maxh='));
+    MaTvDevice.lowerTo(4000);
+    expect(MaTvDevice.capsSync, contains(';bw=4000'));
+    MaTvDevice.lowerTo(9000);
+    expect(MaTvDevice.capsSync, contains(';bw=4000'));
+  });
 }

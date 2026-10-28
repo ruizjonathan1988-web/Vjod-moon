@@ -170,6 +170,10 @@ class SeerrPreferences {
   String get maTvLastCategory => _store.getString(_userKey('matv_last_cat')) ?? '';
   Future<void> setMaTvLastCategory(String id) => _store.setString(_userKey('matv_last_cat'), id);
 
+  /// Ma TV picture ceiling on this device: auto, 2160, 1080, 720 or 480.
+  String get maTvQuality => _store.getString('matv_quality') ?? 'auto';
+  Future<void> setMaTvQuality(String value) => _store.setString('matv_quality', value);
+
   static List<String> _ids(String? raw) =>
       (raw ?? '').split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
 

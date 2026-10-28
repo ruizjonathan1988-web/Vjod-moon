@@ -21,6 +21,13 @@ class MaTvColors {
   static const good = Color(0xFF5BD18B);
 }
 
+/// Full-screen TV pages open at once, without the slide animation.
+Route<T> maTvRoute<T>(WidgetBuilder builder) => PageRouteBuilder<T>(
+  pageBuilder: (context, _, _) => builder(context),
+  transitionDuration: Duration.zero,
+  reverseTransitionDuration: Duration.zero,
+);
+
 String maTvTime(DateTime t) =>
     '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
