@@ -376,4 +376,38 @@ void main() {
       expect(back!.titles.single.qualities, ['4K', '1080p']);
     });
   });
+
+  group('Ma TV', () {
+    test('its catalogue is recognised and searched on the seedbox', () {
+      final catalog = XtreamCatalog.forPlaylists(const [
+        TvPlaylist(
+          id: 'm',
+          name: 'Ma TV',
+          url: 'https://h.example/iptv-checker/tv/xc',
+          kind: TvPlaylistKind.xtream,
+          username: 'vjod',
+          password: 'k',
+        ),
+      ])!;
+      expect(catalog.isMaTv, isTrue);
+      expect(catalog.sourceName, 'Ma TV');
+      // nothing is loaded on the device for it
+      expect(catalog.copiesNow(XtreamKind.movie, '438631'), isEmpty);
+    });
+
+    test('reads the titles its search answers with', () {
+      final film = XtreamTitle.fromMaTv({
+        'kind': 'movie', 'id': 12, 'name': 'Dune (2021)', 'tag': 'FR', 'tmdb': '438631',
+        'year': 2021, 'poster': 'http://i', 'ext': 'mkv', 'qualities': ['4K', '1080p'],
+      });
+      expect(film.id, '12');
+      expect(film.tag, 'FR');
+      expect(film.qualities, ['4K', '1080p']);
+      expect(film.extension, 'mkv');
+      final series = XtreamTitle.fromMaTv({'kind': 'series', 'id': 3, 'name': 'Lupin', 'year': null});
+      expect(series.kind, XtreamKind.series);
+      expect(series.year, isNull);
+      expect(series.extension, '');
+    });
+  });
 }
