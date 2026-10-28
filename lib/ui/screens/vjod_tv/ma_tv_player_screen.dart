@@ -19,6 +19,7 @@ import '../../../util/platform_detection.dart';
 import '../../../util/system_ui.dart';
 import '../../screensaver/screensaver_controller.dart';
 import '../../widgets/live_tv/tv_sources_panel.dart';
+import 'ma_tv_guide.dart';
 import 'ma_tv_widgets.dart';
 
 enum _Overlay { none, guide, list, sources, replay }
@@ -30,6 +31,12 @@ class MaTvPlayerScreen extends StatefulWidget {
   final String categoryLabel;
   final List<MaTvCategory> categories;
 
+  /// A past programme to open in replay rather than the live channel.
+  final MaTvProgram? startReplay;
+
+  /// Kids Mode: only the channels given, no sources, no other categories.
+  final bool kids;
+
   const MaTvPlayerScreen({
     super.key,
     required this.channels,
@@ -37,6 +44,8 @@ class MaTvPlayerScreen extends StatefulWidget {
     required this.categoryId,
     required this.categoryLabel,
     this.categories = const [],
+    this.startReplay,
+    this.kids = false,
   });
 
   @override
@@ -139,7 +148,16 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
       if (mounted) setState(() => _now = DateTime.now());
     });
     _refreshTimer = Timer.periodic(const Duration(minutes: 5), (_) => _refreshList());
-    if (_list.isNotEmpty) _tune(immediate: true);
+    if (_list.isNotEmpty) {
+      final replay = widget.startReplay;
+      if (replay != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _playReplay(replay);
+        });
+      } else {
+        _tune(immediate: true);
+      }
+    }
   }
 
   Future<void> _tuneLiveDefaults() async {
@@ -300,6 +318,11 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
       _tune(immediate: true);
       return;
     }
+    if (widget.kids) {
+      setState(() => _status = 'Pas de chaîne $n ici');
+      _showBanner();
+      return;
+    }
     final all = await _client.allChannels();
     if (!mounted || all == null) return;
     final i = all.indexWhere((c) => c.number == n);
@@ -333,7 +356,8 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
         (icon: Icons.restart_alt_rounded, label: 'Revoir depuis le début'),
       if (ch.replayDays > 0) (icon: Icons.history_rounded, label: 'Replay de la chaîne'),
       (icon: fav ? Icons.star_rounded : Icons.star_border_rounded, label: fav ? 'Retirer des favoris' : 'Ajouter aux favoris'),
-      (icon: Icons.tune_rounded, label: 'Sources'),
+      (icon: Icons.grid_view_rounded, label: 'Grille des programmes'),
+      if (!widget.kids) (icon: Icons.tune_rounded, label: 'Sources'),
       (icon: Icons.list_rounded, label: 'Liste des chaînes'),
     ];
   }
@@ -368,9 +392,30 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
         setState(() => _overlay = _Overlay.sources);
       case 'Liste des chaînes':
         _openList();
+      case 'Grille des programmes':
+        await _openGrid();
       default:
         await _toggleFavorite();
         setState(() {});
+    }
+  }
+
+  Future<void> _openGrid() async {
+    setState(() => _overlay = _Overlay.none);
+    final pick = await Navigator.of(context).push<MaTvGuidePick>(
+      MaterialPageRoute(
+        builder: (_) => MaTvGuideScreen(channels: _list, startIndex: _index, categoryLabel: _catLabel),
+      ),
+    );
+    if (!mounted) return;
+    _focus.requestFocus();
+    if (pick == null) return;
+    setState(() => _index = pick.index.clamp(0, _list.length - 1));
+    final replay = pick.replay;
+    if (replay != null) {
+      _playReplay(replay);
+    } else {
+      _tune(immediate: true);
     }
   }
 
@@ -391,6 +436,9 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
   }
 
   List<MaTvCategory> get _listCats {
+    if (widget.kids) {
+      return [MaTvCategory(id: _catId, label: _catLabel, kind: 'theme', count: _list.length)];
+    }
     final fav = MaTvMemory.favorites;
     final server = widget.categories.where((c) => c.kind != 'fav' && c.kind != 'recent');
     return [
@@ -535,7 +583,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
       return KeyEventResult.handled;
     }
     if (key.isRightKey) {
-      setState(() => _overlay = _Overlay.sources);
+      if (!widget.kids) setState(() => _overlay = _Overlay.sources);
       return KeyEventResult.handled;
     }
     if (key.isSelectKey && event is KeyDownEvent) {
@@ -796,7 +844,8 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
             b(Icons.keyboard_arrow_down_rounded, 'Chaîne suivante', () => _zap(1)),
             b(Icons.list_rounded, 'Liste', _openList),
             b(Icons.info_outline_rounded, 'Guide', () => unawaited(_openGuide())),
-            b(Icons.tune_rounded, 'Sources', () => setState(() => _overlay = _Overlay.sources)),
+            b(Icons.grid_view_rounded, 'Grille', () => unawaited(_openGrid())),
+            if (!widget.kids) b(Icons.tune_rounded, 'Sources', () => setState(() => _overlay = _Overlay.sources)),
           ],
         ),
       ),
