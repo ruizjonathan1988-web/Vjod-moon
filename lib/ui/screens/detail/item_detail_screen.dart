@@ -7200,7 +7200,11 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
         ),
       if (shows(DetailButton.favorite))
         DetailButton.favorite: _DetailActionButton(
-          label: item.isFavorite ? l10n.favorited : l10n.favorite,
+          // VJOD has one list: the favourites for what the library holds,
+          // Seerr's watchlist for the rest, under the same name.
+          label: _DetailActionButtonState._vjodButtons
+              ? (item.isFavorite ? 'Dans ma liste' : 'Ma liste')
+              : (item.isFavorite ? l10n.favorited : l10n.favorite),
           // VJOD's "+" adds to the list, as in the mock-up.
           icon: _DetailActionButtonState._vjodButtons
               ? (item.isFavorite ? Icons.check_rounded : Icons.add_rounded)
@@ -7291,10 +7295,18 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
           l10n,
           is4k: true,
         ),
-      if (seerr != null && shows(DetailButton.seerrWatchlist))
+      // In VJOD a title in the library goes on the list through its
+      // favourite, so the Seerr watchlist only shows for one that isn't.
+      if (seerr != null &&
+          shows(DetailButton.seerrWatchlist) &&
+          (!_DetailActionButtonState._vjodButtons || viewModel.isSeerrOnly))
         DetailButton.seerrWatchlist: _DetailActionButton(
-          label: onWatchlist ? l10n.removeFromWatchlist : l10n.addToWatchlist,
-          icon: onWatchlist ? Icons.bookmark : Icons.bookmark_border,
+          label: _DetailActionButtonState._vjodButtons
+              ? (onWatchlist ? 'Dans ma liste' : 'Ma liste')
+              : (onWatchlist ? l10n.removeFromWatchlist : l10n.addToWatchlist),
+          icon: _DetailActionButtonState._vjodButtons
+              ? (onWatchlist ? Icons.check_rounded : Icons.add_rounded)
+              : (onWatchlist ? Icons.bookmark : Icons.bookmark_border),
           onPressed: () => seerr.toggleWatchlist(),
           isActive: onWatchlist,
           activeColor: AppColorScheme.accent,
@@ -7442,6 +7454,7 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
           ? const [
               DetailButton.restart,
               DetailButton.favorite,
+              DetailButton.seerrWatchlist,
               DetailButton.seerrRequest,
               DetailButton.seerrRequest4k,
             ]
@@ -7449,6 +7462,7 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
               DetailButton.restart,
               DetailButton.trailer,
               DetailButton.favorite,
+              DetailButton.seerrWatchlist,
               DetailButton.personalRating,
               DetailButton.notForMe,
               DetailButton.seerrRequest,
