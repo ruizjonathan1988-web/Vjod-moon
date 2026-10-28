@@ -271,7 +271,9 @@ class _TvSourcesPanelState extends State<TvSourcesPanel> {
     final subtitle = source == null
         ? _t('La meilleure source du moment, et la suivante si elle coupe',
             'The best source right now, and the next one if it drops')
-        : [source.details(french: _french), source.provider].where((s) => s.isNotEmpty).join(' · ');
+        : [source.details(french: _french), source.where.isNotEmpty ? source.where : source.provider]
+            .where((s) => s.isNotEmpty)
+            .join(' · ');
     final badges = <Widget>[
       if (source == null && !data.hasChoice) _badge(_t('actif', 'on'), _good),
       if (source != null && source.playing) _badge(_t('en lecture', 'playing'), _good),
