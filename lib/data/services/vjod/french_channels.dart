@@ -65,12 +65,66 @@ const List<String> _sportsFragments = [
   'dazn',
 ];
 
+/// Country tags IPTV providers put in front of a name ("FR - TF1 SD",
+/// "|UK| Sky", "CA: SuperSport").
+const Set<String> _countryTags = {
+  'fr', 'be', 'ch', 'qc', 'ca', 'uk', 'us', 'de', 'es', 'it', 'pt', 'nl',
+  'ar', 'tr', 'pl', 'ru', 'af', 'za', 'ma', 'dz', 'tn', 'ex', 'au', 'in',
+};
+
+final RegExp _tagPattern =
+    RegExp(r'^\W*([a-z]{2,3})\s*[\]\)|:\-]+\s*', caseSensitive: false);
+
+final RegExp _qualitySuffix = RegExp(
+  r'(\s|[-|])+(sd|hd|fhd|uhd|4k|hevc|h265|720p?|1080p?|50fps|60fps|raw|backup)\s*$',
+  caseSensitive: false,
+);
+
+/// The country tag in front of a provider's channel name, lower case, or
+/// null when there is none.
+String? channelCountryTag(String name) {
+  final match = _tagPattern.firstMatch(name);
+  final tag = match?.group(1)?.toLowerCase();
+  return tag != null && _countryTags.contains(tag) ? tag : null;
+}
+
+/// The channel's own name, without the provider's country tag and quality
+/// suffixes: "FR - TF1 SD" → "TF1", "|FR| FRANCE 2 FHD" → "FRANCE 2".
+String bareChannelName(String name) {
+  var bare = name.trim();
+  if (channelCountryTag(bare) != null) {
+    bare = bare.replaceFirst(_tagPattern, '');
+  }
+  while (true) {
+    final next = bare.replaceFirst(_qualitySuffix, '').trim();
+    if (next == bare) break;
+    bare = next;
+  }
+  return bare;
+}
+
+/// Whether the channel is tagged for another country than France.
+bool _isForeign(String name) {
+  final tag = channelCountryTag(name);
+  return tag != null && tag != 'fr';
+}
+
+/// Whether the channel is French: tagged FR by the provider, or a known
+/// French generalist or sports channel with no other country's tag.
+bool isFrenchChannel(String name) =>
+    channelCountryTag(name) == 'fr' ||
+    isFrenchMainChannel(name) ||
+    isFrenchSportsChannel(name);
+
 /// The TNT position of a known generalist channel, or null.
-int? frenchChannelRank(String name) => _tntOrder[normalizeChannelName(name)];
+int? frenchChannelRank(String name) => _isForeign(name)
+    ? null
+    : _tntOrder[normalizeChannelName(bareChannelName(name))];
 
 /// Whether the channel is a French sports channel.
 bool isFrenchSportsChannel(String name) {
-  final n = normalizeChannelName(name);
+  if (_isForeign(name)) return false;
+  final n = normalizeChannelName(bareChannelName(name));
   // L'Équipe is both TNT 20 and sports; count it as sports too.
   return _sportsFragments.any((f) => n.contains(f));
 }
@@ -89,9 +143,13 @@ bool isFrenchFavourite(String name) =>
 int frenchTvOrder(String name) {
   final rank = frenchChannelRank(name);
   if (rank != null) return rank;
-  final n = normalizeChannelName(name);
-  for (var i = 0; i < _sportsFragments.length; i++) {
-    if (n.contains(_sportsFragments[i])) return 500 + i;
+  if (isFrenchSportsChannel(name)) {
+    final n = normalizeChannelName(bareChannelName(name));
+    for (var i = 0; i < _sportsFragments.length; i++) {
+      if (n.contains(_sportsFragments[i])) return 500 + i;
+    }
   }
+  // Other French channels come before the rest of the world.
+  if (channelCountryTag(name) == 'fr') return 1000;
   return 100000;
 }

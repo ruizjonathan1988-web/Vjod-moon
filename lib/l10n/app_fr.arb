@@ -9801,6 +9801,7 @@
     "seerrOpenInSonarr": "Ouvrir dans Sonarr",
     "seerrServiceLinkUnavailable": "Lien vers le service indisponible",
     "liveTvRecent": "Récentes",
+    "liveTvFrenchChannels": "Chaînes FR",
     "vjodSameSpirit": "Dans le même esprit",
     "vjodCatalogueCount": "{count} chez vous · tout le reste à un geste",
     "vjodToRequest": "À demander",

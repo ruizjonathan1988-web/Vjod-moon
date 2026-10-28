@@ -189,6 +189,7 @@ class GuideProgram {
 
 enum GuideFilter {
   all,
+  french,
   movies,
   series,
   sports,
@@ -468,6 +469,9 @@ class LiveTvGuideViewModel extends ChangeNotifier {
     if (_filter == GuideFilter.favorites) {
       return _channels.where((ch) => ch.isFavorite).toList();
     }
+    if (_filter == GuideFilter.french) {
+      return _channels.where((ch) => isFrenchChannel(ch.name)).toList();
+    }
     if (_filter == GuideFilter.recent) {
       final byId = {for (final ch in _channels) ch.id: ch};
       return [
@@ -485,6 +489,7 @@ class LiveTvGuideViewModel extends ChangeNotifier {
     if (_isCategory(_filter)) return _categoryPrograms[channelId] ?? const [];
     final all = _programsByChannel[channelId] ?? [];
     if (_filter == GuideFilter.all ||
+        _filter == GuideFilter.french ||
         _filter == GuideFilter.favorites ||
         _filter == GuideFilter.recent) {
       return all;
@@ -533,10 +538,12 @@ class LiveTvGuideViewModel extends ChangeNotifier {
     GuideFilter.premiere => p.isPremiere,
     GuideFilter.favorites => true,
     GuideFilter.recent => true,
+    GuideFilter.french => true,
   };
 
   static bool _isCategory(GuideFilter filter) =>
       filter != GuideFilter.all &&
+      filter != GuideFilter.french &&
       filter != GuideFilter.favorites &&
       filter != GuideFilter.recent;
 
@@ -550,6 +557,7 @@ class LiveTvGuideViewModel extends ChangeNotifier {
     GuideFilter.premiere => p.isPremiere,
     GuideFilter.favorites => true,
     GuideFilter.recent => true,
+    GuideFilter.french => true,
   };
 
   Future<void> toggleChannelFavorite(String channelId) async {
@@ -711,6 +719,11 @@ class LiveTvGuideViewModel extends ChangeNotifier {
     }
     if (value == GuideFilter.recent) {
       unawaited(ensureProgramsForChannels(_recentIds()));
+    }
+    if (value == GuideFilter.french) {
+      unawaited(ensureProgramsForChannels(
+        filteredChannels.map((c) => c.id).take(60).toList(),
+      ));
     }
   }
 

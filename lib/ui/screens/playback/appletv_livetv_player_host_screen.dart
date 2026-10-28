@@ -456,6 +456,7 @@ class _AppleTvLiveTvPlayerHostScreenState
           GuideFilter.premiere => l10n.premiere,
           GuideFilter.favorites => l10n.favorites,
       GuideFilter.recent => l10n.liveTvRecent,
+      GuideFilter.french => l10n.liveTvFrenchChannels,
         },
     ];
   }

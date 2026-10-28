@@ -40,4 +40,28 @@ void main() {
     expect(m6 < bein, isTrue);
     expect(bein < other, isTrue);
   });
+
+  test('reads provider names with a country tag and quality suffix', () {
+    expect(frenchChannelRank('FR - TF1 SD'), 1);
+    expect(frenchChannelRank('|FR| FRANCE 2 FHD'), 2);
+    expect(frenchChannelRank('FR: M6 HD'), 6);
+    expect(bareChannelName('FR - TF1 SD'), 'TF1');
+    expect(isFrenchSportsChannel('FR - beIN SPORTS 1 HD'), isTrue);
+  });
+
+  test('another country tag is not French', () {
+    expect(isFrenchChannel('CA SUPER SPORT 1'), isFalse);
+    expect(isFrenchChannel('CA: SuperSport'), isFalse);
+    expect(isFrenchSportsChannel('UK - DAZN 1'), isFalse);
+    expect(isFrenchChannel('FR - Canal 27'), isTrue);
+    expect(isFrenchChannel('France 3'), isTrue);
+  });
+
+  test('provider lineup sorts like a French TV', () {
+    final names = ['CA SUPER SPORT', 'FR - FRANCE 3', 'FR - Canal 27',
+        'FR - TF1 SD', 'FR - RMC SPORT 1'];
+    names.sort((a, b) => frenchTvOrder(a).compareTo(frenchTvOrder(b)));
+    expect(names, ['FR - TF1 SD', 'FR - FRANCE 3', 'FR - RMC SPORT 1',
+        'FR - Canal 27', 'CA SUPER SPORT']);
+  });
 }

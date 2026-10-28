@@ -6473,6 +6473,7 @@
   "seerrOpenInSonarr": "Open in Sonarr",
   "seerrServiceLinkUnavailable": "Service link unavailable",
   "liveTvRecent": "Recent",
+  "liveTvFrenchChannels": "French channels",
   "vjodSameSpirit": "In the same vein",
   "vjodCatalogueCount": "{count} here · everything else one press away",
   "@vjodCatalogueCount": {"placeholders": {"count": {"type": "int"}}},
