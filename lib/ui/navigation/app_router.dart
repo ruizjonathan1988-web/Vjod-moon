@@ -367,6 +367,21 @@ final appRouter = GoRouter(
       },
     ),
     GoRoute(
+      path: Destinations.kidsTv,
+      builder: (context, state) => MaTvEntryScreen(
+        kids: true,
+        fallback: () => const Scaffold(
+          backgroundColor: Colors.black,
+          body: Center(
+            child: Text(
+              "La TV des enfants n'est pas encore prête.",
+              style: TextStyle(color: Colors.white70, fontSize: 18),
+            ),
+          ),
+        ),
+      ),
+    ),
+    GoRoute(
       path: Destinations.tv,
       builder: (context, state) =>
           VjodTvLaunchScreen(

@@ -14,6 +14,7 @@ import '../../../util/focus/dpad_keys.dart';
 import '../../../util/platform_detection.dart';
 import '../../navigation/destinations.dart';
 import '../../widgets/navigation_layout.dart';
+import 'ma_tv_guide.dart';
 import 'ma_tv_player_screen.dart';
 import 'ma_tv_widgets.dart';
 
@@ -25,7 +26,10 @@ class MaTvEntryScreen extends StatefulWidget {
   /// Opened from the "VJOD TV" icon: straight onto the last channel.
   final bool autoplay;
 
-  const MaTvEntryScreen({super.key, required this.fallback, this.autoplay = false});
+  /// Kids Mode: the Jeunesse channels only.
+  final bool kids;
+
+  const MaTvEntryScreen({super.key, required this.fallback, this.autoplay = false, this.kids = false});
 
   @override
   State<MaTvEntryScreen> createState() => _MaTvEntryScreenState();
@@ -75,15 +79,18 @@ class _MaTvEntryScreenState extends State<MaTvEntryScreen> {
           ),
         );
       case _Entry.maTv:
-        return MaTvBrowserScreen(autoplay: widget.autoplay);
+        return MaTvBrowserScreen(autoplay: widget.autoplay, kids: widget.kids);
     }
   }
 }
 
 class MaTvBrowserScreen extends StatefulWidget {
   final bool autoplay;
+  final bool kids;
 
-  const MaTvBrowserScreen({super.key, this.autoplay = false});
+  static const kidsCategory = MaTvCategory(id: 't:Jeunesse', label: 'Dessins animés et jeunesse', kind: 'theme', count: 0);
+
+  const MaTvBrowserScreen({super.key, this.autoplay = false, this.kids = false});
 
   @override
   State<MaTvBrowserScreen> createState() => _MaTvBrowserScreenState();
@@ -141,6 +148,17 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
   }
 
   List<MaTvCategory> _localCats(List<MaTvCategory> server) {
+    if (widget.kids) {
+      final n = server.where((c) => c.id == 't:Jeunesse').firstOrNull?.count ?? 0;
+      return [
+        MaTvCategory(
+          id: MaTvBrowserScreen.kidsCategory.id,
+          label: MaTvBrowserScreen.kidsCategory.label,
+          kind: 'theme',
+          count: n,
+        ),
+      ];
+    }
     final fav = MaTvMemory.favorites;
     final recent = MaTvMemory.recent;
     return [
@@ -166,7 +184,7 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
     }
     final cats = _localCats(server);
     var start = 0;
-    final last = MaTvMemory.lastCategory;
+    final last = widget.kids ? '' : MaTvMemory.lastCategory;
     final i = cats.indexWhere((c) => c.id == last);
     if (i >= 0) {
       start = i;
@@ -279,7 +297,20 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
     _say(on ? '${ch.name} ajoutée aux favoris' : '${ch.name} retirée des favoris');
   }
 
-  Future<void> _play(int index) async {
+  Future<void> _openGrid() async {
+    if (_chans.isEmpty) return;
+    final cat = _cats.isEmpty ? null : _cats[_cat];
+    final pick = await Navigator.of(context, rootNavigator: true).push<MaTvGuidePick>(
+      MaterialPageRoute(
+        builder: (_) => MaTvGuideScreen(channels: _chans, startIndex: _chan, categoryLabel: cat?.label ?? ''),
+      ),
+    );
+    if (!mounted) return;
+    _focus.requestFocus();
+    if (pick != null) await _play(pick.index, replay: pick.replay);
+  }
+
+  Future<void> _play(int index, {MaTvProgram? replay}) async {
     if (index < 0 || index >= _chans.length) return;
     final cat = _cats.isEmpty ? null : _cats[_cat];
     await Navigator.of(context, rootNavigator: true).push(
@@ -290,6 +321,8 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
           categoryId: cat?.id ?? 'all',
           categoryLabel: cat?.label ?? '',
           categories: _cats,
+          startReplay: replay,
+          kids: widget.kids,
         ),
       ),
     );
@@ -346,7 +379,9 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
     if (key.isRightKey) {
       if (_column == 0) {
         setState(() => _column = 1);
-        return KeyEventResult.handled;
+      } else {
+        // From the channels, RIGHT goes into the hours: the programme grid.
+        unawaited(_openGrid());
       }
       return KeyEventResult.handled;
     }
@@ -431,7 +466,9 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
         }
       },
       onChannelLongPress: (i) => unawaited(_toggleFavorite(i)),
-      onJellyfinGuide: () => context.push('${Destinations.liveTvGuide}?jellyfin=1'),
+      onJellyfinGuide: widget.kids ? null : () => context.push('${Destinations.liveTvGuide}?jellyfin=1'),
+      onGrid: () => unawaited(_openGrid()),
+      title: widget.kids ? 'TV des enfants' : 'Ma TV',
     );
   }
 
@@ -490,6 +527,8 @@ class MaTvBrowserView extends StatelessWidget {
   final ValueChanged<int>? onChannel;
   final ValueChanged<int>? onChannelLongPress;
   final VoidCallback? onJellyfinGuide;
+  final VoidCallback? onGrid;
+  final String title;
 
   const MaTvBrowserView({
     super.key,
@@ -511,6 +550,8 @@ class MaTvBrowserView extends StatelessWidget {
     this.onChannel,
     this.onChannelLongPress,
     this.onJellyfinGuide,
+    this.onGrid,
+    this.title = 'Ma TV',
   });
 
   @override
@@ -521,7 +562,7 @@ class MaTvBrowserView extends StatelessWidget {
       padding: EdgeInsets.fromLTRB(narrow ? 16 : 28, 18, narrow ? 16 : 28, 12),
       child: Row(
         children: [
-          const Text('Ma TV', style: TextStyle(color: MaTvColors.ink, fontSize: 26, fontWeight: FontWeight.w800)),
+          Text(title, style: const TextStyle(color: MaTvColors.ink, fontSize: 26, fontWeight: FontWeight.w800)),
           const SizedBox(width: 14),
           if (cat != null)
             Flexible(
@@ -534,8 +575,14 @@ class MaTvBrowserView extends StatelessWidget {
             ),
           const Spacer(),
           if (!narrow && !PlatformDetection.isWeb)
-            const Text('OK regarder · MENU favori', style: TextStyle(color: MaTvColors.faint, fontSize: 12.5)),
+            const Text('OK regarder · DROITE grille · MENU favori', style: TextStyle(color: MaTvColors.faint, fontSize: 12.5)),
           const SizedBox(width: 14),
+          if (onGrid != null)
+            TextButton.icon(
+              onPressed: onGrid,
+              icon: const Icon(Icons.grid_view_rounded, size: 18, color: MaTvColors.mute),
+              label: const Text('Grille', style: TextStyle(color: MaTvColors.mute)),
+            ),
           if (onJellyfinGuide != null)
             TextButton(
               onPressed: onJellyfinGuide,

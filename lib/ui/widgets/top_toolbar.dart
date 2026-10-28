@@ -483,13 +483,15 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
 
   /// Where the TV tab goes: Jellyfin's guide when the server has live TV,
   /// the external player's lists otherwise.
-  String get _tvRoute =>
-      (_jellyfinLiveTv || (!_kidsMode && MaTvClient().isConfigured))
-          ? Destinations.liveTvGuide
-          : Destinations.tv;
+  String get _tvRoute => _kidsMode && MaTvClient().isConfigured
+      ? Destinations.kidsTv
+      : (_jellyfinLiveTv || (!_kidsMode && MaTvClient().isConfigured))
+      ? Destinations.liveTvGuide
+      : Destinations.tv;
 
   bool get _isTvActive =>
       _isActive(Destinations.tv) ||
+      _isActive(Destinations.kidsTv) ||
       _isActive(Destinations.liveTv) ||
       _isActive(Destinations.liveTvGuide);
 

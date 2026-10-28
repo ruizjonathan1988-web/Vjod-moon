@@ -79,6 +79,8 @@ class Destinations {
   static const explorer = '/explorer';
   static const providerSeriesPath = '/provider-series';
   static const tv = '/tv';
+  /// Kids Mode's TV: Ma TV's Jeunesse channels only.
+  static const kidsTv = '/kids-tv';
   static const folderView = '/folders';
   static const folderBrowse = '/folder/:folderId';
   static const collectionBrowse = '/collection/:collectionId';

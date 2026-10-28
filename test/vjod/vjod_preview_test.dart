@@ -10,6 +10,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:moonfin/data/services/seerr/seerr_api_models.dart';
 import 'package:moonfin/data/services/vjod/ma_tv.dart';
+import 'package:moonfin/ui/screens/vjod_tv/ma_tv_guide.dart';
 import 'package:moonfin/ui/screens/vjod_tv/ma_tv_screen.dart';
 import 'package:moonfin/ui/screens/vjod_tv/ma_tv_widgets.dart';
 import 'package:moonfin/l10n/app_localizations.dart';
@@ -487,6 +488,45 @@ Widget _maReplay() => Padding(
   ),
 );
 
+Widget _maGrid() {
+  final progs = <String, List<MaTvProgram>>{};
+  for (final ch in _maChans) {
+    final list = <MaTvProgram>[];
+    if (ch.now != null) {
+      list.add(_prog('Le journal', ch.now!.start.difference(DateTime(2026, 10, 28, 20)).inMinutes - 40, 40));
+      list.add(ch.now!);
+    }
+    if (ch.next != null) list.add(ch.next!);
+    progs[ch.id] = list;
+  }
+  return MaTvGuideView(
+    channels: _maChans,
+    programs: progs,
+    row: 0,
+    cursor: _maNow,
+    windowStart: DateTime(2026, 10, 28, 20, 30),
+    now: _maNow,
+    categoryLabel: 'France',
+    favorites: const {'tf1'},
+  );
+}
+
+Widget _maKids() => MaTvBrowserView(
+  categories: const [MaTvCategory(id: 't:Jeunesse', label: 'Dessins animés et jeunesse', kind: 'theme', count: 4)],
+  category: 0,
+  channels: [
+    MaTvChannel(id: 'gulli', number: 18, name: 'Gulli', now: _prog('Les Lapins crétins', 30, 25)),
+    MaTvChannel(id: 'tiji', number: 201, name: 'TiJi', now: _prog('Peppa Pig', 40, 10)),
+    MaTvChannel(id: 'canalj', number: 202, name: 'Canal J', now: _prog('Grizzy et les Lemmings', 35, 20)),
+    MaTvChannel(id: 'disneyjr', number: 203, name: 'Disney Junior', now: _prog('Bluey', 42, 8)),
+  ],
+  channel: 1,
+  column: 1,
+  now: _maNow,
+  showDetails: false,
+  title: 'TV des enfants',
+);
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -537,6 +577,14 @@ void main() {
 
   testWidgets('Ma TV replay', (tester) async {
     await shoot(tester, _maReplay(), const Size(720, 420), 'matv_replay');
+  });
+
+  testWidgets('Ma TV grid', (tester) async {
+    await shoot(tester, _maGrid(), const Size(1280, 720), 'matv_grid');
+  });
+
+  testWidgets('Ma TV kids', (tester) async {
+    await shoot(tester, _maKids(), const Size(1280, 720), 'matv_kids');
   });
 
   testWidgets('Ma TV Fold', (tester) async {
