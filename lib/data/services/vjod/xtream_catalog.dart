@@ -681,7 +681,9 @@ class XtreamCatalog {
     return null;
   }
 
-  static const _listTimeout = Duration(seconds: 90);
+  // Ma TV merges the catalogues of many accounts (a few hundred thousand
+  // titles): the lists take a while to arrive and to read.
+  static const _listTimeout = Duration(minutes: 4);
   static const _infoTimeout = Duration(seconds: 20);
 
   Future<List<XtreamTitle>>? _titles;
@@ -689,6 +691,45 @@ class XtreamCatalog {
   /// Bumped each time a catalogue lands in memory, so posters can tag what
   /// the provider has without waiting on it.
   static final loaded = ValueNotifier<int>(0);
+
+  /// What the catalogue in use is doing, in words for the settings screen:
+  /// where it comes from, how many films and series, or why it failed.
+  static final status = ValueNotifier<String>('');
+
+  /// When each catalogue (by [_cacheKey]) last failed to load. A failed one
+  /// is passed over for a while so another source can stand in.
+  static final _failedAt = <String, DateTime>{};
+  static const failurePause = Duration(minutes: 30);
+
+  /// Whether this catalogue failed to load a short while ago.
+  bool get recentlyFailed {
+    final at = _failedAt[_cacheKey];
+    return at != null && DateTime.now().difference(at) < failurePause;
+  }
+
+  /// Where this catalogue is read from, in words.
+  String get sourceName =>
+      base.endsWith('/tv/xc') ? 'Ma TV' : (Uri.tryParse(base)?.host ?? base);
+
+  /// Said after the counts when the last fetch came back incomplete.
+  String _statusNote = '';
+
+  void _loadedStatus(List<XtreamTitle> all, {String note = ''}) {
+    final films = all.where((t) => t.kind == XtreamKind.movie).length;
+    final series = all.length - films;
+    final at = _fetchedAt;
+    final when = at == null
+        ? ''
+        : ', lu le ${at.day.toString().padLeft(2, '0')}/${at.month.toString().padLeft(2, '0')} '
+              'à ${at.hour.toString().padLeft(2, '0')}:${at.minute.toString().padLeft(2, '0')}';
+    status.value = '$sourceName : $films films, $series séries$when$note';
+  }
+
+  static String _why(Object e) {
+    if (e is TimeoutException) return 'trop long à arriver';
+    final text = e.toString();
+    return text.startsWith('Bad state: ') ? text.substring(11) : text;
+  }
 
   Map<String, List<XtreamTitle>>? _byTmdb;
 
@@ -699,6 +740,8 @@ class XtreamCatalog {
       (m['${t.kind.name}:${t.tmdbId}'] ??= []).add(t);
     }
     _byTmdb = m;
+    _failedAt.remove(_cacheKey);
+    _loadedStatus(all, note: _statusNote);
     loaded.value++;
   }
 
@@ -758,16 +801,37 @@ class XtreamCatalog {
   String get _cacheKey => catalogCacheKey(base, username);
 
   Future<List<XtreamTitle>> _fetchFromProvider() async {
+    status.value = 'Lecture du catalogue sur $sourceName…';
+    final errors = <String>[];
+    Future<List<XtreamTitle>> list(
+      String action,
+      String what,
+      List<XtreamTitle> Function(String) parse,
+    ) => _get(_api(action), _listTimeout)
+        .then((body) => compute(parse, body))
+        .catchError((Object e) {
+          errors.add('$what : ${_why(e)}');
+          return <XtreamTitle>[];
+        });
     final results = await Future.wait([
-      _get(_api('get_vod_streams'), _listTimeout)
-          .then((body) => compute(parseVodStreams, body))
-          .catchError((_) => <XtreamTitle>[]),
-      _get(_api('get_series'), _listTimeout)
-          .then((body) => compute(parseSeriesList, body))
-          .catchError((_) => <XtreamTitle>[]),
+      list('get_vod_streams', 'films', parseVodStreams),
+      list('get_series', 'séries', parseSeriesList),
     ]);
     final all = [...results[0], ...results[1]];
-    if (all.isEmpty) throw StateError('Catalogue du fournisseur vide');
+    if (all.isEmpty) {
+      throw StateError(
+        errors.isEmpty ? 'catalogue vide' : errors.join(' ; '),
+      );
+    }
+    if (errors.isNotEmpty) {
+      // Half a catalogue is kept for now but neither saved nor dated, so the
+      // next check (within the hour) fetches it again instead of keeping it
+      // a whole day.
+      _fetchedAt = null;
+      _statusNote = ' (incomplet : ${errors.join(' ; ')})';
+      return all;
+    }
+    _statusNote = '';
     final now = DateTime.now();
     _fetchedAt = now;
     unawaited(_save(now, all));
@@ -873,8 +937,10 @@ class XtreamCatalog {
     if (fresh) {
       unawaited(future.then<void>(_index, onError: (Object _) {}));
     }
-    future.catchError((_) {
+    future.catchError((Object e) {
       if (identical(_titles, future)) _titles = null;
+      _failedAt[_cacheKey] = DateTime.now();
+      status.value = '$sourceName : échec (${_why(e)})';
       return <XtreamTitle>[];
     });
     return future;

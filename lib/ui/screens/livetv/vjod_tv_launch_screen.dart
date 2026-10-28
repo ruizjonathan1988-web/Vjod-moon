@@ -305,7 +305,27 @@ class _VjodTvLaunchScreenState extends State<VjodTvLaunchScreen> {
             fontSize: 15 * s,
           ),
         ),
-        SizedBox(height: 12 * s),
+        SizedBox(height: 8 * s),
+        // Where the films and series come from and how many, or why they
+        // didn't come: the first thing to look at when the IPTV button is
+        // missing from the pages.
+        ValueListenableBuilder<String>(
+          valueListenable: XtreamCatalog.status,
+          builder: (context, status, _) => status.isEmpty
+              ? const SizedBox.shrink()
+              : Padding(
+                  padding: EdgeInsets.only(bottom: 10 * s),
+                  child: Text(
+                    'Catalogue : $status',
+                    style: TextStyle(
+                      color: vjodInk.withValues(alpha: 0.75),
+                      fontSize: 15 * s,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+        ),
+        SizedBox(height: 4 * s),
         if (_languagesLoading && _languageCounts == null)
           Padding(
             padding: EdgeInsets.only(bottom: 10 * s),

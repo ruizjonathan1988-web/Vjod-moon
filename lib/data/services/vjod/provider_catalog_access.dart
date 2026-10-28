@@ -97,7 +97,10 @@ XtreamCatalog? currentProviderCatalog() {
   final maTv = maTvCatalogAccount();
   if (maTv != null) {
     final catalog = XtreamCatalog.forPlaylists([maTv.toPlaylist()]);
-    if (catalog != null) {
+    // A Ma TV that failed to hand its catalogue a short while ago (not built
+    // yet, unreachable, too slow) gives way to the other sources until it is
+    // tried again.
+    if (catalog != null && !catalog.recentlyFailed) {
       catalog.serverCatalogUrl = '';
       catalog.onServerAccount = null;
       return catalog;
