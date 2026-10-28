@@ -214,11 +214,7 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
 
   Future<List<MaTvChannel>?> _channelsOf(MaTvCategory c, {bool fresh = false}) async {
     if (c.kind == 'fav' || c.kind == 'recent') {
-      final all = await _client.allChannels();
-      if (all == null) return null;
-      final byId = {for (final ch in all) ch.id: ch};
-      final ids = c.kind == 'fav' ? MaTvMemory.favorites : MaTvMemory.recent;
-      return [for (final id in ids) if (byId[id] case final MaTvChannel ch) ch];
+      return _client.channelsByIds(c.kind == 'fav' ? MaTvMemory.favorites : MaTvMemory.recent);
     }
     return _client.channels(c.id, fresh: fresh);
   }
@@ -301,9 +297,7 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
     if (_chans.isEmpty) return;
     final cat = _cats.isEmpty ? null : _cats[_cat];
     final pick = await Navigator.of(context, rootNavigator: true).push<MaTvGuidePick>(
-      MaterialPageRoute(
-        builder: (_) => MaTvGuideScreen(channels: _chans, startIndex: _chan, categoryLabel: cat?.label ?? ''),
-      ),
+      maTvRoute((_) => MaTvGuideScreen(channels: _chans, startIndex: _chan, categoryLabel: cat?.label ?? '')),
     );
     if (!mounted) return;
     _focus.requestFocus();
@@ -314,8 +308,8 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
     if (index < 0 || index >= _chans.length) return;
     final cat = _cats.isEmpty ? null : _cats[_cat];
     await Navigator.of(context, rootNavigator: true).push(
-      MaterialPageRoute<void>(
-        builder: (_) => MaTvPlayerScreen(
+      maTvRoute<void>(
+        (_) => MaTvPlayerScreen(
           channels: _chans,
           startIndex: index,
           categoryId: cat?.id ?? 'all',

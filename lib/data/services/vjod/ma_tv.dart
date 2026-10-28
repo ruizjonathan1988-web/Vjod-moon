@@ -217,8 +217,20 @@ class MaTvClient {
     return chans;
   }
 
-  /// Every known channel, for favourites, recents and number entry.
+  /// Every known channel, for number entry.
   Future<List<MaTvChannel>?> allChannels() => channels('all');
+
+  /// Some channels by id, in that order (favourites, recents): asks only for
+  /// them rather than the whole lineup.
+  Future<List<MaTvChannel>?> channelsByIds(List<String> ids) async {
+    if (ids.isEmpty) return const [];
+    final json = await _get('/tv/api/chans', {'ids': ids.take(300).join(',')});
+    if (json is! Map || json['chans'] is! List) return null;
+    return [
+      for (final x in json['chans'] as List)
+        if (x is Map) MaTvChannel.fromJson(Map<String, dynamic>.from(x)),
+    ];
+  }
 
   /// Programmes of up to 100 channels between [from] and [to].
   Future<Map<String, List<MaTvProgram>>?> programs(List<String> ids, DateTime from, DateTime to) async {

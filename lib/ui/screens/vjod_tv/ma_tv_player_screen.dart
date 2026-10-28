@@ -133,7 +133,15 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     _subs.add(_player.stream.width.listen((w) {
       if ((w ?? 0) > 0 && !_picture) {
         _picture = true;
-        if (mounted) setState(() => _status = null);
+        final opened = _openedAt;
+        if (!mounted) return;
+        // How long the picture took, shown a moment: the number to compare
+        // from one source, channel or box to another.
+        final secs = opened == null ? null : DateTime.now().difference(opened).inMilliseconds / 1000;
+        setState(() => _status = secs == null ? null : 'Image en ${secs.toStringAsFixed(1).replaceAll('.', ',')} s');
+        Timer(const Duration(seconds: 4), () {
+          if (mounted && (_status ?? '').startsWith('Image en')) setState(() => _status = null);
+        });
       }
     }));
     _subs.add(_player.stream.buffering.listen((b) {
@@ -167,7 +175,10 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     // the link to the seedbox drops, keep the buffer modest on TV boxes.
     for (final kv in const [
       ('network-timeout', '15'),
-      ('demuxer-lavf-analyzeduration', '1'),
+      // Read less of the stream before showing it: ffmpeg's default probe
+      // (5 MB) alone is several seconds on a live channel.
+      ('demuxer-lavf-analyzeduration', '0.6'),
+      ('demuxer-lavf-probesize', '700000'),
       ('cache', 'yes'),
       ('demuxer-readahead-secs', '8'),
       ('stream-lavf-o', 'reconnect=1,reconnect_streamed=1,reconnect_on_network_error=1,reconnect_delay_max=4'),
@@ -403,9 +414,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
   Future<void> _openGrid() async {
     setState(() => _overlay = _Overlay.none);
     final pick = await Navigator.of(context).push<MaTvGuidePick>(
-      MaterialPageRoute(
-        builder: (_) => MaTvGuideScreen(channels: _list, startIndex: _index, categoryLabel: _catLabel),
-      ),
+      maTvRoute((_) => MaTvGuideScreen(channels: _list, startIndex: _index, categoryLabel: _catLabel)),
     );
     if (!mounted) return;
     _focus.requestFocus();
@@ -470,10 +479,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     setState(() => _listCat = i);
     List<MaTvChannel>? chans;
     if (c.kind == 'fav' || c.kind == 'recent') {
-      final all = await _client.allChannels();
-      final byId = {for (final ch in all ?? const <MaTvChannel>[]) ch.id: ch};
-      final ids = c.kind == 'fav' ? MaTvMemory.favorites : MaTvMemory.recent;
-      chans = [for (final id in ids) if (byId[id] case final MaTvChannel ch) ch];
+      chans = await _client.channelsByIds(c.kind == 'fav' ? MaTvMemory.favorites : MaTvMemory.recent);
     } else {
       chans = await _client.channels(c.id);
     }
