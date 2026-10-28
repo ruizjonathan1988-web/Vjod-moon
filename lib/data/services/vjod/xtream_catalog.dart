@@ -109,6 +109,11 @@ class XtreamTitle {
   /// The year from the provider's fields or from a `(2021)` in the name.
   final int? year;
 
+  /// The qualities this copy comes in, best first (`4K`, `1080p`, `720p`,
+  /// `SD`). Ma TV lists every quality it keeps for the title; a provider read
+  /// directly gives at most the one written in the name. Empty when unknown.
+  final List<String> qualities;
+
   const XtreamTitle({
     required this.kind,
     required this.id,
@@ -119,6 +124,7 @@ class XtreamTitle {
     required this.searchKey,
     this.tmdbId = '',
     this.year,
+    this.qualities = const [],
   });
 
   /// The name with its language tag, as shown under a poster.
@@ -176,6 +182,49 @@ final _prefix = RegExp(
   final name = match.group(2)!.trim();
   if (name.isEmpty) return (tag: '', name: text);
   return (tag: match.group(1)!, name: name);
+}
+
+const _qualityHeights = {'4K': 2160, '1080p': 1080, '720p': 720, 'SD': 480};
+
+final _qualityPatterns = [
+  ('4K', RegExp(r'\b(?:4k|uhd|2160p?)\b', caseSensitive: false)),
+  ('1080p', RegExp(r'\b(?:fhd|1080p?)\b', caseSensitive: false)),
+  ('720p', RegExp(r'\b(?:hd|720p?)\b', caseSensitive: false)),
+  ('SD', RegExp(r'\b(?:sd|480p?|576p?)\b', caseSensitive: false)),
+];
+
+/// The quality a provider writes in a name (`Dune 4K`, `Dune [FHD]`), as
+/// `4K`, `1080p`, `720p` or `SD`; empty when the name says nothing.
+String providerQuality(String raw) {
+  for (final (label, re) in _qualityPatterns) {
+    if (re.hasMatch(raw)) return label;
+  }
+  return '';
+}
+
+/// The qualities of a catalogue entry: Ma TV's `qualities` list, else the one
+/// in the name.
+List<String> _qualitiesOf(Map entry, String raw) {
+  final listed = [
+    for (final q in _str(entry['qualities']).split(','))
+      if (q.trim().isNotEmpty) q.trim(),
+  ];
+  if (listed.isNotEmpty) return listed;
+  final q = providerQuality(raw);
+  return q.isEmpty ? const [] : [q];
+}
+
+/// The quality to play by default among [qualities]: the best one no taller
+/// than [maxHeight] (the device's ceiling), else the lightest. Empty when the
+/// list is.
+String defaultQuality(List<String> qualities, int maxHeight) {
+  if (qualities.isEmpty) return '';
+  final sorted = [...qualities]
+    ..sort((a, b) => (_qualityHeights[b] ?? 0).compareTo(_qualityHeights[a] ?? 0));
+  for (final q in sorted) {
+    if ((_qualityHeights[q] ?? 0) <= maxHeight) return q;
+  }
+  return sorted.last;
 }
 
 String _str(Object? value) => value == null ? '' : value.toString().trim();
@@ -247,6 +296,7 @@ List<XtreamTitle> parseVodStreams(String body) {
         searchKey: foldForSearch(split.name),
         tmdbId: _tmdbOf(entry),
         year: _yearOf(entry, split.name),
+        qualities: _qualitiesOf(entry, raw),
       ),
     );
   }
@@ -274,6 +324,7 @@ List<XtreamTitle> parseSeriesList(String body) {
         searchKey: foldForSearch(split.name),
         tmdbId: _tmdbOf(entry),
         year: _yearOf(entry, split.name),
+        qualities: _qualitiesOf(entry, raw),
       ),
     );
   }
@@ -531,6 +582,7 @@ String encodeCatalogCache(
         t.extension,
         t.tmdbId,
         t.year ?? 0,
+        t.qualities.join(','),
       ],
   ],
 });
@@ -566,6 +618,12 @@ decodeCatalogCache(String data) {
           searchKey: foldForSearch(name),
           tmdbId: _str(row[6]),
           year: year > 0 ? year : null,
+          qualities: row.length > 8
+              ? [
+                  for (final q in _str(row[8]).split(','))
+                    if (q.isNotEmpty) q,
+                ]
+              : const [],
         ),
       );
     }
@@ -862,19 +920,30 @@ class XtreamCatalog {
   }
 
   /// The seasons and episodes of a series.
-  Future<XtreamSeriesInfo> seriesInfo(String seriesId) async => parseSeriesInfo(
+  /// With a [quality] Ma TV knows for the title, the episodes come from a copy
+  /// in that quality when it still has one.
+  Future<XtreamSeriesInfo> seriesInfo(
+    String seriesId, {
+    String quality = '',
+  }) async => parseSeriesInfo(
     await _get(
-      _api('get_series_info', {'series_id': seriesId}),
+      _api('get_series_info', {
+        'series_id': seriesId,
+        if (quality.isNotEmpty) 'q': quality,
+      }),
       _infoTimeout,
     ),
   );
 
   String _seg(String value) => Uri.encodeComponent(value);
 
-  /// Where a film plays from.
-  String movieUrl(XtreamTitle movie) =>
+  /// Where a film plays from. A [quality] is asked for only when the title
+  /// comes in several (Ma TV then plays that copy first, the others as a
+  /// fallback); a provider read directly never sees it.
+  String movieUrl(XtreamTitle movie, {String quality = ''}) =>
       '$base/movie/${_seg(username)}/${_seg(password)}/'
-      '${movie.id}.${movie.extension}';
+      '${movie.id}.${movie.extension}'
+      '${quality.isNotEmpty && movie.qualities.length > 1 ? '?q=${Uri.encodeQueryComponent(quality)}' : ''}';
 
   /// Where an episode plays from.
   String episodeUrl(XtreamEpisode episode) =>

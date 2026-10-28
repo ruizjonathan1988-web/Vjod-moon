@@ -325,4 +325,55 @@ void main() {
       expect(XtreamAccount.fromJson({'portal': 'http://p', 'username': 'u'}), isNull);
     });
   });
+
+  group('qualités', () {
+    test('Ma TV lists them, a provider writes one in the name', () {
+      final films = parseVodStreams(jsonEncode([
+        {'stream_id': 1, 'name': 'FR - Dune (2021)', 'qualities': '4K,1080p'},
+        {'stream_id': 2, 'name': 'FR - Heat (1995) [FHD]'},
+        {'stream_id': 3, 'name': 'FR - Hdeath'},
+      ]));
+      expect(films[0].qualities, ['4K', '1080p']);
+      expect(films[1].qualities, ['1080p']);
+      expect(films[2].qualities, isEmpty);
+    });
+
+    test('the default is the best the device takes, else the lightest', () {
+      expect(defaultQuality(['4K', '1080p', '720p'], 1080), '1080p');
+      expect(defaultQuality(['4K', '1080p'], 2160), '4K');
+      expect(defaultQuality(['4K'], 720), '4K');
+      expect(defaultQuality(['1080p', '720p'], 480), '720p');
+      expect(defaultQuality([], 1080), '');
+    });
+
+    test('a quality goes on the url only when there is a choice', () {
+      final catalog = XtreamCatalog.forPlaylists(const [
+        TvPlaylist(
+          id: 'm',
+          name: 'Ma TV',
+          url: 'http://m/tv/xc',
+          kind: TvPlaylistKind.xtream,
+          username: 'vjod',
+          password: 'k',
+        ),
+      ])!;
+      final films = parseVodStreams(jsonEncode([
+        {'stream_id': 1, 'name': 'Dune', 'qualities': '4K,1080p', 'container_extension': 'mkv'},
+        {'stream_id': 2, 'name': 'Heat 4K', 'container_extension': 'mkv'},
+      ]));
+      expect(catalog.movieUrl(films[0], quality: '4K'), 'http://m/tv/xc/movie/vjod/k/1.mkv?q=4K');
+      expect(catalog.movieUrl(films[0]), 'http://m/tv/xc/movie/vjod/k/1.mkv');
+      expect(catalog.movieUrl(films[1], quality: '4K'), 'http://m/tv/xc/movie/vjod/k/2.mkv');
+    });
+
+    test('they survive the cache on the device', () {
+      final films = parseVodStreams(jsonEncode([
+        {'stream_id': 1, 'name': 'Dune', 'qualities': '4K,1080p'},
+      ]));
+      final back = decodeCatalogCache(
+        encodeCatalogCache((fetchedAtMs: 1, titles: films)),
+      );
+      expect(back!.titles.single.qualities, ['4K', '1080p']);
+    });
+  });
 }
