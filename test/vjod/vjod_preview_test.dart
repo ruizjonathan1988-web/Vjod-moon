@@ -438,6 +438,27 @@ Widget _maBrowser({bool narrow = false}) => MaTvBrowserView(
   narrow: narrow,
 );
 
+/// The banner while watching 1 min 30 behind live, out of the seedbox's buffer.
+Widget _maDelayed() => Stack(
+  children: [
+    const Positioned.fill(child: ColoredBox(color: Color(0xFF1B2A1E))),
+    Positioned(
+      left: 0,
+      right: 0,
+      bottom: 0,
+      child: MaTvBanner(
+        channel: _maChans[0],
+        now: _maNow,
+        sourceLine: 'Source 1/4 · 1080p · 50 i/s · 7,8 Mb/s',
+        status: 'Différé −1 min 30',
+        categoryLabel: 'France',
+        favorite: true,
+        replayLabel: 'Différé −1 min 30 · Retour pour revenir au direct',
+      ),
+    ),
+  ],
+);
+
 Widget _maPlayer() => Stack(
   children: [
     const Positioned.fill(child: ColoredBox(color: Color(0xFF1B2A1E))),
@@ -573,6 +594,10 @@ void main() {
 
   testWidgets('Ma TV player', (tester) async {
     await shoot(tester, _maPlayer(), const Size(1280, 720), 'matv_player');
+  });
+
+  testWidgets('Ma TV delayed', (tester) async {
+    await shoot(tester, _maDelayed(), const Size(1280, 720), 'matv_differe');
   });
 
   testWidgets('Ma TV replay', (tester) async {

@@ -1,9 +1,11 @@
-// The live player of Ma TV, like a TV box: DOWN / UP zap inside the category
-// (CH+ / CH- too), LEFT opens the channel list over the picture, RIGHT the
-// sources, OK the mini-guide (with "watch from the start" when the provider
-// keeps the replay), MENU adds the channel to the favourites, digits jump to
-// a number. The relay on the seedbox does the rest: best source first, the
-// next one if it drops, one connection shared by everyone on the channel.
+// The live player of Ma TV, like TiviMate: DOWN / UP zap inside the category
+// (CH+ / CH- too), OK opens the channel list over the picture, LEFT / RIGHT go
+// back or forward 30 s in the live (out of the seedbox's buffer of the last
+// minutes), a long OK or MENU the options (sources, favourite, watch from the
+// start, replay, guide grid, quality), PLAY/PAUSE pauses and picks up where it
+// stopped, BACK closes what is open, then returns to live, then leaves. Digits
+// jump to a number. The relay on the seedbox does the rest: best source
+// first, the next one if it drops, one connection shared by everyone.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -86,6 +88,16 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
   Timer? _refreshTimer;
   bool _banner = true;
   String? _status;
+
+  // Back in time: how far behind live the picture is (zero = live), and
+  // when it was paused.
+  Duration _delay = Duration.zero;
+  DateTime? _pausedAt;
+  Duration _pendingDelay = Duration.zero;
+  bool _seekPending = false;
+  Timer? _seekTimer;
+  DateTime? _selectDownAt;
+  bool _selectLongFired = false;
   String? _sourceLine;
   int _tuneSeq = 0;
   DateTime? _openedAt;
@@ -245,7 +257,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
   @override
   void dispose() {
     _screensaver(false);
-    for (final t in [_clock, _zapTimer, _bannerTimer, _watchdog, _summaryTimer, _numberTimer, _refreshTimer]) {
+    for (final t in [_clock, _zapTimer, _bannerTimer, _watchdog, _summaryTimer, _numberTimer, _refreshTimer, _seekTimer]) {
       t?.cancel();
     }
     for (final s in _subs) {
@@ -271,6 +283,10 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
   void _tune({bool immediate = false}) {
     if (_list.isEmpty) return;
     _replaying = null;
+    _delay = Duration.zero;
+    _pausedAt = null;
+    _seekPending = false;
+    _seekTimer?.cancel();
     _zapTimer?.cancel();
     setState(() {
       _status = 'Ouverture…';
@@ -319,7 +335,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
       unawaited(_open(ch, uri, retry: true));
     } else if (_retried && waited > _noPictureGiveUp - _noPictureRetry) {
       _watchdog?.cancel();
-      setState(() => _status = 'Aucune source ne répond · ▶ pour en choisir une');
+      setState(() => _status = 'Aucune source ne répond · MENU puis Sources pour en choisir une');
       _showBanner(time: const Duration(seconds: 12));
     }
   }
@@ -395,6 +411,117 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     _tune(immediate: true);
   }
 
+  // ---------------------------------------------------------------- back in time
+  /// « −1 min 30 », « −45 s ».
+  static String fmtDelay(Duration d) {
+    final s = d.inSeconds;
+    final m = s ~/ 60, r = s % 60;
+    if (m == 0) return '−$r s';
+    return r == 0 ? '−$m min' : '−$m min ${r.toString().padLeft(2, '0')}';
+  }
+
+  /// LEFT / RIGHT: 30 s back or forward. Presses in a row add up and the
+  /// stream reopens once, a moment after the last one.
+  void _seekBy(int seconds) {
+    if (_replaying != null) {
+      final pos = _player.state.position + Duration(seconds: seconds);
+      unawaited(_player.seek(pos < Duration.zero ? Duration.zero : pos));
+      setState(() => _status = seconds < 0 ? '−30 s' : '+30 s');
+      _showBanner(time: const Duration(seconds: 2));
+      return;
+    }
+    final base = _seekPending ? _pendingDelay : _delay;
+    final next = base - Duration(seconds: seconds);
+    _pendingDelay = next < Duration.zero ? Duration.zero : next;
+    _seekPending = true;
+    setState(() => _status = _pendingDelay == Duration.zero ? 'Direct' : 'Différé ${fmtDelay(_pendingDelay)}');
+    _showBanner();
+    _seekTimer?.cancel();
+    _seekTimer = Timer(const Duration(milliseconds: 600), () {
+      _seekPending = false;
+      unawaited(_applyDelay(_pendingDelay));
+    });
+  }
+
+  /// Plays the channel [wanted] behind live, out of the seedbox's buffer
+  /// (no further back than it goes). Zero goes back to live.
+  Future<void> _applyDelay(Duration wanted, {bool resume = false}) async {
+    final ch = _channel;
+    if (wanted <= Duration.zero) {
+      if (_delay > Duration.zero || resume) _goLive();
+      return;
+    }
+    final info = await _client.shiftInfo(ch);
+    if (!mounted || _channel.id != ch.id) return;
+    if (info == null || !info.available) {
+      setState(() => _status = 'Retour en arrière indisponible');
+      _showBanner();
+      if (resume) unawaited(_player.play());
+      return;
+    }
+    final now = DateTime.now();
+    final delay = info.clamp(wanted, now);
+    if (delay <= Duration.zero) {
+      setState(() => _status = 'Pas encore assez d’images gardées pour reculer');
+      _showBanner();
+      if (resume) unawaited(_player.play());
+      return;
+    }
+    setState(() {
+      _delay = delay;
+      _pausedAt = null;
+      _status = 'Différé ${fmtDelay(delay)}';
+    });
+    _showBanner(time: const Duration(seconds: 4));
+    unawaited(_open(ch, _client.shiftUri(ch, now.subtract(delay))));
+  }
+
+  void _goLive() {
+    _tune(immediate: true);
+    setState(() => _status = 'Retour au direct');
+  }
+
+  /// PLAY/PAUSE: the picture stops; it starts again where it stopped, out of
+  /// the buffer, so nothing is missed.
+  void _playPause() {
+    if (_replaying != null) {
+      unawaited(_player.playOrPause());
+      return;
+    }
+    final paused = _pausedAt;
+    if (paused == null) {
+      _pausedAt = DateTime.now();
+      unawaited(_player.pause());
+      _bannerTimer?.cancel();
+      setState(() {
+        _banner = true;
+        _status = 'Pause · ▶ pour reprendre';
+      });
+      return;
+    }
+    _pausedAt = null;
+    final shownAt = paused.subtract(_delay);
+    unawaited(_applyDelay(DateTime.now().difference(shownAt), resume: true));
+  }
+
+  /// "Watch from the start": out of the buffer when it goes back that far,
+  /// else from the provider's replay.
+  Future<void> _fromStart(MaTvProgram cur) async {
+    final info = await _client.shiftInfo(_channel);
+    if (!mounted) return;
+    if (info != null && info.available && info.holds(cur.start)) {
+      _close();
+      await _applyDelay(DateTime.now().difference(cur.start));
+      return;
+    }
+    if (_channel.replayDays > 0) {
+      _playReplay(cur);
+      return;
+    }
+    setState(() => _status = 'Le début n’est plus gardé');
+    _close();
+  }
+
   // ---------------------------------------------------------------- overlays
   void _close() {
     setState(() => _overlay = _Overlay.none);
@@ -406,8 +533,8 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     final ch = _channel;
     final fav = _favorites.contains(ch.id);
     return [
-      if (_replaying != null) (icon: Icons.live_tv_rounded, label: 'Revenir au direct'),
-      if (ch.replayDays > 0 && ch.programAt(_now) != null && _replaying == null)
+      if (_replaying != null || _delay > Duration.zero) (icon: Icons.live_tv_rounded, label: 'Revenir au direct'),
+      if (ch.programAt(_now) != null && _replaying == null)
         (icon: Icons.restart_alt_rounded, label: 'Revoir depuis le début'),
       if (ch.replayDays > 0) (icon: Icons.history_rounded, label: 'Replay de la chaîne'),
       (icon: fav ? Icons.star_rounded : Icons.star_border_rounded, label: fav ? 'Retirer des favoris' : 'Ajouter aux favoris'),
@@ -441,7 +568,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
         _tune(immediate: true);
       case 'Revoir depuis le début':
         final cur = _guidePrograms.where((p) => p.isOnAt(DateTime.now())).firstOrNull ?? _channel.programAt(DateTime.now());
-        if (cur != null) _playReplay(cur);
+        if (cur != null) await _fromStart(cur);
       case 'Replay de la chaîne':
         await _openReplay();
       case 'Sources':
@@ -606,8 +733,11 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
   // ---------------------------------------------------------------- keys
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (_overlay == _Overlay.sources) return KeyEventResult.ignored; // the panel has the keys
-    if (!event.isActionable) return KeyEventResult.handled;
     final key = event.logicalKey;
+    // OK on the picture: a short press opens the list (or goes to the number
+    // typed), a long one the options. Told apart when the key comes up.
+    if (_overlay == _Overlay.none && key.isSelectKey) return _selectKey(event);
+    if (!event.isActionable) return KeyEventResult.handled;
     final digit = _digitOf(key);
     if (digit != null && _overlay == _Overlay.none) {
       _digit(digit);
@@ -625,8 +755,8 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
         break;
     }
     if (key.isBackKey) {
-      if (_replaying != null) {
-        _tune(immediate: true);
+      if (_replaying != null || _delay > Duration.zero || _pausedAt != null) {
+        _goLive();
         return KeyEventResult.handled;
       }
       Navigator.of(context).maybePop();
@@ -640,25 +770,16 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
       _zap(-1);
       return KeyEventResult.handled;
     }
-    if (key.isLeftKey) {
-      _openList();
+    if (key.isLeftKey || key == LogicalKeyboardKey.mediaRewind) {
+      _seekBy(-30);
       return KeyEventResult.handled;
     }
-    if (key.isRightKey) {
-      if (!widget.kids) setState(() => _overlay = _Overlay.sources);
-      return KeyEventResult.handled;
-    }
-    if (key.isSelectKey && event is KeyDownEvent) {
-      if (_number.isNotEmpty) {
-        _numberTimer?.cancel();
-        unawaited(_goNumber());
-      } else {
-        unawaited(_openGuide());
-      }
+    if (key.isRightKey || key == LogicalKeyboardKey.mediaFastForward) {
+      _seekBy(30);
       return KeyEventResult.handled;
     }
     if (key.isContextMenuKey) {
-      unawaited(_toggleFavorite());
+      unawaited(_openGuide());
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.info) {
@@ -666,10 +787,41 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.mediaPlayPause || key == LogicalKeyboardKey.mediaPause || key == LogicalKeyboardKey.mediaPlay) {
-      unawaited(_player.playOrPause());
+      _playPause();
       return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
+  }
+
+  static const _longPress = Duration(milliseconds: 550);
+
+  KeyEventResult _selectKey(KeyEvent event) {
+    if (event is KeyDownEvent) {
+      _selectDownAt = DateTime.now();
+      _selectLongFired = false;
+      return KeyEventResult.handled;
+    }
+    final down = _selectDownAt;
+    if (event is KeyRepeatEvent) {
+      // Remotes repeat a held key: past the delay, it is a long press.
+      if (!_selectLongFired && down != null && DateTime.now().difference(down) > _longPress) {
+        _selectLongFired = true;
+        unawaited(_openGuide());
+      }
+      return KeyEventResult.handled;
+    }
+    _selectDownAt = null;
+    if (down == null || _selectLongFired) return KeyEventResult.handled;
+    if (DateTime.now().difference(down) > _longPress) {
+      // A remote that doesn't repeat: the length of the press tells.
+      unawaited(_openGuide());
+    } else if (_number.isNotEmpty) {
+      _numberTimer?.cancel();
+      unawaited(_goNumber());
+    } else {
+      _openList();
+    }
+    return KeyEventResult.handled;
   }
 
   String? _digitOf(LogicalKeyboardKey key) {
@@ -835,9 +987,11 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
                       status: _status,
                       categoryLabel: _catLabel,
                       favorite: _favorites.contains(ch.id),
-                      replayLabel: _replaying == null
-                          ? null
-                          : 'Replay · ${_replaying!.title} · ${maTvDay(_replaying!.start, _now)} ${maTvRange(_replaying!)}',
+                      replayLabel: _replaying != null
+                          ? 'Replay · ${_replaying!.title} · ${maTvDay(_replaying!.start, _now)} ${maTvRange(_replaying!)}'
+                          : (_delay > Duration.zero
+                                ? 'Différé ${fmtDelay(_delay)} · Retour pour revenir au direct'
+                                : null),
                     ),
                   ),
                 if (_number.isNotEmpty)
@@ -848,6 +1002,19 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
                       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
                       decoration: BoxDecoration(color: MaTvColors.panel, borderRadius: BorderRadius.circular(12)),
                       child: Text(_number, style: const TextStyle(color: MaTvColors.ink, fontSize: 40, fontWeight: FontWeight.w800)),
+                    ),
+                  ),
+                if (_delay > Duration.zero && !_banner && _overlay == _Overlay.none)
+                  Positioned(
+                    top: 24,
+                    right: 32,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(color: MaTvColors.panel, borderRadius: BorderRadius.circular(10)),
+                      child: Text(
+                        'Différé ${fmtDelay(_delay)}',
+                        style: const TextStyle(color: MaTvColors.ink, fontSize: 16, fontWeight: FontWeight.w700),
+                      ),
                     ),
                   ),
                 if (_touch && _banner && _overlay == _Overlay.none) _touchBar(),
@@ -904,6 +1071,9 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
             b(Icons.arrow_back_rounded, 'Fermer', () => Navigator.of(context).maybePop()),
             b(Icons.keyboard_arrow_up_rounded, 'Chaîne précédente', () => _zap(-1)),
             b(Icons.keyboard_arrow_down_rounded, 'Chaîne suivante', () => _zap(1)),
+            b(Icons.replay_30_rounded, 'Reculer de 30 s', () => _seekBy(-30)),
+            b(Icons.forward_30_rounded, 'Avancer de 30 s', () => _seekBy(30)),
+            if (_delay > Duration.zero || _replaying != null) b(Icons.live_tv_rounded, 'Direct', _goLive),
             b(Icons.list_rounded, 'Liste', _openList),
             b(Icons.info_outline_rounded, 'Guide', () => unawaited(_openGuide())),
             b(Icons.grid_view_rounded, 'Grille', () => unawaited(_openGrid())),

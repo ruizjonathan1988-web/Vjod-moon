@@ -148,6 +148,37 @@ class MaTvChannel {
   }
 }
 
+/// The seedbox's buffer of a channel: from when it goes back.
+class MaTvShift {
+  final DateTime? from;
+  final bool available;
+  final int maxMinutes;
+
+  const MaTvShift({this.from, this.available = true, this.maxMinutes = 30});
+
+  static MaTvShift fromJson(Object? json) {
+    if (json is! Map || json['off'] == true) return const MaTvShift(available: false);
+    final f = json['from'];
+    return MaTvShift(
+      from: f is num ? DateTime.fromMillisecondsSinceEpoch((f * 1000).round()) : null,
+      maxMinutes: json['max_min'] is num ? (json['max_min'] as num).round() : 30,
+    );
+  }
+
+  /// The delay to use when [wanted] is asked for at [now]: no further back
+  /// than the buffer goes (a few seconds of margin), never below zero.
+  Duration clamp(Duration wanted, DateTime now) {
+    final start = from;
+    if (start == null) return Duration.zero;
+    final most = now.difference(start) - const Duration(seconds: 3);
+    if (most <= Duration.zero) return Duration.zero;
+    return wanted > most ? most : (wanted < Duration.zero ? Duration.zero : wanted);
+  }
+
+  /// Whether the buffer holds [at].
+  bool holds(DateTime at) => from != null && !at.isBefore(from!);
+}
+
 /// Reads Ma TV. Every call fails quietly (null) so the screens can offer the
 /// Jellyfin guide when the seedbox can't be reached.
 class MaTvClient {
@@ -268,6 +299,20 @@ class MaTvClient {
 
   /// The relay address playing [channel] live.
   Uri? liveUri(MaTvChannel channel) => server?.endpoint('/tv/play/${channel.id}.ts', _who);
+
+  /// The channel from [at] onwards, out of the seedbox's buffer of the last
+  /// minutes; it catches up with live as it plays.
+  Uri? shiftUri(MaTvChannel channel, DateTime at) => server?.endpoint('/tv/shift/${channel.id}.ts', {
+    ..._who,
+    'at': '${at.millisecondsSinceEpoch ~/ 1000}',
+  });
+
+  /// How far back the seedbox's buffer of [channel] goes. Null when it can't
+  /// be read; [MaTvShift.available] false when the seedbox keeps none.
+  Future<MaTvShift?> shiftInfo(MaTvChannel channel) async {
+    final json = await _get('/tv/api/shift', {'id': channel.id});
+    return json == null ? null : MaTvShift.fromJson(json);
+  }
 
   /// A past programme (or the current one from its start), when the provider
   /// keeps it.
