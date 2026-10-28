@@ -103,6 +103,11 @@ class TvSource {
   final int? keyMs;
   final String where;
 
+  /// The real server behind the stream, and whether a better source already
+  /// goes through it (it would fall with it, so the panel files it away).
+  final String server;
+  final bool duplicate;
+
   const TvSource({
     required this.key,
     required this.rank,
@@ -125,6 +130,8 @@ class TvSource {
     this.liveCuts,
     this.keyMs,
     this.where = '',
+    this.server = '',
+    this.duplicate = false,
   });
 
   factory TvSource.fromJson(Map<String, dynamic> j) => TvSource(
@@ -149,6 +156,8 @@ class TvSource {
     liveCuts: (j['live_cuts'] as num?)?.toInt(),
     keyMs: (j['key_ms'] as num?)?.toInt(),
     where: j['where']?.toString() ?? '',
+    server: j['server']?.toString() ?? '',
+    duplicate: j['dup'] == true,
   );
 
   /// "1080p", or the quality the provider announces when never measured.

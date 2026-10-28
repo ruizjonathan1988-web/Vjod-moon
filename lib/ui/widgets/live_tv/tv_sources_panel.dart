@@ -58,8 +58,19 @@ class _TvSourcesPanelState extends State<TvSourcesPanel> {
   bool get _french => Localizations.localeOf(context).languageCode == 'fr';
   String _t(String fr, String en) => _french ? fr : en;
 
-  /// Row 0 is "automatic", then one row per source.
-  int get _rows => 1 + (_data?.sources.length ?? 0);
+  bool _showAll = false;
+
+  /// One source per real server up front: the others would fall with it, so
+  /// they wait behind "see the others" unless one plays or was chosen.
+  List<TvSource> get _visible {
+    final all = _data?.sources ?? const <TvSource>[];
+    return _showAll ? all : [for (final s in all) if (!s.duplicate) s];
+  }
+
+  int get _hidden => (_data?.sources.length ?? 0) - _visible.length;
+
+  /// Row 0 is "automatic", then the sources, then "see the others".
+  int get _rows => 1 + _visible.length + (_hidden > 0 ? 1 : 0);
 
   @override
   void initState() {
@@ -90,7 +101,8 @@ class _TvSourcesPanelState extends State<TvSourcesPanel> {
       if (data == null) return;
       _data = data;
       if (placeFocus) {
-        final playing = data.sources.indexWhere((s) => s.playing);
+        final shown = _visible;
+        final playing = shown.indexWhere((s) => s.playing);
         _index = playing >= 0 ? playing + 1 : (data.hasChoice ? 1 : 0);
       }
       _index = _index.clamp(0, _rows - 1);
@@ -100,7 +112,11 @@ class _TvSourcesPanelState extends State<TvSourcesPanel> {
   Future<void> _pick(int row, {required bool sticky}) async {
     final data = _data;
     if (data == null || _busy) return;
-    final source = row == 0 ? null : data.sources[row - 1];
+    if (row > _visible.length) {
+      setState(() => _showAll = true);
+      return;
+    }
+    final source = row == 0 ? null : _visible[row - 1];
     setState(() => _busy = true);
     final result = await widget.client.prefer(data.id, source?.key, sticky: sticky);
     if (!mounted) return;
@@ -264,7 +280,8 @@ class _TvSourcesPanelState extends State<TvSourcesPanel> {
 
   Widget _buildRow(TvChannelSources data, int row) {
     final selected = row == _index;
-    final source = row == 0 ? null : data.sources[row - 1];
+    if (row > _visible.length) return _buildMoreRow(row, selected);
+    final source = row == 0 ? null : _visible[row - 1];
     final title = source == null
         ? _t('Automatique', 'Automatic')
         : '${_t('Source', 'Source')} ${source.rank}';
@@ -324,6 +341,30 @@ class _TvSourcesPanelState extends State<TvSourcesPanel> {
             else
               Wrap(spacing: 6, children: badges),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMoreRow(int row, bool selected) {
+    return GestureDetector(
+      onTap: () {
+        setState(() => _index = row);
+        setState(() => _showAll = true);
+      },
+      child: Container(
+        height: 50,
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        alignment: Alignment.centerLeft,
+        decoration: BoxDecoration(
+          color: selected ? const Color(0x26EDEBE6) : const Color(0x0DEDEBE6),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: selected ? _ink : Colors.transparent, width: 2),
+        ),
+        child: Text(
+          _t('Voir les $_hidden autres (même serveur)', 'See the other $_hidden (same server)'),
+          style: const TextStyle(color: _mute, fontSize: 14.5, fontWeight: FontWeight.w600),
         ),
       ),
     );
