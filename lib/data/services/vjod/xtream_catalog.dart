@@ -628,6 +628,33 @@ class XtreamCatalog {
 
   Future<List<XtreamTitle>>? _titles;
 
+  /// Bumped each time a catalogue lands in memory, so posters can tag what
+  /// the provider has without waiting on it.
+  static final loaded = ValueNotifier<int>(0);
+
+  Map<String, List<XtreamTitle>>? _byTmdb;
+
+  void _index(List<XtreamTitle> all) {
+    final m = <String, List<XtreamTitle>>{};
+    for (final t in all) {
+      if (t.tmdbId.isEmpty) continue;
+      (m['${t.kind.name}:${t.tmdbId}'] ??= []).add(t);
+    }
+    _byTmdb = m;
+    loaded.value++;
+  }
+
+  /// The copies of a TMDB title in the catalogue already in memory: empty
+  /// while it loads (then [loaded] fires) or when the provider lacks it.
+  List<XtreamTitle> copiesNow(XtreamKind kind, String tmdbId) {
+    final index = _byTmdb;
+    if (index == null) {
+      warmUp();
+      return const [];
+    }
+    return index['${kind.name}:$tmdbId'] ?? const [];
+  }
+
   Uri _api(String action, [Map<String, String> extra = const {}]) =>
       Uri.parse('$base/player_api.php').replace(
         queryParameters: {
@@ -774,6 +801,7 @@ class XtreamCatalog {
       }
       if (fresh == null) return;
       _titles = Future.value(fresh);
+      _index(fresh);
     } catch (_) {
       // Tried again at the next check.
     } finally {
@@ -782,7 +810,11 @@ class XtreamCatalog {
   }
 
   Future<List<XtreamTitle>> _all() {
+    final fresh = _titles == null;
     final future = _titles ??= _load();
+    if (fresh) {
+      unawaited(future.then<void>(_index, onError: (Object _) {}));
+    }
     future.catchError((_) {
       if (identical(_titles, future)) _titles = null;
       return <XtreamTitle>[];

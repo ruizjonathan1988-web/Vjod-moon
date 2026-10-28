@@ -1,3 +1,4 @@
+import '../../../widgets/vjod/provider_play.dart';
 import 'dart:async';
 import 'dart:math' show Random;
 import 'dart:ui' show ImageFilter;
@@ -5714,18 +5715,29 @@ class _ModernDetailContentState extends State<ModernDetailContent> {
           _ => 2,
         };
         final poster = d.posterPath;
+        final focus = tiles.isEmpty ? first : null;
+        void openPage() => context.push(
+          Destinations.seerrMedia(
+            '${d.id}',
+            mediaType: type,
+            title: d.title ?? d.name ?? '',
+          ),
+        );
         tiles.add(
-          _vjodPoster(
-            url: poster == null ? null : 'https://image.tmdb.org/t/p/w342$poster',
-            kind: kind,
-            focusNode: tiles.isEmpty ? first : null,
-            onTap: () => context.push(
-              Destinations.seerrMedia(
-                '${d.id}',
-                mediaType: type,
-                title: d.title ?? d.name ?? '',
-              ),
-            ),
+          // Not in the library but at the provider: "IPTV", and a press plays it.
+          ProviderCatalogListener(
+            builder: (context) {
+              final iptv = kind == 2 && providerCopyNow(series: type == 'tv', tmdbId: '${d.id}') != null;
+              return _vjodPoster(
+                url: poster == null ? null : 'https://image.tmdb.org/t/p/w342$poster',
+                kind: iptv ? 3 : kind,
+                focusNode: focus,
+                onTap: () {
+                  if (iptv && playProviderCopy(context, series: type == 'tv', tmdbId: '${d.id}')) return;
+                  openPage();
+                },
+              );
+            },
           ),
         );
         if (tiles.length >= 15) break;
@@ -5758,6 +5770,7 @@ class _ModernDetailContentState extends State<ModernDetailContent> {
     final (label, color) = switch (kind) {
       0 => (l10n.seerrTagReady, AppColorScheme.statusAvailable),
       1 => (l10n.seerrTagRequested, const Color(0xFFE8C46A)),
+      3 => ('IPTV', const Color(0xFF5BD18B)),
       _ => (l10n.vjodRequestIt, AppColorScheme.accent),
     };
     final u = _vjodU;

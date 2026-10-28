@@ -1,3 +1,4 @@
+import 'vjod/provider_play.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_tvos/flutter_tvos.dart'
@@ -111,6 +112,11 @@ class MediaCard extends StatefulWidget {
   /// A title played from the IPTV provider rather than a file of the
   /// server's own, tagged IPTV so it never passes for one.
   final bool isProviderStream;
+
+  /// A title the library lacks: its TMDB id, so the poster says "IPTV" when
+  /// the provider has it instead of offering a request.
+  final String? providerTmdbId;
+  final bool providerSeries;
   final Color? focusColor;
   final bool cardFocusExpansion;
   final FocusNode? focusNode;
@@ -166,6 +172,8 @@ class MediaCard extends StatefulWidget {
     this.seerrStatus,
     this.seerrRequestable = false,
     this.isProviderStream = false,
+    this.providerTmdbId,
+    this.providerSeries = false,
     this.focusColor,
     this.cardFocusExpansion = true,
     this.focusNode,
@@ -430,6 +438,8 @@ class _MediaCardState extends State<MediaCard> with FocusStateMixin {
                       seerrStatus: widget.seerrStatus,
                       seerrRequestable: widget.seerrRequestable,
                       isProviderStream: widget.isProviderStream,
+                      providerTmdbId: widget.providerTmdbId,
+                      providerSeries: widget.providerSeries,
                       imageOverlays: widget.imageOverlays,
                       overlayOccupiesTopLeft: widget.overlayOccupiesTopLeft,
                       animeMarkerItemId: widget.animeMarkerItemId,
@@ -688,6 +698,11 @@ class _CardImage extends StatelessWidget {
   /// A Seerr title not here yet that can be asked for, tagged as such.
   final bool seerrRequestable;
   final bool isProviderStream;
+
+  /// A title the library lacks: its TMDB id, so the poster says "IPTV" when
+  /// the provider has it instead of offering a request.
+  final String? providerTmdbId;
+  final bool providerSeries;
   final List<Widget> imageOverlays;
   final bool overlayOccupiesTopLeft;
   final bool isGenreFallback;
@@ -713,6 +728,8 @@ class _CardImage extends StatelessWidget {
     this.seerrStatus,
     this.seerrRequestable = false,
     this.isProviderStream = false,
+    this.providerTmdbId,
+    this.providerSeries = false,
     this.imageOverlays = const [],
     this.overlayOccupiesTopLeft = false,
     this.isGenreFallback = false,
@@ -859,10 +876,7 @@ class _CardImage extends StatelessWidget {
                           // narrow poster, so the status goes under the type.
                           if (_showSeerrStatusIndicator) ...[
                             const SizedBox(height: 4),
-                            SeerrStatusTag(
-                              status: seerrStatus,
-                              requestable: seerrRequestable,
-                            ),
+                            _statusTag(),
                           ],
                           if (animeMarkerItemId != null || isFavorite)
                             const SizedBox(height: 4),
@@ -887,10 +901,7 @@ class _CardImage extends StatelessWidget {
                   Positioned(
                     top: 6,
                     right: 6,
-                    child: SeerrStatusTag(
-                      status: seerrStatus,
-                      requestable: seerrRequestable,
-                    ),
+                    child: _statusTag(),
                   )
                 else if (!_showSeerrStatusIndicator && _showWatchedIndicator)
                   Positioned(top: 6, right: 6, child: _buildWatchedIndicator()),
@@ -967,6 +978,19 @@ class _CardImage extends StatelessWidget {
 
   bool get _showSeerrStatusIndicator =>
       SeerrStatusTag.shows(seerrStatus, requestable: seerrRequestable);
+
+  /// Seerr's tag, or "IPTV" when the provider has the title the library lacks.
+  Widget _statusTag() {
+    final seerr = SeerrStatusTag(status: seerrStatus, requestable: seerrRequestable);
+    final tmdb = providerTmdbId;
+    if (tmdb == null) return seerr;
+    return ProviderCatalogListener(
+      builder: (context) {
+        final copy = providerCopyNow(series: providerSeries, tmdbId: tmdb);
+        return copy == null ? seerr : ProviderIptvTag(copy: copy);
+      },
+    );
+  }
 
   Widget _buildWatchedIndicator() {
     if (isPlayed) {

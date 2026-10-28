@@ -7,6 +7,7 @@ import 'package:get_it/get_it.dart';
 import '../../../preference/seerr_preferences.dart';
 import '../../../preference/user_preferences.dart';
 import 'tv_playlists.dart';
+import 'tv_sources.dart';
 import 'xtream_cache_store.dart';
 import 'xtream_catalog.dart';
 
@@ -90,6 +91,18 @@ XtreamCatalog? currentProviderCatalog() {
     return null;
   }
   final prefs = getIt<SeerrPreferences>();
+  // Ma TV (IPTV Checker on the seedbox) first: one catalogue drawn from the
+  // best accounts of several providers, played through its relay with a
+  // fallback, and handed out with the TV's address, so nothing to set.
+  final maTv = maTvCatalogAccount();
+  if (maTv != null) {
+    final catalog = XtreamCatalog.forPlaylists([maTv.toPlaylist()]);
+    if (catalog != null) {
+      catalog.serverCatalogUrl = '';
+      catalog.onServerAccount = null;
+      return catalog;
+    }
+  }
   final serverUrl = prefs.vjodCatalogServerUrl;
   final fromServer = serverUrl.isEmpty ? null : _serverAccount(prefs);
   if (serverUrl.isNotEmpty && fromServer == null) {
@@ -109,11 +122,20 @@ XtreamCatalog? currentProviderCatalog() {
   return catalog;
 }
 
+/// Ma TV's films and series, read like a provider's: its Xtream-shaped
+/// address on the seedbox, "vjod" and the TV's key as login.
+XtreamAccount? maTvCatalogAccount() {
+  final server = TvSourcesClient().server;
+  if (server == null) return null;
+  return XtreamAccount(portal: '${server.url}/tv/xc', username: 'vjod', password: server.key);
+}
+
 /// Whether this device plays the provider's catalogue with the account the
 /// seedbox hands out rather than one saved in a profile.
 bool providerAccountFromServer() {
   final getIt = GetIt.instance;
   if (!getIt.isRegistered<SeerrPreferences>()) return false;
+  if (maTvCatalogAccount() != null) return true;
   final prefs = getIt<SeerrPreferences>();
   return (prefs.vjodCatalogServerUrl.isNotEmpty &&
           _serverAccount(prefs) != null) ||
