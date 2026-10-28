@@ -98,6 +98,11 @@ class TvSource {
   final double? liveMinutes;
   final int? liveCuts;
 
+  /// When the first full picture arrived in the test, ms (a slow one makes a
+  /// slow zap), and where the server is.
+  final int? keyMs;
+  final String where;
+
   const TvSource({
     required this.key,
     required this.rank,
@@ -118,6 +123,8 @@ class TvSource {
     this.fluidity,
     this.liveMinutes,
     this.liveCuts,
+    this.keyMs,
+    this.where = '',
   });
 
   factory TvSource.fromJson(Map<String, dynamic> j) => TvSource(
@@ -140,6 +147,8 @@ class TvSource {
     fluidity: (j['flu'] as num?)?.toInt(),
     liveMinutes: (j['live_min'] as num?)?.toDouble(),
     liveCuts: (j['live_cuts'] as num?)?.toInt(),
+    keyMs: (j['key_ms'] as num?)?.toInt(),
+    where: j['where']?.toString() ?? '',
   );
 
   /// "1080p", or the quality the provider announces when never measured.
@@ -163,6 +172,8 @@ class TvSource {
     if (b != null && b > 0) parts.add('${_decimal(b / 1000, french)} Mb/s');
     final ms = openMs;
     if (ms != null && ms > 0) parts.add('${_decimal(ms / 1000, french)} s');
+    final key = keyMs;
+    if (key != null && key > 0) parts.add(french ? 'image nette ${_decimal(key / 1000, french)} s' : 'picture ${_decimal(key / 1000, french)} s');
     final flu = fluidity;
     if (flu != null) parts.add(french ? 'fluidité $flu' : 'smoothness $flu');
     final lm = liveMinutes;
