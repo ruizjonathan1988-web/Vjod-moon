@@ -22,6 +22,7 @@ import '../../../auth/repositories/session_repository.dart';
 import '../../../preference/seerr_preferences.dart';
 import '../../../util/platform_detection.dart';
 import 'jellyfin_vjod_config.dart';
+import 'ma_tv_alerts.dart';
 import 'tv_sources.dart';
 
 class MaTvCategory {
@@ -184,6 +185,13 @@ class MaTvClient {
     } catch (_) {
       return null;
     }
+  }
+
+  /// What Ma TV wants the administrator to know (failed night, account about
+  /// to expire, channel with no working source). Null when it can't be read.
+  Future<List<MaTvAlert>?> alerts() async {
+    final json = await _get('/tv/api/alerts');
+    return json == null ? null : parseMaTvAlerts(json);
   }
 
   Future<List<MaTvCategory>?> categories({bool fresh = false}) async {
