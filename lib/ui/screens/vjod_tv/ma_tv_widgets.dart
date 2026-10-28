@@ -1,5 +1,5 @@
 // The pieces of VJOD's own TV screens (Ma TV): category column, channel rows,
-// details pane, the banner shown on each tune, the mini-guide on OK and the
+// details pane, the banner shown on each tune, the options (long OK or MENU) and the
 // channel list opened with LEFT over the picture. They only draw what they
 // are given, so the screen captures can show them without a seedbox.
 import 'dart:ui' show FontFeature;
@@ -632,7 +632,7 @@ class MaTvBanner extends StatelessWidget {
   }
 }
 
-/// What OK opens over the picture: the programme on, its summary, the next
+/// What a long OK (or MENU) opens over the picture: the programme on, its summary, the next
 /// ones, and a row of actions (watch from the start, favourite, sources).
 class MaTvMiniGuide extends StatelessWidget {
   final MaTvChannel channel;
@@ -892,9 +892,10 @@ class _KeyHints extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         hint(Icons.unfold_more_rounded, 'chaînes'),
-        hint(Icons.chevron_left_rounded, 'liste'),
-        hint(Icons.chevron_right_rounded, 'sources'),
-        hint(Icons.radio_button_checked_rounded, 'guide'),
+        hint(Icons.radio_button_checked_rounded, 'liste'),
+        hint(Icons.replay_30_rounded, '−30 s'),
+        hint(Icons.forward_30_rounded, '+30 s'),
+        hint(Icons.menu_rounded, 'options'),
       ],
     );
   }
