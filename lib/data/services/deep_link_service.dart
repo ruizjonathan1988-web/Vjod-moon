@@ -49,6 +49,8 @@ class DeepLinkService {
     if (uri.scheme != 'moonfin') return null;
     // A playlist link shared from another app: open the TV tab with it ready
     // to save.
+    // The "VJOD TV" icon: Ma TV, straight onto the last channel watched.
+    if (uri.host == 'matv') return '/live-tv/guide?autoplay=1';
     if (uri.host == 'tvadd') {
       final u = uri.queryParameters['u'];
       if (u == null || u.isEmpty) return null;

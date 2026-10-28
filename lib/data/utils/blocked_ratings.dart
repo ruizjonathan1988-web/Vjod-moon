@@ -68,7 +68,9 @@ List<AggregatedItem> withoutBlockedItems(
 }
 
 bool _isVjodSettings(AggregatedItem item) =>
-    item.type == 'BoxSet' && item.name == vjodConfigCollectionName;
+    item.type == 'BoxSet' &&
+    (item.name == vjodConfigCollectionName ||
+        item.name == vjodTvCollectionName);
 
 /// [items] with the blocked ones and the unrated ones dropped.
 ///
