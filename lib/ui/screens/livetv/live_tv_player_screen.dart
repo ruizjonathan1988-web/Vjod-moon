@@ -44,6 +44,9 @@ import '../../util/error_message.dart';
 import 'channel_tune_observer.dart';
 import 'live_tv_guide_screen.dart';
 import '../../../data/services/vjod/channel_grouping.dart';
+import '../../../data/services/vjod/jellyfin_vjod_config.dart';
+import '../../../data/services/vjod/tv_sources.dart';
+import '../../widgets/live_tv/tv_sources_panel.dart';
 import '../../screensaver/screensaver_controller.dart';
 
 const _kGuideResizeDuration = Duration(milliseconds: 250);
@@ -107,6 +110,15 @@ class _LiveTvPlayerScreenState extends State<LiveTvPlayerScreen>
   final _guideBackController = LiveTvGuideBackController();
   bool _isCarouselOpen = false;
   int _carouselSelectionRevision = 0;
+
+  /// IPTV Checker's "Ma TV": the sources panel (RIGHT) and the line telling
+  /// which source feeds the channel, shown in the banner.
+  final _tvSources = TvSourcesClient();
+  bool _isSourcesOpen = false;
+  String? _sourceSummary;
+  String? _sourceNotice;
+  Timer? _sourceNoticeTimer;
+  int _sourceRequestRevision = 0;
 
   /// Guide data for the channel changer, warmed at tune time so the first UP
   /// press opens onto real cards. TV-only, like the changer itself.
@@ -312,6 +324,7 @@ class _LiveTvPlayerScreenState extends State<LiveTvPlayerScreen>
     _carouselPrewarm?.dispose();
     _hideTimer?.cancel();
     _numberEntryTimer?.cancel();
+    _sourceNoticeTimer?.cancel();
     _seekCommitTimer?.cancel();
     _rewindWindowSub?.cancel();
     _programRefreshTimer?.cancel();
@@ -811,8 +824,112 @@ class _LiveTvPlayerScreenState extends State<LiveTvPlayerScreen>
     }
     _applySubtitleStyle(force: true);
     unawaited(_fetchCurrentProgram());
+    unawaited(_fetchSourceSummary());
     _warmChannelCarousel();
     return true;
+  }
+
+  /// "Source 1 · 1080p · 50 i/s" for the banner, when the channel is one of
+  /// Ma TV's. Quiet when it isn't or the seedbox doesn't answer.
+  Future<void> _fetchSourceSummary() async {
+    final revision = ++_sourceRequestRevision;
+    final number = lineupNumber(_currentChannel.number);
+    if (mounted) setState(() => _sourceSummary = null);
+    if (number == null || !_tvSources.isConfigured) return;
+    // The relay reports the source once the stream runs: give it a moment.
+    await Future<void>.delayed(const Duration(milliseconds: 1200));
+    final data = await _tvSources.channel(number);
+    if (!mounted || revision != _sourceRequestRevision) return;
+    final source = data?.current;
+    if (source == null) return;
+    final details = source.details(french: _isFrench);
+    setState(() {
+      _sourceSummary =
+          '${_isFrench ? 'Source' : 'Source'} ${source.rank}/${data!.sources.length}'
+          '${details.isEmpty ? '' : ' · $details'}';
+    });
+  }
+
+  bool get _isFrench => Localizations.localeOf(context).languageCode == 'fr';
+
+  Future<void> _openSources() async {
+    if (_isSourcesOpen) return;
+    if (!_tvSources.isConfigured) {
+      await syncVjodConfigFromServer();
+      if (!mounted) return;
+    }
+    final number = lineupNumber(_currentChannel.number);
+    if (!_tvSources.isConfigured || number == null) {
+      _showSourceNotice(_isFrench
+          ? "Plusieurs sources : branche « Ma TV » d'IPTV Checker sur Jellyfin"
+          : 'Several sources: connect IPTV Checker "Ma TV" to Jellyfin');
+      return;
+    }
+    _hideTimer?.cancel();
+    setState(() {
+      _isSourcesOpen = true;
+      _infoVisible = false;
+      _infoFromZap = false;
+    });
+  }
+
+  void _closeSources() {
+    if (!_isSourcesOpen) return;
+    setState(() => _isSourcesOpen = false);
+    _suppressBackNavigation();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focusPlayerRoot();
+    });
+  }
+
+  void _showSourceNotice(String text) {
+    _sourceNoticeTimer?.cancel();
+    setState(() => _sourceNotice = text);
+    _sourceNoticeTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted) setState(() => _sourceNotice = null);
+    });
+  }
+
+  void _onSourcePicked(String text) {
+    _showSourceNotice(text);
+    // The relay swaps streams in about a second; refresh the banner after.
+    Future<void>.delayed(const Duration(milliseconds: 1500), () {
+      if (mounted) unawaited(_fetchSourceSummary());
+    });
+  }
+
+  Widget _buildSourcesPanel() {
+    return Positioned.fill(
+      child: TvSourcesPanel(
+        channelNumber: lineupNumber(_currentChannel.number) ?? 0,
+        channelName: _currentChannel.name,
+        client: _tvSources,
+        onClose: _closeSources,
+        onPicked: _onSourcePicked,
+      ),
+    );
+  }
+
+  Widget _buildSourceNotice() {
+    return Positioned(
+      top: MediaQuery.paddingOf(context).top + 24,
+      right: 24,
+      child: IgnorePointer(
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 420),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: const Color(0xE60B0B0D),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0x33EDEBE6)),
+          ),
+          child: Text(
+            _sourceNotice ?? '',
+            style: const TextStyle(color: Color(0xFFEDEBE6), fontSize: 15, fontWeight: FontWeight.w600),
+          ),
+        ),
+      ),
+    );
   }
 
   /// A failure that arrives once a channel is playing is the manager saying
@@ -2139,7 +2256,7 @@ class _LiveTvPlayerScreenState extends State<LiveTvPlayerScreen>
 
     // While either in-player picker is open it owns all navigation keys.
     // Let them flow to the embedded guide's focus subtree.
-    if (_isGuidePickerOpen || _isCarouselOpen) {
+    if (_isGuidePickerOpen || _isCarouselOpen || _isSourcesOpen) {
       return KeyEventResult.ignored;
     }
 
@@ -2168,6 +2285,20 @@ class _LiveTvPlayerScreenState extends State<LiveTvPlayerScreen>
     if (PlatformDetection.isTV && (!_infoVisible || _infoFromZap)) {
       if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
         _zapBy(1);
+        return KeyEventResult.handled;
+      }
+      // Like a box: RIGHT lists the channel's sources (Ma TV), LEFT the
+      // channels with what is on.
+      if (event.logicalKey == LogicalKeyboardKey.arrowRight &&
+          event is KeyDownEvent) {
+        _infoFromZap = false;
+        unawaited(_openSources());
+        return KeyEventResult.handled;
+      }
+      if (event.logicalKey == LogicalKeyboardKey.arrowLeft &&
+          event is KeyDownEvent) {
+        _infoFromZap = false;
+        unawaited(_showChannelPicker());
         return KeyEventResult.handled;
       }
       if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
@@ -2299,6 +2430,10 @@ class _LiveTvPlayerScreenState extends State<LiveTvPlayerScreen>
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
+        if (_isSourcesOpen) {
+          _closeSources();
+          return;
+        }
         if (_isCarouselOpen) {
           _dismissChannelCarousel();
           return;
@@ -2374,10 +2509,14 @@ class _LiveTvPlayerScreenState extends State<LiveTvPlayerScreen>
                   if (_isCarouselOpen) _buildChannelCarouselOverlay(),
                   if (_infoVisible &&
                       !_isGuidePickerOpen &&
-                      !_isCarouselOpen) ...[
+                      !_isCarouselOpen &&
+                      !_isSourcesOpen) ...[
                     _buildTopOverlay(),
                     _buildBottomOverlay(),
                   ],
+                  if (_isSourcesOpen) _buildSourcesPanel(),
+                  if (_sourceNotice != null && !_isSourcesOpen)
+                    _buildSourceNotice(),
                   if (_channelFailed &&
                       !_isGuidePickerOpen &&
                       !_isCarouselOpen)
@@ -2662,9 +2801,31 @@ class _LiveTvPlayerScreenState extends State<LiveTvPlayerScreen>
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
+                  if (_sourceSummary != null)
+                    Text(
+                      PlatformDetection.isTV
+                          ? '$_sourceSummary   ▸ ${_isFrench ? 'sources' : 'sources'}'
+                          : _sourceSummary!,
+                      style: const TextStyle(
+                        color: Colors.white54,
+                        fontSize: AppTypography.fontSizeSm,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                 ],
               ),
             ),
+            if (!PlatformDetection.isTV && _sourceSummary != null)
+              IconButton(
+                tooltip: _isFrench ? 'Sources' : 'Sources',
+                onPressed: () => unawaited(_openSources()),
+                icon: const Icon(
+                  Icons.layers_outlined,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
             if (_currentProgram?.hasTimer == true)
               const Padding(
                 padding: EdgeInsets.only(left: AppSpacing.spaceSm),

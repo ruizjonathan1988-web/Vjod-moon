@@ -149,6 +149,13 @@ class SeerrPreferences {
   Future<void> setVjodJellyfinProviderAccountJson(String value) =>
       _store.setString('vjod_jellyfin_provider_account', value);
 
+  /// Where IPTV Checker's "Ma TV" answers and its key, as JSON
+  /// (`TvSourcesServer.toJson`). Per device; empty until Jellyfin's
+  /// "VJOD – TV" collection or a pasted code sets it.
+  String get vjodTvSourcesJson => _store.getString('vjod_tv_sources') ?? '';
+  Future<void> setVjodTvSourcesJson(String value) =>
+      _store.setString('vjod_tv_sources', value);
+
   /// The provider account the seedbox's file last carried, as JSON. Kept per
   /// device so every profile plays with the account Jellyfin is set to.
   String get vjodCatalogServerAccountJson =>

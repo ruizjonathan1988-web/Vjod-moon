@@ -5,12 +5,17 @@ import 'package:get_it/get_it.dart';
 import 'package:server_core/server_core.dart';
 
 import '../../../preference/seerr_preferences.dart';
+import 'tv_sources.dart';
 import 'xtream_catalog.dart';
 
 /// The Jellyfin collection the seedbox writes VJOD's settings into each
 /// night. Every signed-in viewer can read it, so a device sets itself up
 /// with nothing to type.
 const vjodConfigCollectionName = 'VJOD – réglages';
+
+/// The collection IPTV Checker writes the address of its "Ma TV" into, kept
+/// apart so the seedbox's nightly rewrite of the settings never drops it.
+const vjodTvCollectionName = 'VJOD – TV';
 
 /// What the settings collection carries: the provider account every device
 /// of the house plays with, and (only if written by hand) a catalogue
@@ -73,6 +78,17 @@ Future<bool> syncVjodConfigFromServer() async {
     );
     final items = data['Items'];
     if (items is! List) return false;
+    // IPTV Checker's "Ma TV" sits in a collection of its own ("VJOD – TV"),
+    // so the seedbox rewriting its settings never drops it.
+    var tvChanged = false;
+    for (final item in items) {
+      if (item is! Map) continue;
+      final tv = tvServerFromOverview(item['Overview']?.toString());
+      if (tv != null) {
+        tvChanged = await saveTvSourcesServer(tv);
+        break;
+      }
+    }
     for (final item in items) {
       if (item is! Map) continue;
       final config = configFromOverview(item['Overview']?.toString());
@@ -93,8 +109,9 @@ Future<bool> syncVjodConfigFromServer() async {
         await prefs.setVjodCatalogServerAccountJson('');
         changed = true;
       }
-      return changed;
+      return changed || tvChanged;
     }
+    return tvChanged;
   } catch (_) {
     // A server that doesn't answer leaves the device as it was.
   }
