@@ -103,6 +103,7 @@ import 'home_view_model.dart';
 import '../../widgets/seerr/seerr_genre_label.dart';
 import '../../widgets/skeleton/skeleton_home_row.dart';
 import '../../widgets/skeleton/skeleton_shimmer.dart';
+import '../../widgets/vjod/provider_play.dart';
 
 Color get _homeBackground => AppColorScheme.background;
 
@@ -766,6 +767,17 @@ class _ContentRows extends StatefulWidget {
 class _ContentRowsState extends State<_ContentRows>
     with WidgetsBindingObserver, WindowListener
     implements AudioOwnable {
+  /// The TMDB id of a Seerr card for a title the library doesn't hold, the
+  /// ones a provider copy can stand in for; null otherwise.
+  String? _iptvTmdb(AggregatedItem item) {
+    if (item.serverId != 'seerr') return null;
+    final status = item.seerrStatus;
+    if (status == SeerrMediaStatus.available || status == SeerrMediaStatus.partiallyAvailable) return null;
+    final type = item.seerrMediaType;
+    if (type != 'movie' && type != 'tv') return null;
+    return item.id;
+  }
+
   /// One focus per family chip of the "Explorer les collections" band at the
   /// end of Home.
   final List<FocusNode> _vjodExploreFocus = [
@@ -5751,6 +5763,8 @@ class _ContentRowsState extends State<_ContentRows>
                     seerrRequestable:
                         item.rawData[HomeViewModel.forYouFlag] == true,
                     isProviderStream: item.isProviderStream,
+                    providerTmdbId: _iptvTmdb(item),
+                    providerSeries: item.seerrMediaType == 'tv',
                     isGenreFallback: (row.rowType == HomeRowType.genres && row.id == 'genres') &&
                         (() {
                           final primaryAr = item.rawData['PrimaryImageAspectRatio'] as num?;
@@ -5796,6 +5810,12 @@ class _ContentRowsState extends State<_ContentRows>
                       onChanged: () => setState(() {}),
                     ),
                     onTap: () {
+                      // A title the library lacks but the provider has: it
+                      // plays from the poster.
+                      if (_iptvTmdb(item) != null &&
+                          playProviderCopy(context, series: item.seerrMediaType == 'tv', tmdbId: _iptvTmdb(item))) {
+                        return;
+                      }
                       if (isV2MobileTouch) {
                         if (_v2Expansion.tapToOpen(previewKey)) {
                           _finishSharedPreview(releaseResources: true);
