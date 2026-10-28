@@ -13,6 +13,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:get_it/get_it.dart';
 import 'package:http/http.dart' as http;
 import 'package:server_core/server_core.dart';
@@ -271,32 +272,116 @@ class MaTvClient {
     });
   }
 
+  /// Download speed from the seedbox to this device, in kb/s.
+  Future<int?> measureKbps({int kb = 2048}) async {
+    final s = server;
+    if (s == null) return null;
+    try {
+      final uri = s.endpoint('/tv/api/speed', {'kb': '$kb'});
+      final watch = Stopwatch()..start();
+      final r = await (_http?.get(uri) ?? http.get(uri)).timeout(const Duration(seconds: 20));
+      watch.stop();
+      if (r.statusCode != 200 || r.bodyBytes.length < 64 * 1024) return null;
+      final ms = watch.elapsedMilliseconds.clamp(1, 1 << 30);
+      return (r.bodyBytes.length * 8 / ms).round();
+    } catch (_) {
+      return null;
+    }
+  }
+
   static void forgetCache() {
     _chanCache.clear();
     _catCache = null;
   }
 }
 
-/// What the device decodes in hardware, asked once to Android: a box that
-/// can't decode HEVC gets H.264 sources first instead of a stuttering picture.
+/// What this device can play and what its connection carries, told to the
+/// relay so it opens a source that fits: H.264 first on a box that can't
+/// decode HEVC, no 4K on a 1080p screen or a thin connection.
 class MaTvDevice {
   static const _channel = MethodChannel('vjod/matv');
-  static String _caps = '';
+  static bool? _hevc;
+  static int? _kbps;
+  static DateTime? _measuredAt;
 
-  static String get capsSync => _caps;
+  /// The choices the viewer cycles through, with their label.
+  static const qualities = [
+    ('auto', 'Auto'),
+    ('2160', '4K'),
+    ('1080', '1080p'),
+    ('720', '720p'),
+    ('480', 'SD (économie)'),
+  ];
+
+  static String get quality {
+    final getIt = GetIt.instance;
+    return getIt.isRegistered<SeerrPreferences>() ? getIt<SeerrPreferences>().maTvQuality : 'auto';
+  }
+
+  static String get qualityLabel => qualities.firstWhere((q) => q.$1 == quality, orElse: () => qualities.first).$2;
+
+  static Future<void> nextQuality() async {
+    final getIt = GetIt.instance;
+    if (!getIt.isRegistered<SeerrPreferences>()) return;
+    final i = qualities.indexWhere((q) => q.$1 == quality);
+    await getIt<SeerrPreferences>().setMaTvQuality(qualities[(i + 1) % qualities.length].$1);
+  }
+
+  /// The tallest picture worth sending: the viewer's ceiling, else the screen's.
+  static int get maxHeight {
+    final q = int.tryParse(quality);
+    if (q != null) return q;
+    try {
+      final view = WidgetsBinding.instance.platformDispatcher.views.first;
+      final size = view.physicalSize;
+      final short = size.width < size.height ? size.width : size.height;
+      if (short >= 2000) return 2160;
+      if (short >= 1000) return 1080;
+      return 720;
+    } catch (_) {
+      return 1080;
+    }
+  }
+
+  /// The connection measured to the seedbox, kb/s (null until measured).
+  static int? get kbps => _kbps;
+
+  /// After repeated stalls the usable rate is lower than measured.
+  static void lowerTo(int kbps) {
+    if (kbps > 0 && (_kbps == null || kbps < _kbps!)) _kbps = kbps;
+  }
+
+  static String get capsSync {
+    final codecs = (_hevc ?? true) ? 'h264,hevc' : 'h264';
+    final bw = _kbps;
+    return '$codecs;maxh=$maxHeight${bw == null ? '' : ';bw=$bw'}';
+  }
 
   static Future<String> caps() async {
-    if (_caps.isNotEmpty) return _caps;
-    var hevc = true;
-    if (PlatformDetection.isAndroid) {
-      try {
-        hevc = await _channel.invokeMethod<bool>('hasHevcDecoder') ?? true;
-      } catch (_) {
-        hevc = true;
+    if (_hevc == null) {
+      var hevc = true;
+      if (PlatformDetection.isAndroid) {
+        try {
+          hevc = await _channel.invokeMethod<bool>('hasHevcDecoder') ?? true;
+        } catch (_) {
+          hevc = true;
+        }
       }
+      _hevc = hevc;
     }
-    _caps = hevc ? 'h264,hevc' : 'h264';
-    return _caps;
+    return capsSync;
+  }
+
+  /// Times a 2 MB download from the seedbox, again after 15 minutes (the Fold
+  /// moves between home Wi-Fi and 4G).
+  static Future<void> measure(MaTvClient client, {bool force = false}) async {
+    final at = _measuredAt;
+    if (!force && at != null && DateTime.now().difference(at) < const Duration(minutes: 15)) return;
+    final k = await client.measureKbps();
+    if (k != null) {
+      _kbps = k;
+      _measuredAt = DateTime.now();
+    }
   }
 }
 

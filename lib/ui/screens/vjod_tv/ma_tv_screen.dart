@@ -132,7 +132,8 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
     _clock = Timer.periodic(const Duration(seconds: 30), (_) {
       if (mounted) setState(() => _now = DateTime.now());
     });
-    unawaited(MaTvDevice.caps());
+    // What this device plays and what the connection carries, for the relay.
+    unawaited(MaTvDevice.caps().then((_) => MaTvDevice.measure(_client)));
     unawaited(_load());
   }
 
