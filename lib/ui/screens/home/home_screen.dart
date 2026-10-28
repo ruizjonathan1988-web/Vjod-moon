@@ -20,6 +20,7 @@ import 'package:playback_core/playback_core.dart';
 import 'package:server_core/server_core.dart' hide ImageType;
 import 'package:window_manager/window_manager.dart';
 
+import '../../../data/services/vjod/ma_tv_alerts.dart';
 import '../../../data/services/vjod/provider_catalog_refresher.dart';
 import '../../../data/models/aggregated_item.dart';
 import '../../../data/models/home_row.dart';
@@ -222,6 +223,8 @@ class _HomeShellState extends State<_HomeShell>
     // The IPTV provider's catalogue loads only once home and its artwork are
     // up, then refreshes daily.
     ProviderCatalogRefresher.start(homeReady: () => !_viewModel.isLoading);
+    // Alertes de Ma TV (nuit ratée, compte qui expire…), pour l'administrateur.
+    MaTvAlerts.start();
     WidgetsBinding.instance.addObserver(this);
     appRouter.routerDelegate.addListener(_onRouteChanged);
     _lastObservedPath = appRouter.routerDelegate.currentConfiguration.uri.path;
