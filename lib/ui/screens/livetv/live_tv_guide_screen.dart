@@ -864,6 +864,11 @@ class _LiveTvGuideScreenState extends State<LiveTvGuideScreen>
   }
 
   String _formatDate(DateTime dt) {
+    if (Localizations.localeOf(context).languageCode == 'fr') {
+      const jours = ['lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.', 'dim.'];
+      const mois = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+      return '${jours[dt.weekday - 1]} ${dt.day} ${mois[dt.month - 1]}';
+    }
     const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     const months = [
       'Jan',
@@ -880,6 +885,42 @@ class _LiveTvGuideScreenState extends State<LiveTvGuideScreen>
       'Dec',
     ];
     return '${days[dt.weekday - 1]}, ${months[dt.month - 1]} ${dt.day}';
+  }
+
+  /// The guide failed: say it plainly (the server is often still importing
+  /// it) and offer to try again rather than a bare technical message.
+  Widget _guideError() {
+    final l10n = AppLocalizations.of(context);
+    final french = Localizations.localeOf(context).languageCode == 'fr';
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              french
+                  ? "Le guide n'est pas prêt : le serveur est peut-être encore en train de l'importer."
+                  : "The guide isn't ready: the server may still be importing it.",
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white, fontSize: 18),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              l10n.failedToLoadGuide(describeError(_vm.error!, l10n)),
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white.withAlpha(140), fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              autofocus: true,
+              onPressed: () => _vm.load(),
+              child: Text(french ? 'Réessayer' : 'Try again'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   GuideProgram? _currentProgramForChannel(String channelId) {
@@ -1369,13 +1410,7 @@ class _LiveTvGuideScreenState extends State<LiveTvGuideScreen>
       case GuideState.loading:
         return const Center(child: CircularProgressIndicator());
       case GuideState.error:
-        final l10n = AppLocalizations.of(context);
-        return Center(
-          child: Text(
-            l10n.failedToLoadGuide(describeError(_vm.error!, l10n)),
-            style: TextStyle(color: Colors.white.withAlpha(179)),
-          ),
-        );
+        return _guideError();
       case GuideState.ready:
         final channels = _vm.filteredChannels;
         if (channels.isEmpty) {
@@ -1654,7 +1689,9 @@ class _LiveTvGuideScreenState extends State<LiveTvGuideScreen>
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              '${_formatDate(_vm.guideDate)}  ${_formatTime(_vm.windowStart)} – ${_formatTime(_vm.windowEnd)}',
+              _vm.windowEnd.isAfter(_vm.windowStart)
+                  ? '${_formatDate(_vm.guideDate)}  ${_formatTime(_vm.windowStart)} – ${_formatTime(_vm.windowEnd)}'
+                  : _formatDate(_vm.guideDate),
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.8),
                 fontSize: 14,
@@ -1762,13 +1799,7 @@ class _LiveTvGuideScreenState extends State<LiveTvGuideScreen>
       case GuideState.loading:
         return const Center(child: CircularProgressIndicator());
       case GuideState.error:
-        final l10n = AppLocalizations.of(context);
-        return Center(
-          child: Text(
-            l10n.failedToLoadGuide(describeError(_vm.error!, l10n)),
-            style: TextStyle(color: Colors.white.withAlpha(179)),
-          ),
-        );
+        return _guideError();
       case GuideState.ready:
         final channels = _vm.filteredChannels;
         if (channels.isEmpty) {

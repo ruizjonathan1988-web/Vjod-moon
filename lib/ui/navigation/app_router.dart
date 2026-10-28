@@ -68,6 +68,7 @@ import '../screens/playback/next_up_screen.dart';
 import '../screens/playback/photo_player_screen.dart';
 import '../screens/playback/still_watching_screen.dart';
 import '../screens/playback/trailer_player_screen.dart';
+import '../screens/vjod_tv/ma_tv_screen.dart';
 import '../screens/playback/video_player_screen.dart';
 import '../screens/playback/appletv_player_host_screen.dart';
 import '../screens/playback/appletv_livetv_player_host_screen.dart';
@@ -551,9 +552,21 @@ final appRouter = GoRouter(
             final extraMap = extra is Map<String, dynamic>
                 ? extra
                 : const <String, dynamic>{};
-            return LiveTvGuideScreen(
-              miniPlayerMode: extraMap['miniPlayerMode'] == true,
-              currentChannel: extraMap['currentChannel'] as GuideChannel?,
+            final q = state.uri.queryParameters;
+            // The Jellyfin guide itself: asked by name, or opened from its
+            // own player. Every other TV entry goes to Ma TV when the seedbox
+            // hands it out, the Jellyfin guide staying the fallback.
+            if (extraMap['miniPlayerMode'] == true ||
+                extraMap['currentChannel'] != null ||
+                q['jellyfin'] == '1') {
+              return LiveTvGuideScreen(
+                miniPlayerMode: extraMap['miniPlayerMode'] == true,
+                currentChannel: extraMap['currentChannel'] as GuideChannel?,
+              );
+            }
+            return MaTvEntryScreen(
+              autoplay: q['autoplay'] == '1',
+              fallback: () => const LiveTvGuideScreen(),
             );
           },
         ),

@@ -9,6 +9,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:moonfin/data/services/seerr/seerr_api_models.dart';
+import 'package:moonfin/data/services/vjod/ma_tv.dart';
+import 'package:moonfin/ui/screens/vjod_tv/ma_tv_screen.dart';
+import 'package:moonfin/ui/screens/vjod_tv/ma_tv_widgets.dart';
 import 'package:moonfin/l10n/app_localizations.dart';
 import 'package:moonfin/ui/widgets/seerr/seerr_status_dot.dart';
 import 'package:moonfin/ui/widgets/vjod/vjod_widgets.dart';
@@ -379,6 +382,111 @@ Widget _foldHome() {
   );
 }
 
+// Ma TV, VJOD's own live TV: sample lineup drawn without a seedbox.
+final _maNow = DateTime(2026, 10, 28, 20, 47);
+
+MaTvProgram _prog(String t, int startMin, int len, {String d = '', String c = ''}) {
+  final s = DateTime(2026, 10, 28, 20).add(Duration(minutes: startMin));
+  return MaTvProgram(title: t, start: s, end: s.add(Duration(minutes: len)), description: d, category: c);
+}
+
+final _maCats = [
+  const MaTvCategory(id: 'fav', label: 'Favoris', kind: 'fav', count: 6),
+  const MaTvCategory(id: 'recent', label: 'Récentes', kind: 'recent', count: 12),
+  const MaTvCategory(id: 'all', label: 'Toutes les chaînes', kind: 'all', count: 4128),
+  const MaTvCategory(id: 'replay', label: 'Avec replay', kind: 'replay', count: 64),
+  const MaTvCategory(id: 't:Généraliste', label: 'Généraliste', kind: 'theme', count: 212),
+  const MaTvCategory(id: 't:Info', label: 'Info', kind: 'theme', count: 96),
+  const MaTvCategory(id: 't:Sport', label: 'Sport', kind: 'theme', count: 341),
+  const MaTvCategory(id: 't:Cinéma', label: 'Cinéma', kind: 'theme', count: 180),
+  const MaTvCategory(id: 't:Jeunesse', label: 'Jeunesse', kind: 'theme', count: 75),
+  const MaTvCategory(id: 'c:FR', label: 'France', kind: 'country', count: 1019),
+  const MaTvCategory(id: 'c:BE', label: 'Belgique', kind: 'country', count: 72),
+];
+
+final _maChans = [
+  MaTvChannel(id: 'tf1', number: 1, name: 'TF1', quality: '1080p', replayDays: 7,
+      now: _prog('Koh-Lanta, la tribu maudite', -10, 110, d: "Les aventuriers affrontent l'épreuve des poteaux, la plus redoutée de l'aventure. Qui tiendra le plus longtemps sous le soleil ?", c: 'Jeu'),
+      next: _prog('Vendredi, tout est permis', 100, 95)),
+  MaTvChannel(id: 'france2', number: 2, name: 'France 2', quality: '1080p', replayDays: 7,
+      now: _prog('Envoyé spécial', 10, 115), next: _prog('Complément d’enquête', 125, 70)),
+  MaTvChannel(id: 'france3', number: 3, name: 'France 3', quality: '720p',
+      now: _prog('Meurtres à Collioure', 5, 95), next: _prog('Soir/3', 100, 30)),
+  MaTvChannel(id: 'canalplus', number: 4, name: 'Canal+', quality: '1080p',
+      now: _prog('Ligue des champions : PSG - Arsenal', 0, 120), next: _prog('Canal Champions Club', 120, 45)),
+  MaTvChannel(id: 'france5', number: 5, name: 'France 5', quality: '720p',
+      now: _prog('La grande librairie', 0, 90)),
+  MaTvChannel(id: 'm6', number: 6, name: 'M6', quality: '1080p', replayDays: 2,
+      now: _prog('Top Chef', -30, 140), next: _prog('Top Chef, les grands duels', 110, 60)),
+  MaTvChannel(id: 'arte', number: 7, name: 'Arte', quality: '1080p',
+      now: _prog('Le dessous des cartes', 40, 15)),
+  const MaTvChannel(id: 'c8', number: 8, name: 'C8', quality: '720p'),
+  MaTvChannel(id: 'w9', number: 9, name: 'W9', quality: '720p', now: _prog('Les Marseillais', 0, 60)),
+];
+
+Widget _maBrowser({bool narrow = false}) => MaTvBrowserView(
+  categories: _maCats,
+  category: 9,
+  channels: _maChans,
+  channel: 3,
+  column: 1,
+  now: _maNow,
+  favorites: const {'tf1', 'canalplus'},
+  details: [_maChans[3].now!, _maChans[3].next!, _prog('Le journal du foot', 165, 30)],
+  showDetails: !narrow,
+  narrow: narrow,
+);
+
+Widget _maPlayer() => Stack(
+  children: [
+    const Positioned.fill(child: ColoredBox(color: Color(0xFF1B2A1E))),
+    Positioned(
+      left: 0,
+      right: 0,
+      top: 0,
+      child: MaTvBanner(
+        channel: _maChans[3],
+        now: _maNow,
+        sourceLine: 'Source 1/4 · 1080p · 50 i/s · 7,8 Mb/s',
+        categoryLabel: 'France',
+        favorite: true,
+      ),
+    ),
+    Positioned(
+      left: 0,
+      right: 0,
+      bottom: 0,
+      child: MaTvMiniGuide(
+        channel: _maChans[0],
+        programs: [_maChans[0].now!, _maChans[0].next!, _prog('Les experts', 195, 50)],
+        now: _maNow,
+        actions: const [
+          (icon: Icons.restart_alt_rounded, label: 'Revoir depuis le début'),
+          (icon: Icons.history_rounded, label: 'Replay de la chaîne'),
+          (icon: Icons.star_rounded, label: 'Retirer des favoris'),
+          (icon: Icons.tune_rounded, label: 'Sources'),
+        ],
+        selectedAction: 0,
+      ),
+    ),
+  ],
+);
+
+Widget _maReplay() => Padding(
+  padding: const EdgeInsets.all(24),
+  child: MaTvReplayList(
+    channel: _maChans[0],
+    now: _maNow,
+    selected: 1,
+    programs: [
+      _prog('Le 20h', -47, 40),
+      _prog('Koh-Lanta, la tribu maudite', -1450, 110, c: 'Jeu'),
+      _prog('Le 13h', -1860, 45),
+      _prog('Grey’s Anatomy', -2900, 50, c: 'Série'),
+    ],
+  ),
+);
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -417,5 +525,21 @@ void main() {
 
   testWidgets('VJOD Fold home', (tester) async {
     await shoot(tester, _foldHome(), const Size(412, 900), 'fold_home');
+  });
+
+  testWidgets('Ma TV browser', (tester) async {
+    await shoot(tester, _maBrowser(), const Size(1280, 720), 'matv_browser');
+  });
+
+  testWidgets('Ma TV player', (tester) async {
+    await shoot(tester, _maPlayer(), const Size(1280, 720), 'matv_player');
+  });
+
+  testWidgets('Ma TV replay', (tester) async {
+    await shoot(tester, _maReplay(), const Size(720, 420), 'matv_replay');
+  });
+
+  testWidgets('Ma TV Fold', (tester) async {
+    await shoot(tester, _maBrowser(narrow: true), const Size(412, 900), 'matv_fold');
   });
 }

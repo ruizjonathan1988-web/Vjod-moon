@@ -324,8 +324,23 @@ class MainActivity : AudioServiceActivity(), GamepadsCompatibleActivity {
         deepLinkFrom(intent)?.let { watchNextChannel?.invokeMethod("onDeepLink", it) }
     }
 
+    private fun hasHardwareDecoder(mime: String): Boolean = runCatching {
+        android.media.MediaCodecList(android.media.MediaCodecList.REGULAR_CODECS).codecInfos.any { info ->
+            !info.isEncoder &&
+                info.supportedTypes.any { it.equals(mime, ignoreCase = true) } &&
+                (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || info.isHardwareAccelerated)
+        }
+    }.getOrDefault(true)
+
     private fun deepLinkFrom(intent: Intent?): String? {
         if (intent == null) return null
+        // The "VJOD TV" launcher icon (an alias of this activity): Ma TV on
+        // the last channel watched.
+        if (intent.component?.className?.endsWith(".TvLauncher") == true &&
+            intent.action == Intent.ACTION_MAIN
+        ) {
+            return "moonfin://matv"
+        }
         // A playlist link shared from another app lands in the TV tab, ready
         // to save. VJOD never fetches or ranks anything; the viewer confirms.
         tvAddLinkFrom(intent)?.let { return it }
@@ -411,6 +426,17 @@ class MainActivity : AudioServiceActivity(), GamepadsCompatibleActivity {
             flutterEngine.dartExecutor.binaryMessenger,
             MediaStoreHelper.CHANNEL,
         ).setMethodCallHandler(MediaStoreHelper(this))
+        // Ma TV: whether this device decodes HEVC in hardware, so the relay
+        // puts H.264 sources first on boxes that would stutter on HEVC.
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "vjod/matv",
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "hasHevcDecoder" -> result.success(hasHardwareDecoder("video/hevc"))
+                else -> result.notImplemented()
+            }
+        }
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             PersoApkInstaller.CHANNEL,

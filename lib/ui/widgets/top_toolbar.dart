@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import 'package:moonfin_design/moonfin_design.dart';
 import 'package:server_core/server_core.dart';
 
+import '../../data/services/vjod/ma_tv.dart';
 import '../../l10n/app_localizations.dart';
 import '../../auth/repositories/user_repository.dart';
 import '../../data/models/aggregated_library.dart';
@@ -483,7 +484,9 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
   /// Where the TV tab goes: Jellyfin's guide when the server has live TV,
   /// the external player's lists otherwise.
   String get _tvRoute =>
-      _jellyfinLiveTv ? Destinations.liveTvGuide : Destinations.tv;
+      (_jellyfinLiveTv || (!_kidsMode && MaTvClient().isConfigured))
+          ? Destinations.liveTvGuide
+          : Destinations.tv;
 
   bool get _isTvActive =>
       _isActive(Destinations.tv) ||

@@ -156,6 +156,23 @@ class SeerrPreferences {
   Future<void> setVjodTvSourcesJson(String value) =>
       _store.setString('vjod_tv_sources', value);
 
+  /// Ma TV in VJOD, per profile: favourite channels (ids, in the order they
+  /// were added), the last channels watched (most recent first), the last
+  /// one and the category it was watched from, so "VJOD TV" reopens there.
+  List<String> get maTvFavorites => _ids(_store.getString(_userKey('matv_favorites')));
+  Future<void> setMaTvFavorites(List<String> ids) =>
+      _store.setString(_userKey('matv_favorites'), ids.join(','));
+  List<String> get maTvRecent => _ids(_store.getString(_userKey('matv_recent')));
+  Future<void> setMaTvRecent(List<String> ids) =>
+      _store.setString(_userKey('matv_recent'), ids.take(30).join(','));
+  String get maTvLastChannel => _store.getString(_userKey('matv_last')) ?? '';
+  Future<void> setMaTvLastChannel(String id) => _store.setString(_userKey('matv_last'), id);
+  String get maTvLastCategory => _store.getString(_userKey('matv_last_cat')) ?? '';
+  Future<void> setMaTvLastCategory(String id) => _store.setString(_userKey('matv_last_cat'), id);
+
+  static List<String> _ids(String? raw) =>
+      (raw ?? '').split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+
   /// The provider account the seedbox's file last carried, as JSON. Kept per
   /// device so every profile plays with the account Jellyfin is set to.
   String get vjodCatalogServerAccountJson =>

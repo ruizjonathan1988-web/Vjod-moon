@@ -208,9 +208,20 @@ class TvSourcesClient {
   final http.Client? _http;
   final TvSourcesServer? _fixed;
 
-  TvSourcesClient({http.Client? httpClient, TvSourcesServer? server})
+  /// The Jellyfin user, so a source chosen by one profile stays theirs.
+  final String? user;
+
+  /// What this device decodes (`h264,hevc`), so sources it can't play go last.
+  final String? caps;
+
+  TvSourcesClient({http.Client? httpClient, TvSourcesServer? server, this.user, this.caps})
     : _http = httpClient,
       _fixed = server;
+
+  Map<String, String> get _who => {
+    if (user != null && user!.isNotEmpty) 'u': user!,
+    if (caps != null && caps!.isNotEmpty) 'caps': caps!,
+  };
 
   static const _timeout = Duration(seconds: 6);
 
@@ -233,7 +244,7 @@ class TvSourcesClient {
     final s = server;
     if (s == null) return null;
     try {
-      final uri = s.endpoint('/tv/api/channel', {'num': '$number'});
+      final uri = s.endpoint('/tv/api/channel', {'num': '$number', ..._who});
       final r = await (_http?.get(uri) ?? http.get(uri)).timeout(_timeout);
       if (r.statusCode != 200) return null;
       final json = jsonDecode(utf8.decode(r.bodyBytes));
@@ -254,7 +265,13 @@ class TvSourcesClient {
     if (s == null) return null;
     try {
       final uri = s.endpoint('/tv/api/prefer');
-      final body = jsonEncode({'id': channelId, 'src': sourceKey ?? '', 'sticky': sticky});
+      final body = jsonEncode({
+        'id': channelId,
+        'src': sourceKey ?? '',
+        'sticky': sticky,
+        if (user != null && user!.isNotEmpty) 'user': user,
+        if (caps != null && caps!.isNotEmpty) 'caps': caps,
+      });
       const headers = {'Content-Type': 'application/json'};
       final r = await (_http?.post(uri, headers: headers, body: body) ??
               http.post(uri, headers: headers, body: body))
