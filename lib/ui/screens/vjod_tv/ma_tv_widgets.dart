@@ -93,9 +93,11 @@ class MaTvProgress extends StatelessWidget {
       child: SizedBox(
         height: height,
         child: Stack(
+          fit: StackFit.expand,
           children: [
-            const Positioned.fill(child: ColoredBox(color: Color(0x26EDEBE6))),
+            const ColoredBox(color: Color(0x26EDEBE6)),
             FractionallySizedBox(
+              alignment: Alignment.centerLeft,
               widthFactor: value.clamp(0.0, 1.0),
               child: const ColoredBox(color: MaTvColors.accent),
             ),
@@ -218,7 +220,7 @@ class MaTvChannelRow extends StatelessWidget {
     this.onLongPress,
   });
 
-  static const height = 76.0;
+  static const height = 84.0;
   static const compactHeight = 64.0;
 
   @override
@@ -226,6 +228,7 @@ class MaTvChannelRow extends StatelessWidget {
     final cur = channel.programAt(now);
     final next = channel.programAfter(now);
     final hot = selected && focused;
+    final small = MediaQuery.sizeOf(context).width < 700;
     return GestureDetector(
       onTap: onTap,
       onLongPress: onLongPress,
@@ -241,7 +244,7 @@ class MaTvChannelRow extends StatelessWidget {
         child: Row(
           children: [
             SizedBox(
-              width: 46,
+              width: small ? 34 : 46,
               child: Text(
                 '${channel.number}',
                 textAlign: TextAlign.right,
@@ -285,7 +288,7 @@ class MaTvChannelRow extends StatelessWidget {
                       ],
                     ],
                   ),
-                  const SizedBox(height: 3),
+                  const SizedBox(height: 2),
                   Text(
                     cur == null ? 'Pas de programme annoncé' : '${maTvTime(cur.start)}  ${cur.title}',
                     maxLines: 1,
@@ -293,8 +296,10 @@ class MaTvChannelRow extends StatelessWidget {
                     style: TextStyle(color: cur == null ? MaTvColors.faint : MaTvColors.mute, fontSize: 13.5),
                   ),
                   if (cur != null) ...[
-                    const SizedBox(height: 4),
-                    Row(
+                    const SizedBox(height: 3),
+                    SizedBox(
+                      height: compact ? 3 : 15,
+                      child: Row(
                       children: [
                         SizedBox(width: 90, child: MaTvProgress(value: cur.progressAt(now))),
                         if (next != null && !compact) ...[
@@ -304,17 +309,18 @@ class MaTvChannelRow extends StatelessWidget {
                               'puis ${maTvTime(next.start)} ${next.title}',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(color: MaTvColors.faint, fontSize: 12),
+                              style: const TextStyle(color: MaTvColors.faint, fontSize: 12, height: 1.2),
                             ),
                           ),
                         ],
                       ],
                     ),
+                    ),
                   ],
                 ],
               ),
             ),
-            if (channel.quality.isNotEmpty && !compact)
+            if (channel.quality.isNotEmpty && !compact && !small)
               Padding(
                 padding: const EdgeInsets.only(left: 8),
                 child: Text(channel.quality, style: const TextStyle(color: MaTvColors.faint, fontSize: 12)),
@@ -610,8 +616,7 @@ class MaTvBanner extends StatelessWidget {
             children: [
               Text(maTvTime(now), style: const TextStyle(color: MaTvColors.ink, fontSize: 24, fontWeight: FontWeight.w700)),
               const SizedBox(height: 6),
-              const Text('▲▼ chaînes  ◀ liste  ▶ sources  OK guide',
-                  style: TextStyle(color: MaTvColors.faint, fontSize: 12)),
+              const _KeyHints(),
             ],
           ),
         ],
@@ -856,6 +861,34 @@ class MaTvReplayList extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _KeyHints extends StatelessWidget {
+  const _KeyHints();
+
+  @override
+  Widget build(BuildContext context) {
+    Widget hint(IconData icon, String label) => Padding(
+      padding: const EdgeInsets.only(left: 10),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: MaTvColors.faint),
+          const SizedBox(width: 3),
+          Text(label, style: const TextStyle(color: MaTvColors.faint, fontSize: 12)),
+        ],
+      ),
+    );
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        hint(Icons.unfold_more_rounded, 'chaînes'),
+        hint(Icons.chevron_left_rounded, 'liste'),
+        hint(Icons.chevron_right_rounded, 'sources'),
+        hint(Icons.radio_button_checked_rounded, 'guide'),
+      ],
     );
   }
 }
