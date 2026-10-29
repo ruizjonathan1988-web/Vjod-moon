@@ -112,6 +112,10 @@ class MpvTvEngine implements TvEngine {
       ('demuxer-lavf-probesize', '700000'),
       ('cache', 'yes'),
       ('demuxer-readahead-secs', '8'),
+      // Start (and restart after a stall) with a few seconds in hand instead
+      // of playing the first bytes and stopping again at once.
+      ('cache-pause-initial', 'yes'),
+      ('cache-pause-wait', '3'),
       ('stream-lavf-o', 'reconnect=1,reconnect_streamed=1,reconnect_on_network_error=1,reconnect_delay_max=4'),
       ('sub-create-cc-track', 'yes'),
     ]) {
@@ -177,7 +181,13 @@ class MpvTvEngine implements TvEngine {
 // ---------------------------------------------------------------- ExoPlayer
 class ExoTvEngine implements TvEngine {
   ExoTvEngine() : _backend = GetIt.instance<Media3PlayerBackend>() {
-    _subs.add(_backend.firstFrameStream.listen((_) => _first.add(null)));
+    _subs.add(_backend.firstFrameStream.listen((_) {
+      _first.add(null);
+      if (_cushionDue) {
+        _cushionDue = false;
+        unawaited(_fillCushion());
+      }
+    }));
     _subs.add(_backend.errorStream.listen((e) {
       final msg = (e['message'] ?? e['error'] ?? e['code'] ?? 'erreur ExoPlayer').toString();
       _errors.add(msg);
@@ -189,6 +199,37 @@ class ExoTvEngine implements TvEngine {
   final _errors = StreamController<String>.broadcast();
   final _subs = <StreamSubscription<Object?>>[];
   Completer<void>? _viewReady = Completer<void>();
+
+  // A live channel starts as soon as ExoPlayer holds 2.5 s, while the stream
+  // only arrives as fast as it plays: the slightest hiccup on the way then
+  // stops the picture, which is the stutter of the first seconds. On the
+  // first picture the player waits (picture shown, still) until it holds
+  // [_cushion], [_cushionMax] at most, then plays with that margin.
+  static const _cushion = Duration(seconds: 5);
+  static const _cushionMax = Duration(seconds: 4);
+  bool _cushionDue = false;
+  Timer? _cushionTimer;
+
+  Future<void> _fillCushion() async {
+    _cushionTimer?.cancel();
+    if (_backend.buffer - _backend.position >= _cushion) return;
+    await _backend.pause();
+    final until = DateTime.now().add(_cushionMax);
+    _cushionTimer = Timer.periodic(const Duration(milliseconds: 250), (t) {
+      if (_backend.buffer - _backend.position >= _cushion || DateTime.now().isAfter(until)) {
+        t.cancel();
+        _cushionTimer = null;
+        unawaited(_backend.resume());
+      }
+    });
+  }
+
+  void _dropCushion() {
+    _cushionDue = false;
+    final t = _cushionTimer;
+    _cushionTimer = null;
+    t?.cancel();
+  }
 
   @override
   String get name => 'ExoPlayer';
@@ -210,6 +251,8 @@ class ExoTvEngine implements TvEngine {
     if (ready != null && !ready.isCompleted) {
       await ready.future.timeout(const Duration(seconds: 3), onTimeout: () {});
     }
+    _dropCushion();
+    _cushionDue = live;
     await _backend.play({
       'url': url,
       'isLive': live,
@@ -220,15 +263,33 @@ class ExoTvEngine implements TvEngine {
   }
 
   @override
-  Future<void> play() => _backend.resume();
+  Future<void> play() {
+    _dropCushion();
+    return _backend.resume();
+  }
+
   @override
-  Future<void> pause() => _backend.pause();
+  Future<void> pause() {
+    _dropCushion();
+    return _backend.pause();
+  }
+
   @override
-  Future<void> playOrPause() => _backend.isPlaying ? _backend.pause() : _backend.resume();
+  Future<void> playOrPause() {
+    final wasHolding = _cushionTimer != null;
+    _dropCushion();
+    // Pressed while it fills its margin: play now.
+    if (wasHolding) return _backend.resume();
+    return _backend.isPlaying ? _backend.pause() : _backend.resume();
+  }
+
   @override
   Future<void> seek(Duration position) => _backend.seekTo(position);
   @override
-  Future<void> stop() => _backend.stop();
+  Future<void> stop() {
+    _dropCushion();
+    return _backend.stop();
+  }
 
   @override
   Widget view() => Media3VideoView(
@@ -243,6 +304,7 @@ class ExoTvEngine implements TvEngine {
   @override
   Future<void> dispose() async {
     _viewReady = null;
+    _dropCushion();
     for (final s in _subs) {
       await s.cancel();
     }

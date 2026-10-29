@@ -192,7 +192,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     _subs.add(e.buffering.listen((b) {
       if (!identical(e, _engine) || !mounted || !_picture) return;
       setState(() => _status = b ? 'Mise en mémoire…' : null);
-      if (b) _onStall();
+      _onBuffering(b);
     }));
     _subs.add(e.errors.listen((_) {
       if (!identical(e, _engine) || !mounted) return;
@@ -234,43 +234,69 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
 
   // ---------------------------------------------------------------- adapting to the connection
   final List<DateTime> _stalls = [];
-  DateTime? _lighterAt;
+  final Set<String> _stalledSources = {};
+  DateTime? _switchedAt;
+  Timer? _freezeTimer;
 
-  /// The picture keeps stopping to fill its buffer: the connection carries
-  /// less than this source needs. Three stalls in a minute move to a lighter
-  /// source (smaller picture or lower rate), for this time only.
-  void _onStall() {
-    if (_replaying != null) return;
+  static const _stallWindow = Duration(minutes: 2);
+  static const _stallsToSwitch = 3;
+  static const _longFreeze = Duration(seconds: 12);
+  static const _afterSwitch = Duration(seconds: 20);
+
+  /// The picture stops to fill its buffer. Three stops within two minutes, or
+  /// one that lasts [_longFreeze], move the channel to another source; the
+  /// relay changes it under the picture, nothing to reopen.
+  void _onBuffering(bool b) {
+    _freezeTimer?.cancel();
+    _freezeTimer = null;
+    if (!b || _replaying != null || _delay > Duration.zero) return;
     final now = DateTime.now();
     _stalls
-      ..removeWhere((t) => now.difference(t) > const Duration(seconds: 60))
+      ..removeWhere((t) => now.difference(t) > _stallWindow)
       ..add(now);
-    if (_stalls.length < 3) return;
-    if (_lighterAt != null && now.difference(_lighterAt!) < const Duration(seconds: 45)) return;
-    _lighterAt = now;
-    _stalls.clear();
-    unawaited(_goLighter());
-  }
-
-  Future<void> _goLighter() async {
-    final ch = _channel;
-    final data = await _sources.channel(ch.number);
-    if (!mounted || data == null || data.sources.length < 2) return;
-    final cur = data.current;
-    int weight(TvSource s) => (s.kbps ?? 0) > 0 ? s.kbps! : ((s.height ?? 0) > 0 ? s.height! * 6 : 4000);
-    final curWeight = cur == null ? 1 << 30 : weight(cur);
-    if (cur?.kbps != null && cur!.kbps! > 0) MaTvDevice.lowerTo((cur.kbps! * 0.9).round());
-    final lighter = data.sources.where((s) => s.key != cur?.key && s.ok != false && weight(s) < curWeight).toList()
-      ..sort((a, b) => weight(b).compareTo(weight(a)));
-    if (lighter.isEmpty) {
-      setState(() => _status = 'Connexion faible et aucune source plus légère');
+    if (_stalls.length >= _stallsToSwitch) {
+      unawaited(_switchForStalls('saccades répétées'));
       return;
     }
-    final pick = lighter.first;
+    _freezeTimer = Timer(_longFreeze, () {
+      _freezeTimer = null;
+      if (mounted) unawaited(_switchForStalls('image bloquée'));
+    });
+  }
+
+  Future<void> _switchForStalls(String why) async {
+    final now = DateTime.now();
+    final last = _switchedAt;
+    if (last != null && now.difference(last) < _afterSwitch) return;
+    _switchedAt = now;
+    _stalls.clear();
+    final ch = _channel;
+    final data = await _sources.channel(ch.number);
+    if (!mounted || data == null || _channel.id != ch.id) return;
+    final cur = data.current;
+    if (cur != null) {
+      _stalledSources.add('${ch.id}|${cur.key}');
+      // The box keeps a note of what its connection held, for the next picks.
+      if ((cur.kbps ?? 0) > 0) MaTvDevice.lowerTo((cur.kbps! * 0.9).round());
+    }
+    int weight(TvSource x) => (x.kbps ?? 0) > 0 ? x.kbps! : ((x.height ?? 0) > 0 ? x.height! * 6 : 4000);
+    final curWeight = cur == null ? 1 << 30 : weight(cur);
+    final rest = data.sources
+        .where((x) => x.key != cur?.key && x.ok != false && !x.duplicate && !_stalledSources.contains('${ch.id}|${x.key}'))
+        .toList();
+    if (rest.isEmpty) {
+      setState(() => _status = 'Ça saccade ($why) et aucune autre source à essayer');
+      _showBanner(time: const Duration(seconds: 6));
+      return;
+    }
+    // Same picture or lighter first (the connection may be what's short),
+    // in the relay's own order; heavier ones after.
+    final lighter = rest.where((x) => weight(x) <= curWeight).toList();
+    final pick = lighter.isNotEmpty ? lighter.first : rest.first;
+    setState(() => _status = 'Ça saccade ($why) : source ${pick.rank}/${data.sources.length} '
+        '${pick.resolutionLabel.isEmpty ? pick.quality : pick.resolutionLabel}…');
+    _showBanner(time: const Duration(seconds: 6));
     await _sources.prefer(data.id, pick.key);
-    if (!mounted) return;
-    setState(() => _status = 'Connexion faible : source plus légère (${pick.resolutionLabel.isEmpty ? pick.quality : pick.resolutionLabel})');
-    _showBanner(time: const Duration(seconds: 5));
   }
 
   void _screensaver(bool on) {
@@ -281,7 +307,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
   @override
   void dispose() {
     _screensaver(false);
-    for (final t in [_clock, _zapTimer, _bannerTimer, _watchdog, _summaryTimer, _numberTimer, _refreshTimer, _seekTimer]) {
+    for (final t in [_clock, _zapTimer, _bannerTimer, _watchdog, _summaryTimer, _numberTimer, _refreshTimer, _seekTimer, _freezeTimer]) {
       t?.cancel();
     }
     for (final s in _subs) {
@@ -315,6 +341,8 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     _seekTimer?.cancel();
     _zapTimer?.cancel();
     _tried.clear();
+    _stalls.clear();
+    _switchedAt = null;
     setState(() {
       _status = 'Ouverture…';
       _sourceLine = null;
@@ -333,6 +361,8 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
       return;
     }
     final seq = ++_tuneSeq;
+    _freezeTimer?.cancel();
+    _freezeTimer = null;
     _picture = false;
     _openedCh = ch;
     _retried = retry;
