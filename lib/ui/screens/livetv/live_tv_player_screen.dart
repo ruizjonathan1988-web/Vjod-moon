@@ -891,6 +891,7 @@ class _LiveTvPlayerScreenState extends State<LiveTvPlayerScreen>
   }
 
   void _onSourcePicked(String text) {
+    if (!mounted) return;
     _showSourceNotice(text);
     // The relay swaps streams in about a second; refresh the banner after.
     Future<void>.delayed(const Duration(milliseconds: 1500), () {

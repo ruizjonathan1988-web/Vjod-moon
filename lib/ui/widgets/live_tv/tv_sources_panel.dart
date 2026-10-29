@@ -135,7 +135,26 @@ class _TvSourcesPanelState extends State<TvSourcesPanel> {
           : '${_t('Source', 'Source')} ${source.rank}${details.isEmpty ? '' : ' · $details'}'
                 '${sticky ? _t(' · gardée pour cette chaîne', ' · kept for this channel') : ''}',
     );
+    final french = _french;
     widget.onClose();
+    if (source != null) {
+      // The relay switches within a few seconds; if the picked source doesn't
+      // answer it goes back to the best one, and the viewer is told so rather
+      // than left thinking the choice was ignored.
+      final client = widget.client;
+      final number = widget.channelNumber;
+      final onPicked = widget.onPicked;
+      unawaited(Future<void>.delayed(const Duration(seconds: 9), () async {
+        final now = await client.channel(number);
+        final playing = now?.sources.where((s) => s.playing).firstOrNull;
+        if (now == null || playing == null || playing.key == source.key) return;
+        onPicked(
+          french
+              ? 'La source ${source.rank} ne répond pas : retour à la source ${playing.rank}'
+              : 'Source ${source.rank} is not answering: back to source ${playing.rank}',
+        );
+      }));
+    }
   }
 
   void _move(int delta) {

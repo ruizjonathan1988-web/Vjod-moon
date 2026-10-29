@@ -1165,6 +1165,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
                     client: _sources,
                     onClose: _close,
                     onPicked: (text) {
+                      if (!mounted) return;
                       setState(() => _sourceLine = text);
                       _showBanner();
                     },
