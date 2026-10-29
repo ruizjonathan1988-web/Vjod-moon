@@ -13,6 +13,7 @@ import 'package:flutter/services.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../data/services/vjod/ma_tv.dart';
+import '../../../data/services/vjod/ma_tv_recordings.dart';
 import '../../../data/services/vjod/tv_sources.dart';
 import '../../../util/focus/dpad_keys.dart';
 import '../../../util/platform_detection.dart';
@@ -20,6 +21,7 @@ import '../../../util/system_ui.dart';
 import '../../screensaver/screensaver_controller.dart';
 import '../../widgets/live_tv/tv_sources_panel.dart';
 import 'ma_tv_guide.dart';
+import 'ma_tv_recordings_screen.dart';
 import 'ma_tv_widgets.dart';
 import 'tv_engine.dart';
 
@@ -143,6 +145,8 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     _catId = widget.categoryId;
     _catLabel = widget.categoryLabel;
     _favorites = MaTvMemory.favorites.toSet();
+    // What is scheduled, so the menu shows « Enregistrement prévu ».
+    if (!widget.kids) unawaited(MaTvRecorder().list());
     setImmersive(true);
     _screensaver(true);
     _engine = _useExo ? (_exo = _attach(ExoTvEngine())) : (_mpv = _attach(MpvTvEngine()));
@@ -709,6 +713,13 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
       if (_replaying != null || _delay > Duration.zero) (icon: Icons.live_tv_rounded, label: 'Revenir au direct'),
       if (ch.programAt(_now) != null && _replaying == null)
         (icon: Icons.restart_alt_rounded, label: 'Revoir depuis le début'),
+      if (!widget.kids && ch.programAt(_now) != null)
+        (
+          icon: MaTvRecorder.last?.of(ch.id, ch.programAt(_now)!.start) != null
+              ? Icons.stop_circle_outlined
+              : Icons.fiber_manual_record_rounded,
+          label: MaTvRecorder.last?.of(ch.id, ch.programAt(_now)!.start) != null ? 'Enregistrement prévu' : 'Enregistrer',
+        ),
       if (ch.replayDays > 0) (icon: Icons.history_rounded, label: 'Replay de la chaîne'),
       (icon: fav ? Icons.star_rounded : Icons.star_border_rounded, label: fav ? 'Retirer des favoris' : 'Ajouter aux favoris'),
       (icon: Icons.grid_view_rounded, label: 'Grille des programmes'),
@@ -745,6 +756,15 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
         if (cur != null) await _fromStart(cur);
       case 'Replay de la chaîne':
         await _openReplay();
+      case 'Enregistrer' || 'Enregistrement prévu':
+        final cur = _guidePrograms.where((p) => p.isOnAt(DateTime.now())).firstOrNull ?? _channel.programAt(DateTime.now());
+        if (cur == null) return;
+        final ch = _channel;
+        setState(() => _overlay = _Overlay.none);
+        final msg = await maTvRecordProgram(context, ch, cur);
+        if (!mounted) return;
+        if (msg != null) setState(() => _status = msg);
+        _close();
       case 'Sources':
         setState(() => _overlay = _Overlay.sources);
       case 'Liste des chaînes':

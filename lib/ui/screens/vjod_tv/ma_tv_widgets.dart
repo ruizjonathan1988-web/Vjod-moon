@@ -135,6 +135,8 @@ class MaTvCategoryList extends StatelessWidget {
   static const rowHeight = 52.0;
 
   static IconData iconFor(MaTvCategory c) => switch (c.kind) {
+    'search' => Icons.search_rounded,
+    'rec' => Icons.fiber_manual_record_rounded,
     'fav' => Icons.star_rounded,
     'recent' => Icons.history_rounded,
     'replay' => Icons.replay_rounded,

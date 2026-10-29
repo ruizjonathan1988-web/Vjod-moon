@@ -16,6 +16,7 @@ import '../../navigation/destinations.dart';
 import '../../widgets/navigation_layout.dart';
 import 'ma_tv_guide.dart';
 import 'ma_tv_player_screen.dart';
+import 'ma_tv_recordings_screen.dart';
 import 'ma_tv_search_screen.dart';
 import 'ma_tv_widgets.dart';
 
@@ -167,6 +168,8 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
     return [
       // First of the list: OK on it opens the search.
       const MaTvCategory(id: 'search', label: 'Rechercher', kind: 'search', count: 0),
+      // Opens the recordings Ma TV made on the seedbox, and those to come.
+      const MaTvCategory(id: 'rec', label: 'Enregistrements', kind: 'rec', count: 0),
       if (fav.isNotEmpty) MaTvCategory(id: 'fav', label: 'Favoris', kind: 'fav', count: fav.length),
       if (recent.isNotEmpty) MaTvCategory(id: 'recent', label: 'Récentes', kind: 'recent', count: recent.length),
       ...server,
@@ -218,7 +221,7 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
   }
 
   Future<List<MaTvChannel>?> _channelsOf(MaTvCategory c, {bool fresh = false}) async {
-    if (c.kind == 'search') return const [];
+    if (_isAction(c)) return const [];
     if (c.kind == 'fav' || c.kind == 'recent') {
       return _client.channelsByIds(c.kind == 'fav' ? MaTvMemory.favorites : MaTvMemory.recent);
     }
@@ -292,7 +295,7 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
     if (!mounted) return;
     setState(() {
       _favorites = MaTvMemory.favorites.toSet();
-      final server = _cats.where((c) => c.kind != 'fav' && c.kind != 'recent' && c.kind != 'search').toList();
+      final server = _cats.where((c) => c.kind != 'fav' && c.kind != 'recent' && !_isAction(c)).toList();
       final current = _cats[_cat].id;
       _cats = _localCats(server);
       _cat = _idx(_cats.indexWhere((c) => c.id == current), _cats.length);
@@ -300,7 +303,23 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
     _say(on ? '${ch.name} ajoutée aux favoris' : '${ch.name} retirée des favoris');
   }
 
-  bool get _onSearch => _cats.isNotEmpty && _cats[_cat].kind == 'search';
+  /// Entries of the list that open a page rather than list channels.
+  static bool _isAction(MaTvCategory c) => c.kind == 'search' || c.kind == 'rec';
+
+  bool get _onAction => _cats.isNotEmpty && _isAction(_cats[_cat]);
+
+  void _openAction(MaTvCategory c) {
+    if (c.kind == 'rec') {
+      unawaited(_openRecordings());
+    } else {
+      unawaited(_openSearch());
+    }
+  }
+
+  Future<void> _openRecordings() async {
+    await Navigator.of(context, rootNavigator: true).push<void>(maTvRoute((_) => const MaTvRecordingsScreen()));
+    if (mounted) _focus.requestFocus();
+  }
 
   /// Types a channel's name, number or programme; the one picked plays, with
   /// the other results to zap through.
@@ -339,7 +358,7 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
           startIndex: index,
           categoryId: cat?.id ?? 'all',
           categoryLabel: cat?.label ?? '',
-          categories: [for (final c in _cats) if (c.kind != 'search') c],
+          categories: [for (final c in _cats) if (!_isAction(c)) c],
           startReplay: replay,
           kids: widget.kids,
         ),
@@ -348,7 +367,7 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
     if (!mounted) return;
     // Back from the player: land on the channel watched last.
     final last = MaTvMemory.lastChannel;
-    final server = _cats.where((c) => c.kind != 'fav' && c.kind != 'recent' && c.kind != 'search').toList();
+    final server = _cats.where((c) => c.kind != 'fav' && c.kind != 'recent' && !_isAction(c)).toList();
     final current = _cats.isEmpty ? '' : _cats[_cat].id;
     setState(() {
       _favorites = MaTvMemory.favorites.toSet();
@@ -395,8 +414,8 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
       _scheduleDetails();
       return KeyEventResult.handled;
     }
-    if ((key.isRightKey || key.isSelectKey) && _column == 0 && _onSearch) {
-      if (event is KeyDownEvent) unawaited(_openSearch());
+    if ((key.isRightKey || key.isSelectKey) && _column == 0 && _onAction) {
+      if (event is KeyDownEvent) _openAction(_cats[_cat]);
       return KeyEventResult.handled;
     }
     if (key.isRightKey) {
@@ -476,9 +495,9 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
       chanScroll: _chanScroll,
       onCategory: (i) {
         setState(() => _column = 0);
-        if (_cats[i].kind == 'search') {
+        if (_isAction(_cats[i])) {
           setState(() => _cat = i);
-          unawaited(_openSearch());
+          _openAction(_cats[i]);
           return;
         }
         unawaited(_openCategory(i));
@@ -639,6 +658,10 @@ class MaTvBrowserView extends StatelessWidget {
             onLongPress: onChannelLongPress,
             emptyText: channelsFailed
                 ? 'Ma TV ne répond pas pour le moment. Reviens sur la catégorie pour réessayer.'
+                : cat?.kind == 'search'
+                ? 'OK pour chercher une chaîne par son nom, son numéro ou un programme.'
+                : cat?.kind == 'rec'
+                ? 'OK pour voir les enregistrements et en programmer (la télé peut rester éteinte).'
                 : cat?.kind == 'fav'
                 ? 'Pas encore de favori : MENU (ou appui long) sur une chaîne pour l’ajouter.'
                 : 'Aucune chaîne ici.',

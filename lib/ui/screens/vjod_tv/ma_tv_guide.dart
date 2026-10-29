@@ -2,14 +2,16 @@
 // half hours across, the programme under the cursor described at the top.
 // UP / DOWN change channel, LEFT / RIGHT move from programme to programme
 // (the hours follow), OK watches: live for what's on, the replay for what's
-// past when the provider keeps it.
+// past when the provider keeps it, recording for what is to come.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../data/services/vjod/ma_tv.dart';
+import '../../../data/services/vjod/ma_tv_recordings.dart';
 import '../../../util/focus/dpad_keys.dart';
+import 'ma_tv_recordings_screen.dart';
 import 'ma_tv_widgets.dart';
 
 const _rowHeight = 62.0;
@@ -55,6 +57,7 @@ class _MaTvGuideScreenState extends State<MaTvGuideScreen> {
   String? _toast;
   Timer? _toastTimer;
   Set<String> _favorites = {};
+  MaTvRecordings? _recordings;
 
   @override
   void initState() {
@@ -63,6 +66,10 @@ class _MaTvGuideScreenState extends State<MaTvGuideScreen> {
     _win = maTvHalfHour(_now);
     _cursor = _now;
     _favorites = MaTvMemory.favorites.toSet();
+    _recordings = MaTvRecorder.last;
+    unawaited(MaTvRecorder().list().then((r) {
+      if (mounted && r != null) setState(() => _recordings = r);
+    }));
     _clock = Timer.periodic(const Duration(seconds: 30), (_) {
       if (mounted) setState(() => _now = DateTime.now());
     });
@@ -209,7 +216,18 @@ class _MaTvGuideScreenState extends State<MaTvGuideScreen> {
       }
       return;
     }
-    _say('${p.title} commence à ${maTvTime(p.start)}');
+    // To come: record it (the seedbox records it, the TV can be off).
+    unawaited(_record(ch, p));
+  }
+
+  Future<void> _record(MaTvChannel ch, MaTvProgram p) async {
+    final msg = await maTvRecordProgram(context, ch, p);
+    if (!mounted) return;
+    _focus.requestFocus();
+    final r = await MaTvRecorder().list();
+    if (!mounted) return;
+    setState(() => _recordings = r ?? _recordings);
+    if (msg != null) _say(msg);
   }
 
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
@@ -266,6 +284,7 @@ class _MaTvGuideScreenState extends State<MaTvGuideScreen> {
             favorites: _favorites,
             controller: _rows,
             toast: _toast,
+            recordings: _recordings,
             onTapProgram: (row, p) {
               setState(() {
                 _row = row;
@@ -294,6 +313,9 @@ class MaTvGuideView extends StatelessWidget {
   final String? toast;
   final void Function(int row, MaTvProgram program)? onTapProgram;
 
+  /// What Ma TV records or will record, marked with a red dot.
+  final MaTvRecordings? recordings;
+
   const MaTvGuideView({
     super.key,
     required this.channels,
@@ -307,6 +329,7 @@ class MaTvGuideView extends StatelessWidget {
     this.controller,
     this.toast,
     this.onTapProgram,
+    this.recordings,
   });
 
   MaTvProgram? get _selected {
@@ -456,7 +479,9 @@ class MaTvGuideView extends StatelessWidget {
             children: [
               Text(maTvTime(now), style: const TextStyle(color: MaTvColors.ink, fontSize: 22, fontWeight: FontWeight.w700)),
               const SizedBox(height: 6),
-              const Text('OK regarder · MENU favori', style: TextStyle(color: MaTvColors.faint, fontSize: 12)),
+              Text(
+                  p != null && p.start.isAfter(now) ? 'OK enregistrer · MENU favori' : 'OK regarder · MENU favori',
+                  style: const TextStyle(color: MaTvColors.faint, fontSize: 12)),
             ],
           ),
         ],
@@ -583,6 +608,11 @@ class MaTvGuideView extends StatelessWidget {
                   children: [
                     Row(
                       children: [
+                        if (!past && recordings?.of(ch.id, p.start) != null)
+                          const Padding(
+                            padding: EdgeInsets.only(right: 4),
+                            child: Icon(Icons.fiber_manual_record_rounded, size: 12, color: MaTvColors.live),
+                          ),
                         if (past && ch.replayDays > 0)
                           Padding(
                             padding: const EdgeInsets.only(right: 4),
