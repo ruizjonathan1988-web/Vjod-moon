@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import '../../util/platform_detection.dart';
+import '../../data/services/vjod/iptv_progress.dart';
 
 extension NavigationX on BuildContext {
   void popOrHome() {
@@ -307,6 +308,7 @@ class Destinations {
     required String id,
     required String name,
     String poster = '',
+    String tmdb = '',
     String quality = '',
     int? source,
   }) => Uri(
@@ -315,17 +317,25 @@ class Destinations {
       'id': id,
       'name': name,
       if (poster.isNotEmpty) 'poster': poster,
+      if (tmdb.isNotEmpty) 'tmdb': tmdb,
       if (quality.isNotEmpty) 'q': quality,
       if (source != null) 'src': '$source',
     },
   ).toString();
   /// A film or an episode read from the IPTV provider, in the player that has
   /// audio languages and subtitles.
-  static String providerPlayer({required String url, String title = ''}) =>
-      Uri(
-        path: providerPlayerPath,
-        queryParameters: {'url': url, if (title.isNotEmpty) 'title': title},
-      ).toString();
+  static String providerPlayer({
+    required String url,
+    String title = '',
+    IptvWatch? watch,
+  }) => Uri(
+    path: providerPlayerPath,
+    queryParameters: {
+      'url': url,
+      if (title.isNotEmpty) 'title': title,
+      ...?watch?.toQuery(),
+    },
+  ).toString();
 
   static String trailer({String? videoId, String? url}) {
     final params = <String, String>{

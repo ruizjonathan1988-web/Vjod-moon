@@ -77,6 +77,32 @@ class TraktAccount extends ChangeNotifier {
     return _client.recommendations(mediaType, token);
   }
 
+  /// Marks something watched outside the library (from the IPTV provider)
+  /// on Trakt, so the account's history and recommendations include it.
+  /// Does nothing without a linked account; never throws.
+  Future<void> markWatched({
+    required String mediaType,
+    required int tmdbId,
+    int? season,
+    int? episode,
+    DateTime? at,
+  }) async {
+    try {
+      final token = await _accessToken();
+      if (token == null) return;
+      await _client.addToHistory(
+        token,
+        mediaType: mediaType,
+        tmdbId: tmdbId,
+        season: season,
+        episode: episode,
+        at: at ?? DateTime.now(),
+      );
+    } catch (e) {
+      debugPrint('[Trakt] Could not mark as watched: $e');
+    }
+  }
+
   /// A token that works, renewed first when it is about to run out. Null
   /// when no account is linked, or when Trakt no longer accepts it, in which
   /// case the account is let go so the settings offer to link it again.

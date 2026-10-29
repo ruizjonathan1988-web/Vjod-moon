@@ -197,6 +197,53 @@ class TraktClient {
     return parseTraktTitles(response.data, mediaType: mediaType);
   }
 
+  /// Marks a film, or one episode of a series, as watched [at] in the
+  /// account's history. Episodes are found by the series' TMDB id with
+  /// their season and number.
+  Future<void> addToHistory(
+    String accessToken, {
+    required String mediaType,
+    required int tmdbId,
+    int? season,
+    int? episode,
+    required DateTime at,
+  }) async {
+    final when = at.toUtc().toIso8601String();
+    final Map<String, Object?> body;
+    if (mediaType == 'tv') {
+      if (season == null || episode == null) return;
+      body = {
+        'shows': [
+          {
+            'ids': {'tmdb': tmdbId},
+            'seasons': [
+              {
+                'number': season,
+                'episodes': [
+                  {'number': episode, 'watched_at': when},
+                ],
+              },
+            ],
+          },
+        ],
+      };
+    } else {
+      body = {
+        'movies': [
+          {
+            'ids': {'tmdb': tmdbId},
+            'watched_at': when,
+          },
+        ],
+      };
+    }
+    await _dio.post<Object?>(
+      '/sync/history',
+      data: body,
+      options: _signedIn(accessToken),
+    );
+  }
+
   /// The TMDB ids Trakt's members tie to the title [tmdbId], closest first.
   /// Public: no account needed. Empty when Trakt doesn't know the title.
   Future<List<int>> related(

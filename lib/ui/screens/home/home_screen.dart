@@ -105,6 +105,8 @@ import '../../widgets/seerr/seerr_genre_label.dart';
 import '../../widgets/skeleton/skeleton_home_row.dart';
 import '../../widgets/skeleton/skeleton_shimmer.dart';
 import '../../widgets/vjod/provider_play.dart';
+import '../../../data/services/vjod/iptv_progress.dart';
+import '../../../data/services/vjod/provider_catalog_access.dart' show currentProviderCatalog;
 
 Color get _homeBackground => AppColorScheme.background;
 
@@ -772,8 +774,44 @@ class _ContentRowsState extends State<_ContentRows>
     implements AudioOwnable {
   /// The TMDB id of a Seerr card for a title the library doesn't hold, the
   /// ones a provider copy can stand in for; null otherwise.
+  /// A card of the « Reprendre (IPTV) » row: the film picks up where it was
+  /// left, the series opens on the episode to go on with.
+  void _openIptvResume(BuildContext context, AggregatedItem item) {
+    final r = item.rawData[HomeViewModel.iptvResumeKey];
+    final catalog = currentProviderCatalog();
+    if (r is! Map || catalog == null) return;
+    String v(String k) => '${r[k] ?? ''}';
+    if (v('kind') == 'series') {
+      context.push(
+        Destinations.providerSeries(
+          id: v('id'),
+          name: v('name'),
+          poster: v('poster'),
+          tmdb: v('tmdb'),
+        ),
+      );
+      return;
+    }
+    final watch = IptvWatch(
+      kind: 'movie',
+      id: v('id'),
+      name: v('name'),
+      tmdb: v('tmdb'),
+      poster: v('poster'),
+      ext: v('ext'),
+    );
+    context.push(
+      Destinations.providerPlayer(
+        url: catalog.movieUrlById(watch.id, extension: watch.ext),
+        title: watch.name,
+        watch: watch,
+      ),
+    );
+  }
+
   String? _iptvTmdb(AggregatedItem item) {
     if (item.serverId != 'seerr') return null;
+    if (item.rawData[HomeViewModel.iptvResumeKey] != null) return null;
     final status = item.seerrStatus;
     if (status == SeerrMediaStatus.available || status == SeerrMediaStatus.partiallyAvailable) return null;
     final type = item.seerrMediaType;
@@ -5491,6 +5529,8 @@ class _ContentRowsState extends State<_ContentRows>
             _playSurprise(context, item);
           } else if (item.rawData[HomeViewModel.top10SwitchFlag] == true) {
             widget.viewModel.toggleTop10();
+          } else if (item.rawData[HomeViewModel.iptvResumeKey] is Map) {
+            _openIptvResume(context, item);
           } else if (item.serverId == 'seerr') {
             _navigateToSeerrItem(
               context,
@@ -5608,6 +5648,8 @@ class _ContentRowsState extends State<_ContentRows>
                       context.push(Destinations.genre(item.name, genreId: item.id));
                     } else if (item.rawData[HomeViewModel.surpriseFlag] == true) {
                       _playSurprise(context, item);
+                    } else if (item.rawData[HomeViewModel.iptvResumeKey] is Map) {
+                      _openIptvResume(context, item);
                     } else if (item.serverId == 'seerr') {
                       _navigateToSeerrItem(
                         context,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../data/services/vjod/iptv_progress.dart';
 import '../../../data/services/vjod/provider_catalog_access.dart';
 import '../../../data/services/vjod/xtream_catalog.dart';
 import '../../navigation/destinations.dart';
@@ -13,6 +14,9 @@ class ProviderSeriesScreen extends StatefulWidget {
   final String name;
   final String poster;
 
+  /// The series' TMDB id, for resuming and learning from what is watched.
+  final String tmdb;
+
   /// The quality picked on the title's page (`4K`…), empty for the default.
   final String quality;
 
@@ -24,6 +28,7 @@ class ProviderSeriesScreen extends StatefulWidget {
     required this.seriesId,
     required this.name,
     this.poster = '',
+    this.tmdb = '',
     this.quality = '',
     this.source,
   });
@@ -37,6 +42,11 @@ class _ProviderSeriesScreenState extends State<ProviderSeriesScreen> {
   XtreamSeriesInfo? _info;
   Object? _error;
   int? _season;
+
+  /// The last episode watched (Ma TV keeps it for this profile), and the one
+  /// to play next: the same one when it was left halfway, else the following.
+  IptvProgress? _progress;
+  XtreamEpisode? _next;
 
   @override
   void initState() {
@@ -56,16 +66,22 @@ class _ProviderSeriesScreenState extends State<ProviderSeriesScreen> {
       _info = null;
     });
     try {
-      final info = await catalog.seriesInfo(
-        widget.seriesId,
-        quality: widget.quality,
-        source: widget.source,
-      );
+      final (info, progress) = await (
+        catalog.seriesInfo(
+          widget.seriesId,
+          quality: widget.quality,
+          source: widget.source,
+        ),
+        IptvProgressStore.get('series', widget.seriesId),
+      ).wait;
       if (!mounted) return;
+      final next = progress == null ? null : _nextEpisode(info, progress);
       setState(() {
         _info = info;
+        _progress = progress;
+        _next = next;
         final seasons = info.seasonNumbers;
-        _season = seasons.isEmpty ? null : seasons.first;
+        _season = next?.season ?? (seasons.isEmpty ? null : seasons.first);
       });
     } catch (e) {
       if (!mounted) return;
@@ -73,13 +89,71 @@ class _ProviderSeriesScreenState extends State<ProviderSeriesScreen> {
     }
   }
 
+  /// The episode to go on with: the last one when left halfway, else the
+  /// one after it (none after the last episode of the series).
+  static XtreamEpisode? _nextEpisode(XtreamSeriesInfo info, IptvProgress p) {
+    final all = [
+      for (final s in info.seasonNumbers) ...?info.seasons[s],
+    ];
+    final i = all.indexWhere((e) => e.id == p.ep);
+    if (i < 0) return null;
+    if (!p.done) return all[i];
+    return i + 1 < all.length ? all[i + 1] : null;
+  }
+
   void _play(XtreamEpisode episode) {
     final catalog = _catalog;
     if (catalog == null) return;
-    context.push(
-      Destinations.providerPlayer(
-        url: catalog.episodeUrl(episode),
-        title: '${widget.name} · S${episode.season} É${episode.number}',
+    context
+        .push(
+          Destinations.providerPlayer(
+            url: catalog.episodeUrl(episode),
+            title: '${widget.name} · S${episode.season} É${episode.number}',
+            watch: IptvWatch(
+              kind: 'series',
+              id: widget.seriesId,
+              name: widget.name,
+              tmdb: widget.tmdb,
+              poster: widget.poster,
+              ep: episode.id,
+              ext: episode.extension,
+              season: episode.season,
+              episode: episode.number,
+              epName: episode.title,
+            ),
+          ),
+        )
+        .then((_) => _refreshProgress());
+  }
+
+  /// Back from an episode: what to go on with has moved.
+  Future<void> _refreshProgress() async {
+    final info = _info;
+    if (info == null) return;
+    final p = await IptvProgressStore.get('series', widget.seriesId);
+    if (!mounted || p == null) return;
+    setState(() {
+      _progress = p;
+      _next = _nextEpisode(info, p);
+    });
+  }
+
+  Widget _resumeButton(XtreamEpisode next) {
+    final p = _progress;
+    final same = p != null && p.ep == next.id && !p.done;
+    final label = same
+        ? 'Reprendre S${next.season} É${next.number} (${p.position.inMinutes} min)'
+        : 'Épisode suivant : S${next.season} É${next.number}';
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: FilledButton.icon(
+          autofocus: true,
+          onPressed: () => _play(next),
+          icon: const Icon(Icons.play_arrow_rounded),
+          label: Text(label),
+        ),
       ),
     );
   }
@@ -179,13 +253,14 @@ class _ProviderSeriesScreenState extends State<ProviderSeriesScreen> {
           ],
         ),
         const SizedBox(height: 16),
+        if (_next case final next?) _resumeButton(next),
         Wrap(
           spacing: 8,
           runSpacing: 8,
           children: [
             for (final (i, s) in seasons.indexed)
               ChoiceChip(
-                autofocus: i == 0,
+                autofocus: i == 0 && _next == null,
                 label: Text('Saison $s'),
                 selected: s == _season,
                 onSelected: (_) => setState(() => _season = s),

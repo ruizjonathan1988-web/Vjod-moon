@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:playback_core/playback_core.dart';
+import '../../data/services/vjod/iptv_progress.dart';
 
 import '../../auth/repositories/session_repository.dart';
 import '../../auth/repositories/user_repository.dart';
@@ -364,6 +365,7 @@ final appRouter = GoRouter(
           seriesId: q['id'] ?? '',
           name: q['name'] ?? '',
           poster: q['poster'] ?? '',
+          tmdb: q['tmdb'] ?? '',
           quality: q['q'] ?? '',
           source: int.tryParse(q['src'] ?? ''),
         );
@@ -679,6 +681,7 @@ final appRouter = GoRouter(
       builder: (context, state) => ProviderPlayerScreen(
         url: state.uri.queryParameters['url'] ?? '',
         title: state.uri.queryParameters['title'] ?? '',
+        watch: IptvWatch.fromQuery(state.uri.queryParameters),
       ),
     ),
     GoRoute(

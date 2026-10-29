@@ -19,6 +19,7 @@ import '../../../data/services/recent_searches_store.dart';
 import '../../../data/services/remote_search_session.dart';
 import '../../../data/services/voice_search_controller.dart';
 import '../../../data/viewmodels/search_view_model.dart';
+import '../../../data/services/vjod/iptv_progress.dart';
 import '../../../data/services/vjod/xtream_catalog.dart';
 import '../../../preference/preference_constants.dart';
 import '../../../preference/user_preferences.dart';
@@ -1773,6 +1774,7 @@ class _SearchScreenState extends State<SearchScreen>
           id: title.id,
           name: title.name,
           poster: title.poster,
+          tmdb: title.tmdbId,
         ),
       );
     } else {
@@ -1780,6 +1782,7 @@ class _SearchScreenState extends State<SearchScreen>
         Destinations.providerPlayer(
           url: catalog.movieUrl(title),
           title: providerPlayerTitle(title),
+          watch: IptvWatch.movie(title),
         ),
       );
     }

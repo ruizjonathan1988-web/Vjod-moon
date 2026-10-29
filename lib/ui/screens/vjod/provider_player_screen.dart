@@ -13,7 +13,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get_it/get_it.dart';
 
+import '../../../data/services/seerr/taste_profile.dart';
+import '../../../data/services/vjod/iptv_learning.dart';
+import '../../../data/services/vjod/iptv_progress.dart';
 import '../../../data/services/vjod/provider_catalog_access.dart';
+import '../../../data/services/vjod/vjod_votes.dart';
+import '../../../preference/seerr_preferences.dart';
 import '../../../data/services/vjod/xtream_catalog.dart';
 import '../../../util/focus/dpad_keys.dart';
 import '../../../util/system_ui.dart';
@@ -70,7 +75,11 @@ class ProviderPlayerScreen extends StatefulWidget {
   final String url;
   final String title;
 
-  const ProviderPlayerScreen({super.key, required this.url, this.title = ''});
+  /// What is playing, to save its place on Ma TV (resume, on any device) and
+  /// to learn from it. Null for a playback that keeps nothing.
+  final IptvWatch? watch;
+
+  const ProviderPlayerScreen({super.key, required this.url, this.title = '', this.watch});
 
   @override
   State<ProviderPlayerScreen> createState() => _ProviderPlayerScreenState();
@@ -113,6 +122,21 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
   double _subDelay = 0;
   int _openSeq = 0;
 
+  // Resume and learning.
+  final DateTime _startedAt = DateTime.now();
+  Duration _watched = Duration.zero;
+  Duration _lastPos = Duration.zero;
+  Timer? _saveTimer;
+  bool _askedServer = false;
+
+  /// Where the film picked up, for « Depuis le début ».
+  Duration? _resumedFrom;
+
+  // « J'ai aimé / Bof », asked once during a film's credits.
+  bool _voteVisible = false;
+  bool _voteAsked = false;
+  Timer? _voteTimer;
+
   bool get _exoWanted => TvEngineChoice.exoAvailable && TvEngineChoice.value != 'mpv';
 
   @override
@@ -123,6 +147,31 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
     _engine = _exoWanted ? ExoVodEngine() : MpvVodEngine();
     _listen();
     unawaited(_open());
+    if (widget.watch != null) {
+      _saveTimer = Timer.periodic(const Duration(seconds: 30), (_) => _savePlace());
+    }
+  }
+
+  /// Saves where this playback stands, on Ma TV, for this profile.
+  void _savePlace() {
+    final w = widget.watch;
+    if (w == null || _dur <= Duration.zero || _pos < const Duration(seconds: 30)) return;
+    unawaited(IptvProgressStore.save(w, _pos, _dur));
+  }
+
+  /// The place saved on Ma TV, asked once before the first open: a film or
+  /// the same episode left halfway picks up there.
+  Future<Duration?> _savedPlace() async {
+    final w = widget.watch;
+    if (w == null || _askedServer) return null;
+    _askedServer = true;
+    final p = await IptvProgressStore.get(w.kind, w.id).timeout(
+      const Duration(seconds: 3),
+      onTimeout: () => null,
+    );
+    if (p == null || !p.resumable) return null;
+    if (w.isSeries && p.ep != w.ep) return null;
+    return p.position;
   }
 
   void _listen() {
@@ -133,8 +182,13 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
     final e = _engine;
     _subs.addAll([
       e.position.listen((p) {
+        // Time really played: small steps forward, not seeks.
+        final step = p - _lastPos;
+        if (_playing && step > Duration.zero && step < const Duration(seconds: 5)) _watched += step;
+        _lastPos = p;
         _pos = p;
         if (_dur > Duration.zero && p > Duration.zero) _resumeAt[widget.url] = p;
+        _checkVote();
         if (_controls && mounted) setState(() {});
       }),
       e.duration.listen((d) {
@@ -150,6 +204,8 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
         _picture = true;
         _noPicture?.cancel();
         if (mounted) setState(() => _loading = false);
+        // Picked up where it was left: the controls show « Depuis le début ».
+        if (mounted && _resumedFrom != null) _showControls();
       }),
       e.tracksChanged.listen((_) {
         if (!mounted) return;
@@ -177,7 +233,16 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
     });
     await WidgetsBinding.instance.endOfFrame;
     if (!mounted || seq != _openSeq) return;
-    final from = _resumeAt[widget.url];
+    var from = _resumeAt[widget.url];
+    if (from == null) {
+      final saved = await _savedPlace();
+      if (!mounted || seq != _openSeq) return;
+      if (saved != null) {
+        from = saved;
+        _resumeAt[widget.url] = saved;
+        _resumedFrom = saved;
+      }
+    }
     try {
       // Each playback carries its own number, so Ma TV tells two devices
       // behind the same box apart: one seeking never cuts the other's film.
@@ -255,6 +320,19 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
     }
     _hideTimer?.cancel();
     _noPicture?.cancel();
+    _saveTimer?.cancel();
+    _voteTimer?.cancel();
+    final w = widget.watch;
+    if (w != null) {
+      _savePlace();
+      unawaited(IptvLearning.record(
+        watch: w,
+        startedAt: _startedAt,
+        position: _pos,
+        duration: _dur,
+        watched: _watched,
+      ));
+    }
     GetIt.instance<ScreensaverController>().setPlaybackActive(false);
     unawaited(_engine.dispose());
     _focus.dispose();
@@ -282,6 +360,105 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
     final to = _pos + Duration(seconds: seconds);
     unawaited(_engine.seek(to < Duration.zero ? Duration.zero : (_dur > Duration.zero && to > _dur ? _dur : to)));
     _showControls();
+  }
+
+  /// Back to the start of a film that picked up where it was left.
+  void _restart() {
+    setState(() => _resumedFrom = null);
+    _resumeAt.remove(widget.url);
+    unawaited(_engine.seek(Duration.zero));
+    _showControls();
+  }
+
+  String? get _voteKey {
+    final w = widget.watch;
+    if (w == null || w.isSeries) return null;
+    return w.tmdb.isEmpty ? 'iptv:movie:${w.id}' : 'movie:${w.tmdb}';
+  }
+
+  /// In a film's last minutes, once: « J'ai aimé / Bof », like the library
+  /// player, when personalization is on and the film has no vote yet.
+  void _checkVote() {
+    if (_voteAsked || _voteVisible || _dur < const Duration(minutes: 40)) return;
+    final key = _voteKey;
+    if (key == null) return;
+    final remaining = _dur - _pos;
+    if (_pos < _dur * 0.95 || remaining > const Duration(minutes: 8)) return;
+    _voteAsked = true;
+    final getIt = GetIt.instance;
+    if (!getIt.isRegistered<SeerrPreferences>()) return;
+    final prefs = getIt<SeerrPreferences>();
+    if (!prefs.vjodPersonalize) return;
+    if (VjodVotes.decode(prefs.vjodVotesJson).voteFor(key) != null) return;
+    if (!mounted) return;
+    setState(() => _voteVisible = true);
+    _voteTimer = Timer(const Duration(seconds: 20), () {
+      if (mounted) setState(() => _voteVisible = false);
+    });
+  }
+
+  Future<void> _vote(bool liked) async {
+    _voteTimer?.cancel();
+    if (mounted) setState(() => _voteVisible = false);
+    final key = _voteKey;
+    final w = widget.watch;
+    if (key == null || w == null) return;
+    final tmdb = int.tryParse(w.tmdb);
+    final genres = tmdb == null ? <TasteGenre>{} : (await IptvLearning.facts('movie', tmdb)).genres;
+    final prefs = GetIt.instance<SeerrPreferences>();
+    final votes = VjodVotes.decode(prefs.vjodVotesJson).record(
+      VjodVote(key: key, title: w.name, genres: genres, liked: liked, at: DateTime.now()),
+    );
+    await prefs.setVjodVotesJson(votes.encode());
+  }
+
+  Widget _votePrompt() {
+    Widget pill(String label, IconData icon, bool liked) => Material(
+      color: Colors.white.withValues(alpha: liked ? 0.95 : 0.16),
+      borderRadius: BorderRadius.circular(22),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(22),
+        canRequestFocus: false,
+        onTap: () => unawaited(_vote(liked)),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 18, color: liked ? Colors.black : Colors.white),
+              const SizedBox(width: 6),
+              Text(label,
+                  style: TextStyle(
+                    color: liked ? Colors.black : Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  )),
+            ],
+          ),
+        ),
+      ),
+    );
+    return Positioned(
+      top: MediaQuery.paddingOf(context).top + 24,
+      right: 24,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+        decoration: BoxDecoration(color: const Color(0xE60B0B0D), borderRadius: BorderRadius.circular(14)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Alors, ce film ?',
+                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 10),
+            // On a remote the answers stack the way the arrows point.
+            pill('▲  J\'ai aimé', Icons.thumb_up_alt_rounded, true),
+            const SizedBox(height: 8),
+            pill('▼  Bof', Icons.thumb_down_alt_rounded, false),
+          ],
+        ),
+      ),
+    );
   }
 
   KeyEventResult _onBarKey(FocusNode node, KeyEvent event) {
@@ -333,6 +510,10 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
         key == LogicalKeyboardKey.mediaPause) {
       unawaited(_engine.playOrPause());
       _showControls();
+      return KeyEventResult.handled;
+    }
+    if (_voteVisible && !_controls && (key.isUpKey || key.isDownKey)) {
+      unawaited(_vote(key.isUpKey));
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.mediaRewind) {
@@ -568,6 +749,7 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
                     ],
                   ),
                 ),
+              if (_voteVisible && _error == null) _votePrompt(),
               if (_controls && _error == null)
                 Positioned(
                   left: 0,
@@ -639,6 +821,8 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
                                   _playing ? 'Pause' : 'Lecture', () => unawaited(_engine.playOrPause()),
                                   focusNode: _playFocus),
                               _button(Icons.forward_30_rounded, '+30 s', () => _seekBy(30)),
+                              if (_resumedFrom != null)
+                                _button(Icons.restart_alt_rounded, 'Depuis le début', _restart),
                               _button(Icons.record_voice_over_rounded,
                                   audioName.isEmpty ? 'Audio' : 'Audio : $audioName', () => unawaited(_audioMenu())),
                               _button(Icons.subtitles_rounded, 'Sous-titres : $subName',

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../data/services/vjod/provider_catalog_access.dart';
+import '../../../data/services/vjod/iptv_progress.dart';
 import '../../../data/services/vjod/xtream_catalog.dart';
 import '../../../data/services/vjod/ma_tv.dart' show MaTvDevice;
 import '../../navigation/destinations.dart';
@@ -30,13 +31,14 @@ bool playProviderCopy(BuildContext context, {required bool series, required Stri
   final catalog = currentProviderCatalog();
   if (copy == null || catalog == null) return false;
   if (copy.kind == XtreamKind.series) {
-    context.push(Destinations.providerSeries(id: copy.id, name: copy.name, poster: copy.poster));
+    context.push(Destinations.providerSeries(id: copy.id, name: copy.name, poster: copy.poster, tmdb: copy.tmdbId));
   } else {
     final quality = defaultQuality(copy.qualities, MaTvDevice.maxHeight);
     context.push(
       Destinations.providerPlayer(
         url: catalog.movieUrl(copy, quality: quality),
         title: providerPlayerTitle(copy, quality: quality),
+        watch: IptvWatch.movie(copy),
       ),
     );
   }
