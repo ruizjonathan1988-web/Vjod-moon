@@ -642,6 +642,9 @@ class MaTvMiniGuide extends StatelessWidget {
   final int selectedAction;
   final ValueChanged<int>? onAction;
 
+  /// One key per action, to find which button sits above or below another.
+  final List<GlobalKey>? actionKeys;
+
   const MaTvMiniGuide({
     super.key,
     required this.channel,
@@ -650,6 +653,7 @@ class MaTvMiniGuide extends StatelessWidget {
     required this.actions,
     required this.selectedAction,
     this.onAction,
+    this.actionKeys,
   });
 
   @override
@@ -725,6 +729,7 @@ class MaTvMiniGuide extends StatelessWidget {
                   children: [
                     for (var i = 0; i < actions.length; i++)
                       GestureDetector(
+                        key: actionKeys != null && i < actionKeys!.length ? actionKeys![i] : null,
                         onTap: onAction == null ? null : () => onAction!(i),
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
