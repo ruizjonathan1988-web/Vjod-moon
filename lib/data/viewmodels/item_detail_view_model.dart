@@ -488,25 +488,48 @@ class ItemDetailViewModel extends ChangeNotifier {
   ({XtreamTitle copy, String quality})? _betterAtProvider;
   ({XtreamTitle copy, String quality})? get betterAtProvider => _betterAtProvider;
 
-  /// Looks for a better copy of the library film at the provider.
-  Future<void> _loadBetterAtProvider() async {
+  static int _heightOfResolution(String? resolution) => switch (resolution) {
+    '8K' => 4320,
+    '4K' => 2160,
+    final r? when r.startsWith('1440') => 1440,
+    final r? when r.startsWith('1080') => 1080,
+    final r? when r.startsWith('720') => 720,
+    null => 0,
+    _ => 480,
+  };
+
+  /// The picture of a library series: what most of its episodes come in.
+  Future<int> _seriesLibraryHeight() async {
+    try {
+      final data = await _client.itemsApi.getEpisodes(itemId, fields: 'MediaStreams');
+      final counts = <int, int>{};
+      for (final raw in (data['Items'] as List?) ?? const []) {
+        if (raw is! Map<String, dynamic>) continue;
+        final h = _heightOfResolution(
+          AggregatedItem(id: '', serverId: '', rawData: raw).videoResolution,
+        );
+        if (h > 0) counts[h] = (counts[h] ?? 0) + 1;
+      }
+      if (counts.isEmpty) return 0;
+      return counts.entries.reduce((a, b) => b.value > a.value ? b : a).key;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  /// Looks for a better copy of the library film or series at the provider.
+  Future<void> _loadBetterAtProvider({bool series = false}) async {
     final item = _item;
     final tmdb = int.tryParse(item?.tmdbId ?? '');
     final catalog = currentProviderCatalog();
     if (item == null || catalog == null || (tmdb == null && item.name.isEmpty)) return;
-    final library = switch (item.videoResolution) {
-      '8K' => 4320,
-      '4K' => 2160,
-      final r? when r.startsWith('1440') => 1440,
-      final r? when r.startsWith('1080') => 1080,
-      final r? when r.startsWith('720') => 720,
-      null => 0,
-      _ => 480,
-    };
-    if (library == 0) return; // the library file's size is unknown: nothing to compare
+    final library = series
+        ? await _seriesLibraryHeight()
+        : _heightOfResolution(item.videoResolution);
+    if (library == 0 || _isDisposed) return; // unknown size: nothing to compare
     try {
       final copies = await catalog.copiesOf(
-        kind: XtreamKind.movie,
+        kind: series ? XtreamKind.series : XtreamKind.movie,
         tmdbId: tmdb ?? 0,
         titles: [item.name],
         year: item.productionYear,
@@ -1147,6 +1170,7 @@ class ItemDetailViewModel extends ChangeNotifier {
     // holds up library content that is already here.
     unawaited(_loadSeerrOverlay());
     if (type == 'Movie') unawaited(_loadBetterAtProvider());
+    if (type == 'Series') unawaited(_loadBetterAtProvider(series: true));
     if (type == 'Person') {
       futures.add(_loadFilmography());
     } else if (type == 'Series') {
