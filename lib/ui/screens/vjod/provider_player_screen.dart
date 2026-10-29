@@ -6,6 +6,7 @@
 // the remote's keys (OK shows the controls, LEFT / RIGHT seek, PLAY/PAUSE,
 // BACK hides the controls then leaves).
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -85,6 +86,8 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
   final _focus = FocusNode(debugLabel: 'provider_player');
   final _playFocus = FocusNode(debugLabel: 'provider_player_play');
   final _subs = <StreamSubscription<Object?>>[];
+  final _session =
+      '${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}-${Random().nextInt(1 << 30).toRadixString(36)}';
 
   bool _loading = true;
   String? _error;
@@ -146,7 +149,11 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
       }
     } catch (_) {}
     try {
-      await _player.open(Media(widget.url)).timeout(_openTimeout);
+      // Each playback carries its own number, so Ma TV tells two devices
+      // behind the same box apart: one seeking never cuts the other's film.
+      await _player
+          .open(Media(widget.url, httpHeaders: {'X-VJOD-Session': _session}))
+          .timeout(_openTimeout);
       final from = _resumeAt[widget.url];
       if (from != null && from > const Duration(minutes: 1)) {
         await _player.seek(from - const Duration(seconds: 5));
