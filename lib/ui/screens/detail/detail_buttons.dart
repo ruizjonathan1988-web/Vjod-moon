@@ -38,6 +38,9 @@ enum DetailButton {
   seerrWatchlist('seerrWatchlist'),
   seerrReportIssue('seerrReportIssue'),
   seerrManage('seerrManage'),
+  // Deletes the title from the server for good (files, Sonarr / Radarr,
+  // torrent). Shown only to a profile Jellyfin lets delete.
+  deleteFromServer('deleteFromServer'),
   admin('admin');
 
   const DetailButton(this.id, {this.canHide = true});
@@ -146,6 +149,7 @@ enum DetailButton {
     DetailButton.seerrWatchlist => Icons.bookmark_border,
     DetailButton.seerrReportIssue => Icons.report_problem_outlined,
     DetailButton.seerrManage => Icons.rule,
+    DetailButton.deleteFromServer => Icons.delete_forever_outlined,
     DetailButton.admin => Icons.settings,
   };
 
@@ -171,6 +175,7 @@ enum DetailButton {
     DetailButton.seerrWatchlist => l10n.watchlist,
     DetailButton.seerrReportIssue => l10n.reportIssue,
     DetailButton.seerrManage => l10n.manageRequests,
+    DetailButton.deleteFromServer => 'Supprimer',
     DetailButton.admin => l10n.admin,
   };
 }

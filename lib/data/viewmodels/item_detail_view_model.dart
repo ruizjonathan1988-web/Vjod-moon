@@ -28,6 +28,7 @@ import 'seerr_discover_view_model.dart';
 import 'seerr_media_detail_view_model.dart';
 import '../models/upcoming_episode_info.dart';
 import '../services/upcoming_episode_service.dart';
+import '../services/vjod/media_delete.dart';
 import '../services/vjod/provider_catalog_access.dart';
 import '../services/vjod/xtream_catalog.dart';
 
@@ -1529,6 +1530,14 @@ class ItemDetailViewModel extends ChangeNotifier {
   }
 
   /// Returns `null` when the item was deleted, otherwise why it failed.
+  /// Deletes [id] (this title, or its season / series) from the server,
+  /// files, Sonarr / Radarr watch and torrent included, through Ma TV.
+  Future<MediaDeleteResult> deleteFromServer(String id) => MediaDeleter.delete(
+    itemId: id,
+    token: _client.accessToken,
+    jellyfinDelete: () => _client.itemsApi.deleteItem(id),
+  );
+
   Future<DeleteItemFailure?> deleteItem() async {
     try {
       await _client.itemsApi.deleteItem(itemId);
