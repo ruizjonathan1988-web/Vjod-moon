@@ -174,6 +174,10 @@ class SeerrPreferences {
   String get maTvQuality => _store.getString('matv_quality') ?? 'auto';
   Future<void> setMaTvQuality(String value) => _store.setString('matv_quality', value);
 
+  /// Ma TV picture engine on this device: auto (ExoPlayer, else mpv), exo or mpv.
+  String get maTvEngine => _store.getString('matv_engine') ?? 'auto';
+  Future<void> setMaTvEngine(String value) => _store.setString('matv_engine', value);
+
   static List<String> _ids(String? raw) =>
       (raw ?? '').split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
 

@@ -11,8 +11,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get_it/get_it.dart';
-import 'package:media_kit/media_kit.dart';
-import 'package:media_kit_video/media_kit_video.dart';
 
 import '../../../data/services/vjod/ma_tv.dart';
 import '../../../data/services/vjod/tv_sources.dart';
@@ -23,6 +21,7 @@ import '../../screensaver/screensaver_controller.dart';
 import '../../widgets/live_tv/tv_sources_panel.dart';
 import 'ma_tv_guide.dart';
 import 'ma_tv_widgets.dart';
+import 'tv_engine.dart';
 
 enum _Overlay { none, guide, list, sources, replay }
 
@@ -69,8 +68,13 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
   final _listChanScroll = ScrollController();
   final _replayScroll = ScrollController();
 
-  late final Player _player;
-  late final VideoController _video;
+  // The picture engine: ExoPlayer first (TiviMate's), mpv for a channel
+  // ExoPlayer doesn't bring a picture for. See tv_engine.dart.
+  TvEngine? _exo;
+  TvEngine? _mpv;
+  late TvEngine _engine;
+  final Set<String> _mpvChannels = {};
+  static const _exoGiveUp = Duration(seconds: 9);
   final List<StreamSubscription<Object?>> _subs = [];
 
   late List<MaTvChannel> _list;
@@ -141,51 +145,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     _favorites = MaTvMemory.favorites.toSet();
     setImmersive(true);
     _screensaver(true);
-    _player = Player(configuration: const PlayerConfiguration(libass: false));
-    _video = VideoController(
-      _player,
-      configuration: VideoControllerConfiguration(
-        hwdec: PlatformDetection.isAndroid ? 'auto-copy' : (PlatformDetection.isLinux ? 'auto-safe' : null),
-      ),
-    );
-    unawaited(_tuneLiveDefaults());
-    _subs.add(_player.stream.width.listen((w) {
-      if ((w ?? 0) > 0 && !_picture) {
-        _picture = true;
-        final opened = _openedAt;
-        if (!mounted) return;
-        // How long the picture took, shown a moment: the number to compare
-        // from one source, channel or box to another.
-        final secs = opened == null ? null : DateTime.now().difference(opened).inMilliseconds / 1000;
-        setState(() => _status = secs == null ? null : 'Image en ${secs.toStringAsFixed(1).replaceAll('.', ',')} s');
-        Timer(const Duration(seconds: 4), () {
-          if (mounted && (_status ?? '').startsWith('Image en')) setState(() => _status = null);
-        });
-      }
-    }));
-    _subs.add(_player.stream.buffering.listen((b) {
-      if (!mounted || !_picture) return;
-      setState(() => _status = b ? 'Mise en mémoire…' : null);
-      if (b) _onStall();
-    }));
-    _subs.add(_player.stream.error.listen((e) {
-      if (!mounted) return;
-      final wasPlaying = _picture;
-      setState(() => _status = wasPlaying ? 'Lecture interrompue, reconnexion…' : 'Le flux ne démarre pas, nouvel essai…');
-      if (wasPlaying) {
-        // Back to no picture: a recovery before the reconnect delay (ffmpeg's
-        // own reconnect) sets it again and cancels the reopen.
-        _picture = false;
-        _reconnect();
-      }
-    }));
-    // The picture had started and the stream ended anyway (the link to the
-    // seedbox dropped, the provider closed…): open the same address again.
-    _subs.add(_player.stream.completed.listen((done) {
-      if (done != true || !mounted || _replaying != null || _pausedAt != null || !_picture) return;
-      _picture = false;
-      _reconnect();
-    }));
+    _engine = _useExo ? (_exo = _attach(ExoTvEngine())) : (_mpv = _attach(MpvTvEngine()));
     _clock = Timer.periodic(const Duration(seconds: 20), (_) {
       if (mounted) setState(() => _now = DateTime.now());
     });
@@ -202,29 +162,74 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     }
   }
 
-  Future<void> _tuneLiveDefaults() async {
-    final p = _player.platform;
-    if (p is! NativePlayer) return;
-    // A live stream from the relay: open fast (less probing), reconnect if
-    // the link to the seedbox drops, keep the buffer modest on TV boxes.
-    for (final kv in const [
-      ('network-timeout', '15'),
-      // Read less of the stream before showing it: ffmpeg's default probe
-      // (5 MB) alone is several seconds on a live channel.
-      ('demuxer-lavf-analyzeduration', '0.6'),
-      ('demuxer-lavf-probesize', '700000'),
-      ('cache', 'yes'),
-      ('demuxer-readahead-secs', '8'),
-      ('stream-lavf-o', 'reconnect=1,reconnect_streamed=1,reconnect_on_network_error=1,reconnect_delay_max=4'),
-      ('sub-create-cc-track', 'yes'),
-    ]) {
-      try {
-        // NativePlayer's web stub has no setProperty: go through dynamic, as
-        // the media_kit backend does.
-        final dynamic native = p;
-        await Future<void>.value(native.setProperty(kv.$1, kv.$2));
-      } catch (_) {}
-    }
+  bool get _useExo => TvEngineChoice.exoAvailable && TvEngineChoice.value != 'mpv';
+
+  /// The engine for [ch]: mpv when chosen, or when ExoPlayer brought no
+  /// picture for this channel earlier in the session.
+  TvEngine _engineFor(MaTvChannel ch) {
+    final mpv = !_useExo || (TvEngineChoice.value == 'auto' && _mpvChannels.contains(ch.id));
+    if (mpv) return _mpv ??= _attach(MpvTvEngine());
+    return _exo ??= _attach(ExoTvEngine());
+  }
+
+  /// Listens to [e]; only the engine on screen is heard.
+  TvEngine _attach(TvEngine e) {
+    _subs.add(e.firstFrame.listen((_) {
+      if (!identical(e, _engine) || _picture) return;
+      _picture = true;
+      final opened = _openedAt;
+      if (!mounted) return;
+      // How long the picture took, shown a moment: the number to compare
+      // from one source, channel or box to another.
+      final secs = opened == null ? null : DateTime.now().difference(opened).inMilliseconds / 1000;
+      setState(() => _status = secs == null
+          ? null
+          : 'Image en ${secs.toStringAsFixed(1).replaceAll('.', ',')} s · ${e.name}');
+      Timer(const Duration(seconds: 4), () {
+        if (mounted && (_status ?? '').startsWith('Image en')) setState(() => _status = null);
+      });
+    }));
+    _subs.add(e.buffering.listen((b) {
+      if (!identical(e, _engine) || !mounted || !_picture) return;
+      setState(() => _status = b ? 'Mise en mémoire…' : null);
+      if (b) _onStall();
+    }));
+    _subs.add(e.errors.listen((_) {
+      if (!identical(e, _engine) || !mounted) return;
+      final wasPlaying = _picture;
+      if (!wasPlaying && e is ExoTvEngine && _fallBackToMpv()) return;
+      setState(() => _status = wasPlaying ? 'Lecture interrompue, reconnexion…' : 'Le flux ne démarre pas, nouvel essai…');
+      if (wasPlaying) {
+        // Back to no picture: a recovery before the reconnect delay sets it
+        // again and cancels the reopen.
+        _picture = false;
+        _reconnect();
+      }
+    }));
+    // The picture had started and the stream ended anyway (the link to the
+    // seedbox dropped, the provider closed…): open the same address again.
+    _subs.add(e.completed.listen((done) {
+      if (!identical(e, _engine) || done != true || !mounted || _replaying != null || _pausedAt != null || !_picture) {
+        return;
+      }
+      _picture = false;
+      _reconnect();
+    }));
+    return e;
+  }
+
+  /// ExoPlayer brought no picture for the channel open: mpv takes over for
+  /// it, for the rest of the session. False when there is nothing to fall
+  /// back to.
+  bool _fallBackToMpv() {
+    final ch = _openedCh;
+    if (ch == null || TvEngineChoice.value != 'auto' || _engine is! ExoTvEngine) return false;
+    _mpvChannels.add(ch.id);
+    setState(() => _status = 'Pas d’image avec ExoPlayer : essai avec mpv…');
+    final uri = _replaying == null && _delay == Duration.zero ? _client.liveUri(ch) : null;
+    if (uri == null) return false;
+    unawaited(_open(ch, uri));
+    return true;
   }
 
   // ---------------------------------------------------------------- adapting to the connection
@@ -282,7 +287,9 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     for (final s in _subs) {
       s.cancel();
     }
-    unawaited(_player.dispose());
+    final exo = _exo, mpv = _mpv;
+    if (exo != null) unawaited(exo.dispose());
+    if (mpv != null) unawaited(mpv.dispose());
     _focus.dispose();
     _listCatScroll.dispose();
     _listChanScroll.dispose();
@@ -331,9 +338,20 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     _retried = retry;
     _openedAt = DateTime.now();
     _playingId = ch.id;
+    final engine = _engineFor(ch);
+    if (!identical(engine, _engine)) {
+      final old = _engine;
+      setState(() => _engine = engine);
+      unawaited(old.stop().catchError((_) {}));
+      // Let the new engine's surface come up before the source is set.
+      await WidgetsBinding.instance.endOfFrame;
+      if (seq != _tuneSeq || !mounted) return;
+    }
     try {
-      await _player.open(Media(uri.toString()), play: true);
-    } catch (_) {}
+      await _engine.open(uri.toString(), live: _replaying == null && _delay == Duration.zero);
+    } catch (_) {
+      if (_engine is ExoTvEngine && _fallBackToMpv()) return;
+    }
     if (_replaying == null) unawaited(MaTvMemory.watched(ch.id, _catId));
     _watchdog?.cancel();
     _watchdog = Timer.periodic(const Duration(seconds: 1), (_) => _checkPicture(seq, ch, uri));
@@ -352,6 +370,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
       return;
     }
     final waited = DateTime.now().difference(_openedAt ?? DateTime.now());
+    if (_engine is ExoTvEngine && waited > _exoGiveUp && _fallBackToMpv()) return;
     if (!_retried && waited > _noPictureRetry) {
       setState(() => _status = 'Pas d’image, nouvel essai…');
       unawaited(_open(ch, uri, retry: true));
@@ -546,8 +565,8 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
   /// stream reopens once, a moment after the last one.
   void _seekBy(int seconds) {
     if (_replaying != null) {
-      final pos = _player.state.position + Duration(seconds: seconds);
-      unawaited(_player.seek(pos < Duration.zero ? Duration.zero : pos));
+      final pos = _engine.position + Duration(seconds: seconds);
+      unawaited(_engine.seek(pos < Duration.zero ? Duration.zero : pos));
       setState(() => _status = seconds < 0 ? '−30 s' : '+30 s');
       _showBanner(time: const Duration(seconds: 2));
       return;
@@ -578,7 +597,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     if (info == null || !info.available) {
       setState(() => _status = 'Retour en arrière indisponible');
       _showBanner();
-      if (resume) unawaited(_player.play());
+      if (resume) unawaited(_engine.play());
       return;
     }
     final now = DateTime.now();
@@ -586,7 +605,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     if (delay <= Duration.zero) {
       setState(() => _status = 'Pas encore assez d’images gardées pour reculer');
       _showBanner();
-      if (resume) unawaited(_player.play());
+      if (resume) unawaited(_engine.play());
       return;
     }
     setState(() {
@@ -607,13 +626,13 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
   /// the buffer, so nothing is missed.
   void _playPause() {
     if (_replaying != null) {
-      unawaited(_player.playOrPause());
+      unawaited(_engine.playOrPause());
       return;
     }
     final paused = _pausedAt;
     if (paused == null) {
       _pausedAt = DateTime.now();
-      unawaited(_player.pause());
+      unawaited(_engine.pause());
       _bannerTimer?.cancel();
       setState(() {
         _banner = true;
@@ -662,6 +681,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
       (icon: fav ? Icons.star_rounded : Icons.star_border_rounded, label: fav ? 'Retirer des favoris' : 'Ajouter aux favoris'),
       (icon: Icons.grid_view_rounded, label: 'Grille des programmes'),
       (icon: Icons.high_quality_rounded, label: 'Qualité : ${MaTvDevice.qualityLabel}'),
+      if (TvEngineChoice.exoAvailable) (icon: Icons.play_circle_outline_rounded, label: 'Lecteur : ${TvEngineChoice.label}'),
       if (!widget.kids) (icon: Icons.tune_rounded, label: 'Sources'),
       (icon: Icons.list_rounded, label: 'Liste des chaînes'),
     ];
@@ -699,6 +719,17 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
         _openList();
       case 'Grille des programmes':
         await _openGrid();
+      case final String l when l.startsWith('Lecteur'):
+        {
+          await TvEngineChoice.next();
+          _mpvChannels.clear();
+          if (!mounted) return;
+          setState(() {});
+          _zapTimer?.cancel();
+          _zapTimer = Timer(const Duration(milliseconds: 1500), () {
+            if (mounted && _replaying == null) _open(_channel, _client.liveUri(_channel));
+          });
+        }
       case final String q when q.startsWith('Qualité'):
         {
           await MaTvDevice.nextQuality();
@@ -1089,13 +1120,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
             child: Stack(
               children: [
                 Positioned.fill(
-                  child: Video(
-                    controller: _video,
-                    controls: NoVideoControls,
-                    fit: BoxFit.contain,
-                    fill: Colors.black,
-                    pauseUponEnteringBackgroundMode: false,
-                  ),
+                  child: KeyedSubtree(key: ValueKey(_engine.name), child: _engine.view()),
                 ),
                 if (!_picture && _status != null && _overlay == _Overlay.none)
                   const Center(child: CircularProgressIndicator(strokeWidth: 2)),

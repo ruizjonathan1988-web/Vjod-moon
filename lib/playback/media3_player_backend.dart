@@ -416,6 +416,7 @@ class Media3PlayerBackend extends PlayerBackend
         _onTunnelingDiscontinuity();
       case 'firstFrameRendered':
         _sawFirstFrame = true;
+        if (!_firstFrameController.isClosed) _firstFrameController.add(null);
         _diag('Media3: first frame rendered @ ${_toInt(map['positionMs'])}ms');
       case 'droppedFrames':
         _diag(
@@ -1475,6 +1476,12 @@ class Media3PlayerBackend extends PlayerBackend
   @override
   Stream<void> get tracksChangedStream => _tracksChangedController.stream;
 
+  /// Fires when a newly opened source shows its first picture (Ma TV's
+  /// player waits on it to know a channel works).
+  Stream<void> get firstFrameStream => _firstFrameController.stream;
+  final StreamController<void> _firstFrameController =
+      StreamController<void>.broadcast();
+
   @override
   Future<void> setEmbeddedCaptionTrack(int id) async {
     await _invoke<void>('setClosedCaptionTrack', {'id': id});
@@ -1698,6 +1705,7 @@ class Media3PlayerBackend extends PlayerBackend
     _completedStream.close();
     _errorStream.close();
     _tracksChangedController.close();
+    _firstFrameController.close();
     _subtitleLoadingStream.close();
   }
 }
