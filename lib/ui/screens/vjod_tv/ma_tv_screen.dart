@@ -16,6 +16,7 @@ import '../../navigation/destinations.dart';
 import '../../widgets/navigation_layout.dart';
 import 'ma_tv_guide.dart';
 import 'ma_tv_player_screen.dart';
+import 'ma_tv_search_screen.dart';
 import 'ma_tv_widgets.dart';
 
 /// Where the TV entries of the app land: Ma TV when the seedbox hands it out,
@@ -164,6 +165,8 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
     final fav = MaTvMemory.favorites;
     final recent = MaTvMemory.recent;
     return [
+      // First of the list: OK on it opens the search.
+      const MaTvCategory(id: 'search', label: 'Rechercher', kind: 'search', count: 0),
       if (fav.isNotEmpty) MaTvCategory(id: 'fav', label: 'Favoris', kind: 'fav', count: fav.length),
       if (recent.isNotEmpty) MaTvCategory(id: 'recent', label: 'Récentes', kind: 'recent', count: recent.length),
       ...server,
@@ -215,6 +218,7 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
   }
 
   Future<List<MaTvChannel>?> _channelsOf(MaTvCategory c, {bool fresh = false}) async {
+    if (c.kind == 'search') return const [];
     if (c.kind == 'fav' || c.kind == 'recent') {
       return _client.channelsByIds(c.kind == 'fav' ? MaTvMemory.favorites : MaTvMemory.recent);
     }
@@ -288,12 +292,30 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
     if (!mounted) return;
     setState(() {
       _favorites = MaTvMemory.favorites.toSet();
-      final server = _cats.where((c) => c.kind != 'fav' && c.kind != 'recent').toList();
+      final server = _cats.where((c) => c.kind != 'fav' && c.kind != 'recent' && c.kind != 'search').toList();
       final current = _cats[_cat].id;
       _cats = _localCats(server);
       _cat = _idx(_cats.indexWhere((c) => c.id == current), _cats.length);
     });
     _say(on ? '${ch.name} ajoutée aux favoris' : '${ch.name} retirée des favoris');
+  }
+
+  bool get _onSearch => _cats.isNotEmpty && _cats[_cat].kind == 'search';
+
+  /// Types a channel's name, number or programme; the one picked plays, with
+  /// the other results to zap through.
+  Future<void> _openSearch() async {
+    final pick = await Navigator.of(context, rootNavigator: true).push<({List<MaTvChannel> channels, int index})>(
+      maTvRoute((_) => const MaTvSearchScreen()),
+    );
+    if (!mounted) return;
+    _focus.requestFocus();
+    if (pick == null) return;
+    setState(() {
+      _chans = pick.channels;
+      _chan = pick.index;
+    });
+    await _play(pick.index);
   }
 
   Future<void> _openGrid() async {
@@ -317,7 +339,7 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
           startIndex: index,
           categoryId: cat?.id ?? 'all',
           categoryLabel: cat?.label ?? '',
-          categories: _cats,
+          categories: [for (final c in _cats) if (c.kind != 'search') c],
           startReplay: replay,
           kids: widget.kids,
         ),
@@ -326,7 +348,7 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
     if (!mounted) return;
     // Back from the player: land on the channel watched last.
     final last = MaTvMemory.lastChannel;
-    final server = _cats.where((c) => c.kind != 'fav' && c.kind != 'recent').toList();
+    final server = _cats.where((c) => c.kind != 'fav' && c.kind != 'recent' && c.kind != 'search').toList();
     final current = _cats.isEmpty ? '' : _cats[_cat].id;
     setState(() {
       _favorites = MaTvMemory.favorites.toSet();
@@ -371,6 +393,10 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
       setState(() => _chan = (_chan + page * 8).clamp(0, _chans.length - 1));
       _scrollTo(_chanScroll, _chan, MaTvChannelRow.height + 6);
       _scheduleDetails();
+      return KeyEventResult.handled;
+    }
+    if ((key.isRightKey || key.isSelectKey) && _column == 0 && _onSearch) {
+      if (event is KeyDownEvent) unawaited(_openSearch());
       return KeyEventResult.handled;
     }
     if (key.isRightKey) {
@@ -450,6 +476,11 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
       chanScroll: _chanScroll,
       onCategory: (i) {
         setState(() => _column = 0);
+        if (_cats[i].kind == 'search') {
+          setState(() => _cat = i);
+          unawaited(_openSearch());
+          return;
+        }
         unawaited(_openCategory(i));
       },
       onChannel: (i) {

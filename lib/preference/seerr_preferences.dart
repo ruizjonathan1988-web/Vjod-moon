@@ -114,6 +114,14 @@ class SeerrPreferences {
   Future<void> setVjodPersonalize(bool value) =>
       _store.setBool(_userKey('vjod_personalize'), value);
 
+  /// On the pages of films and series the library has, an « IPTV » button
+  /// with the languages and quality the providers have too. On by default,
+  /// per profile.
+  bool get vjodIptvOnLibrary =>
+      _store.getBool(_userKey('vjod_iptv_on_library')) ?? true;
+  Future<void> setVjodIptvOnLibrary(bool value) =>
+      _store.setBool(_userKey('vjod_iptv_on_library'), value);
+
   /// Tonight's mood picked on Home, as `VjodMoodStore.write` wrote it.
   String? get vjodMood => _store.getString(_userKey('vjod_mood'));
   Future<void> setVjodMood(String value) =>

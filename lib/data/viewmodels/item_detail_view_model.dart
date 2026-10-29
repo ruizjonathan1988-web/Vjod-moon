@@ -482,11 +482,14 @@ class ItemDetailViewModel extends ChangeNotifier {
   List<XtreamTitle> _providerCopies = const [];
   List<XtreamTitle> get providerCopies => _providerCopies;
 
-  /// For a film in the library: the IPTV copy that beats the library's file
-  /// (4K at the provider, 1080p on the disk…) and its quality, so the page
-  /// can offer it beside Play. Null when the library's is as good or better.
-  ({XtreamTitle copy, String quality})? _betterAtProvider;
-  ({XtreamTitle copy, String quality})? get betterAtProvider => _betterAtProvider;
+  /// The best picture height known for each provider copy (by its id):
+  /// measured in the file by Ma TV, else written in the provider's name.
+  final Map<String, int> _providerHeights = {};
+  int providerHeightOf(XtreamTitle copy) => _providerHeights[copy.id] ?? 0;
+
+  /// The library file's picture height, 0 when unknown.
+  int _libraryHeight = 0;
+  int get libraryHeight => _libraryHeight;
 
   static int _heightOfResolution(String? resolution) => switch (resolution) {
     '8K' => 4320,
@@ -517,16 +520,17 @@ class ItemDetailViewModel extends ChangeNotifier {
     }
   }
 
-  /// Looks for a better copy of the library film or series at the provider.
-  Future<void> _loadBetterAtProvider({bool series = false}) async {
+  /// For a film or series the library has: the provider's copies too (every
+  /// language), so the page shows what they offer beside Play, and their
+  /// real quality, measured in the files by Ma TV. Off when the profile
+  /// turned it off in the settings.
+  Future<void> _loadLibraryProviderCopies({bool series = false}) async {
+    final getIt = GetIt.instance;
+    if (getIt.isRegistered<SeerrPreferences>() && !getIt<SeerrPreferences>().vjodIptvOnLibrary) return;
     final item = _item;
     final tmdb = int.tryParse(item?.tmdbId ?? '');
     final catalog = currentProviderCatalog();
     if (item == null || catalog == null || (tmdb == null && item.name.isEmpty)) return;
-    final library = series
-        ? await _seriesLibraryHeight()
-        : _heightOfResolution(item.videoResolution);
-    if (library == 0 || _isDisposed) return; // unknown size: nothing to compare
     try {
       final copies = await catalog.copiesOf(
         kind: series ? XtreamKind.series : XtreamKind.movie,
@@ -535,24 +539,42 @@ class ItemDetailViewModel extends ChangeNotifier {
         year: item.productionYear,
       );
       if (_isDisposed || copies.isEmpty) return;
-      // The profile's language first, then the best picture it comes in.
-      final ordered = orderByLanguages(copies, currentProviderLanguages());
-      ({XtreamTitle copy, String quality})? best;
-      for (final c in ordered) {
-        for (final q in c.qualities) {
-          if (qualityHeight(q) > (best == null ? library : qualityHeight(best.quality))) {
-            best = (copy: c, quality: q);
-          }
-        }
-        if (best != null) break; // a better copy in the preferred language wins
-      }
-      if (best == null) return;
       _providerCatalog = catalog;
-      _betterAtProvider = best;
+      _providerCopies = orderByLanguages(copies, currentProviderLanguages());
+      for (final c in _providerCopies) {
+        final named = c.qualities.map(qualityHeight).fold(0, (a, b) => a > b ? a : b);
+        if (named > 0) _providerHeights[c.id] = named;
+      }
       notifyListeners();
+      final library = series ? await _seriesLibraryHeight() : _heightOfResolution(item.videoResolution);
+      if (_isDisposed) return;
+      _libraryHeight = library;
+      notifyListeners();
+      if (!series) await _measureProviderCopies(catalog);
     } catch (_) {
       // The provider not answering leaves the page as it was.
     }
+  }
+
+  /// Asks Ma TV for the real picture size of the films' files (a few
+  /// seconds the first time, kept on the seedbox afterwards).
+  Future<void> _measureProviderCopies(XtreamCatalog catalog) async {
+    if (!catalog.isMaTv) return;
+    final lists = await Future.wait([
+      for (final c in _providerCopies.take(4)) catalog.sourcesOf(c, measure: true),
+    ]);
+    if (_isDisposed) return;
+    var changed = false;
+    for (final (i, c) in _providerCopies.take(4).indexed) {
+      final best = lists[i]
+          .map((s) => s.height ?? 0)
+          .fold(0, (a, b) => a > b ? a : b);
+      if (best > 0 && best != _providerHeights[c.id]) {
+        _providerHeights[c.id] = best;
+        changed = true;
+      }
+    }
+    if (changed) notifyListeners();
   }
 
   /// The provider those copies play from.
@@ -580,6 +602,7 @@ class ItemDetailViewModel extends ChangeNotifier {
       _providerCatalog = catalog;
       _providerCopies = orderByLanguages(copies, currentProviderLanguages());
       notifyListeners();
+      if (!state.isTv) await _measureProviderCopies(catalog);
     } catch (_) {
       // A provider that doesn't answer leaves the page as Seerr built it.
     }
@@ -1169,8 +1192,8 @@ class ItemDetailViewModel extends ChangeNotifier {
     // Deliberately outside the Future.wait below, so a slow Seerr server never
     // holds up library content that is already here.
     unawaited(_loadSeerrOverlay());
-    if (type == 'Movie') unawaited(_loadBetterAtProvider());
-    if (type == 'Series') unawaited(_loadBetterAtProvider(series: true));
+    if (type == 'Movie') unawaited(_loadLibraryProviderCopies());
+    if (type == 'Series') unawaited(_loadLibraryProviderCopies(series: true));
     if (type == 'Person') {
       futures.add(_loadFilmography());
     } else if (type == 'Series') {
