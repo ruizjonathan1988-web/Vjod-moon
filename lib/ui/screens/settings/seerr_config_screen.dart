@@ -635,6 +635,43 @@ class _SeerrConfigScreenState extends State<SeerrConfigScreen> {
               onChanged: _setVjodPersonalize,
             ),
           ),
+        TvFocusHighlight(
+          builder: (context, focused) => SwitchListTile.adaptive(
+            secondary: Icon(
+              Icons.live_tv_rounded,
+              color: focused ? AppColors.black.withValues(alpha: 0.54) : null,
+            ),
+            title: Text(
+              _french ? 'Versions IPTV sur les fiches' : 'IPTV versions on pages',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: focused
+                    ? AppColors.black.withValues(alpha: 0.87)
+                    : AppColorScheme.onSurface,
+              ),
+            ),
+            subtitle: Text(
+              _french
+                  ? 'Sur les films et séries déjà sur le serveur : un bouton '
+                        'IPTV avec les langues et la qualité que les '
+                        'fournisseurs ont aussi.'
+                  : 'On films and series the server has: an IPTV button with '
+                        'the languages and quality the providers have too.',
+              style: TextStyle(
+                fontSize: 12,
+                color: focused
+                    ? AppColors.black.withValues(alpha: 0.54)
+                    : AppColorScheme.onSurface.withValues(alpha: 0.7),
+              ),
+            ),
+            value: _seerrPrefs.vjodIptvOnLibrary,
+            onChanged: (value) async {
+              await _seerrPrefs.setVjodIptvOnLibrary(value);
+              if (mounted) setState(() {});
+            },
+          ),
+        ),
         if (showSeerrSettings)
           TvFocusHighlight(
             builder: (context, focused) => ListTile(

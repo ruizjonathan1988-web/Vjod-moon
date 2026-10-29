@@ -5959,11 +5959,12 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
           child: ListView(
             shrinkWrap: true,
             children: [
-              const ListTile(
-                title: Text('Choisir le fichier'),
+              ListTile(
+                title: const Text('Choisir le fichier'),
                 subtitle: Text(
                   'Chaque fournisseur et chaque catégorie a son propre fichier. '
-                  'Si celui-ci ne répond pas, un autre prend le relais.',
+                  'Si celui-ci ne répond pas, un autre prend le relais.'
+                  '${viewModel.libraryHeight > 0 && !viewModel.isSeerrOnly ? ' Sur ton serveur : ${qualityOfHeight(viewModel.libraryHeight)}.' : ''}',
                 ),
               ),
               if (files.isEmpty)
@@ -5975,7 +5976,11 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
                   title: Text(
                     [
                       if (f.copy.tag.isNotEmpty) languageName(f.copy.tag),
-                      f.file.quality.isEmpty ? 'qualité non indiquée' : f.file.quality,
+                      f.file.shownQuality.isEmpty
+                          ? 'qualité non indiquée'
+                          : f.file.height != null
+                          ? '${f.file.shownQuality} (vérifiée)'
+                          : f.file.shownQuality,
                     ].join(' · '),
                   ),
                   subtitle: Text(f.file.details),
@@ -5994,6 +5999,40 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
         source: picked.file.source,
       );
     }
+  }
+
+  /// On a film or series the library has: one button beside Play saying what
+  /// the IPTV providers have too, languages first (« IPTV · FR EN RU · 4K »),
+  /// the quality measured in the files when Ma TV could; it opens the list of
+  /// every version to pick one. Marked ↑ when a provider's picture beats the
+  /// library's file.
+  Widget? _libraryIptvButton(BuildContext context) {
+    final copies = viewModel.providerCopies;
+    if (viewModel.isSeerrOnly || copies.isEmpty || viewModel.providerCatalog == null) {
+      return null;
+    }
+    final tags = [
+      for (final t in {for (final c in copies) c.tag.toUpperCase()})
+        if (t.isNotEmpty) t,
+    ];
+    final shownTags = tags.length > 3
+        ? '${tags.take(3).join(' ')} +${tags.length - 3}'
+        : tags.join(' ');
+    final best = copies
+        .map(viewModel.providerHeightOf)
+        .fold(0, (a, b) => a > b ? a : b);
+    final library = viewModel.libraryHeight;
+    final better = best > 0 && library > 0 && best > library;
+    final label = [
+      'IPTV',
+      if (shownTags.isNotEmpty) shownTags,
+      if (best > 0) '${qualityOfHeight(best)}${better ? ' ↑' : ''}',
+    ].join(' · ');
+    return _DetailActionButton(
+      label: label,
+      icon: better ? Icons.high_quality_rounded : Icons.live_tv_rounded,
+      onPressed: () => unawaited(_chooseProviderFile(context)),
+    );
   }
 
   Widget? _providerPlayButton(
@@ -7552,20 +7591,9 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
             autofocus: autofocusPlay,
           )
         : null;
-    final better = viewModel.isSeerrOnly ? null : viewModel.betterAtProvider;
     final providerExtras = providerAction != null
         ? _providerLanguageButtons(context)
-        : [
-            // The library has the film, the provider has it in a better
-            // picture: offered right beside Play.
-            if (better != null)
-              _DetailActionButton(
-                label: 'IPTV · ${better.quality}',
-                icon: Icons.high_quality_rounded,
-                onPressed: () =>
-                    _openProviderCopy(context, better.copy, better.quality),
-              ),
-          ];
+        : [?_libraryIptvButton(context)];
     if (providerAction != null) {
       primaryAction = providerAction;
       byButton.removeWhere((button, _) => !button.availableInSeerrOnly);

@@ -164,13 +164,26 @@ class MaTvVodSource {
   final String quality;
   final String extension;
 
+  /// The picture height Ma TV read in the file itself, null when not
+  /// measured (yet).
+  final int? height;
+
   const MaTvVodSource({
     required this.source,
     required this.provider,
     this.category = '',
     this.quality = '',
     this.extension = '',
+    this.height,
   });
+
+  /// The quality to show: the one measured in the file, else the one the
+  /// provider wrote in its name.
+  String get shownQuality {
+    final h = height;
+    if (h != null && h > 0) return qualityOfHeight(h);
+    return quality;
+  }
 
   factory MaTvVodSource.fromJson(Map j) => MaTvVodSource(
     source: _int(j['src']),
@@ -178,6 +191,7 @@ class MaTvVodSource {
     category: _str(j['category']),
     quality: _str(j['quality']),
     extension: _str(j['ext']),
+    height: j['h'] is num ? (j['h'] as num).toInt() : null,
   );
 
   /// `fournisseur.com · FILMS 4K · mkv`
@@ -246,6 +260,15 @@ const _qualityHeights = {'4K': 2160, '1080p': 1080, '720p': 720, 'SD': 480};
 /// The picture height a quality label (`4K`, `1080p`…) stands for, 0 when
 /// unknown.
 int qualityHeight(String quality) => _qualityHeights[quality] ?? 0;
+
+/// The quality label of a measured picture height.
+String qualityOfHeight(int h) => h >= 1800
+    ? '4K'
+    : h >= 1000
+    ? '1080p'
+    : h >= 700
+    ? '720p'
+    : 'SD';
 
 final _qualityPatterns = [
   ('4K', RegExp(r'\b(?:4k|uhd|2160p?)\b', caseSensitive: false)),
@@ -849,12 +872,16 @@ class XtreamCatalog {
 
   /// The files Ma TV keeps for [copy], to choose from; empty for another
   /// provider or when it doesn't answer.
-  Future<List<MaTvVodSource>> sourcesOf(XtreamTitle copy) async {
+  /// The files of [copy] at Ma TV. With [measure], the films' files never
+  /// measured are measured first (their real picture size, read in the file;
+  /// a few seconds the first time, kept afterwards).
+  Future<List<MaTvVodSource>> sourcesOf(XtreamTitle copy, {bool measure = false}) async {
     if (!isMaTv) return const [];
     try {
       final answer = await _maTvGet('sources', {
         'kind': copy.kind.name,
         'id': copy.id,
+        if (measure) 'measure': '1',
       });
       final list = answer is Map && answer['sources'] is List
           ? answer['sources'] as List
