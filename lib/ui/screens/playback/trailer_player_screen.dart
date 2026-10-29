@@ -29,12 +29,18 @@ class TrailerPlayerScreen extends StatefulWidget {
 class _TrailerPlayerScreenState extends State<TrailerPlayerScreen> {
   static const _openTimeout = Duration(seconds: 12);
   static const _resolveTimeout = Duration(seconds: 10);
+  static const _openRetries = 2;
+  static const _reconnectDelay = Duration(milliseconds: 1200);
 
   Player? _player;
   VideoController? _controller;
   AppleTvPreviewPlayer? _appleTvPlayer;
   StreamSubscription<void>? _appleTvCompletedSub;
   StreamSubscription<Duration>? _sponsorBlockPositionSub;
+  StreamSubscription<bool>? _completedSub;
+  Timer? _reconnectTimer;
+  String? _playingUrl;
+  bool _useYouTubeHeaders = false;
   final _sponsorBlockService = SponsorBlockService();
   final _sponsorBlockSession = SponsorBlockSkipSession();
   bool _loading = true;
@@ -100,6 +106,19 @@ class _TrailerPlayerScreenState extends State<TrailerPlayerScreen> {
       return;
     }
     _player ??= Player(configuration: const PlayerConfiguration(libass: false));
+    _completedSub ??= _player!.stream.completed.listen((done) {
+      // The film or episode was playing and the stream ended early (a cut on
+      // the provider side): open the same address again rather than stop.
+      if (done != true || !mounted || _loading || _playingUrl == null) return;
+      _reconnectTimer?.cancel();
+      _reconnectTimer = Timer(_reconnectDelay, () {
+        if (!mounted || _playingUrl == null) return;
+        final media = _useYouTubeHeaders
+            ? Media(_playingUrl!, httpHeaders: YouTubeStreamResolver.youtubeHeaders)
+            : Media(_playingUrl!);
+        _player!.open(media).catchError((_) => false);
+      });
+    });
     _controller ??= VideoController(
       _player!,
       configuration: VideoControllerConfiguration(
@@ -140,6 +159,8 @@ class _TrailerPlayerScreenState extends State<TrailerPlayerScreen> {
   @override
   void dispose() {
     _screensaverController.setPlaybackActive(false);
+    _reconnectTimer?.cancel();
+    _completedSub?.cancel();
     _sponsorBlockPositionSub?.cancel();
     _appleTvCompletedSub?.cancel();
     unawaited(_appleTvPlayer?.dispose());
@@ -256,7 +277,7 @@ class _TrailerPlayerScreenState extends State<TrailerPlayerScreen> {
     }
   }
 
-  Future<void> _openTrailer() async {
+  Future<void> _openTrailer([int attempt = 0]) async {
     final resolved = await _resolveStreamUrl();
     final streamUrl = resolved.streamUrl;
     final sponsorBlockVideoId = resolved.sponsorBlockVideoId;
@@ -282,6 +303,8 @@ class _TrailerPlayerScreenState extends State<TrailerPlayerScreen> {
         resolved.audioLanguage,
       );
       await applyMpvClientCertificate(_player!, streamUrl);
+      _playingUrl = streamUrl;
+      _useYouTubeHeaders = useYouTubeHeaders;
       await _player!.open(media).timeout(_openTimeout);
       if (!mounted) return;
       setState(() {
@@ -295,6 +318,9 @@ class _TrailerPlayerScreenState extends State<TrailerPlayerScreen> {
       }
     } on TimeoutException {
       if (!mounted) return;
+      if (attempt < _openRetries) {
+        return _openTrailer(attempt + 1);
+      }
       final l10n = AppLocalizations.of(context);
       setState(() {
         _loading = false;
@@ -302,6 +328,9 @@ class _TrailerPlayerScreenState extends State<TrailerPlayerScreen> {
       });
     } catch (_) {
       if (!mounted) return;
+      if (attempt < _openRetries) {
+        return _openTrailer(attempt + 1);
+      }
       final l10n = AppLocalizations.of(context);
       setState(() {
         _loading = false;
