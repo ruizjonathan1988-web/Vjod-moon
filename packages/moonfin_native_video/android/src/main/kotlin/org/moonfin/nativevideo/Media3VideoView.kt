@@ -5224,9 +5224,38 @@ class Media3VideoView(
                 "closedCaptionTracks" to closedCaptionTrackOptions(),
                 "subtitleRendererMode" to activeSubtitleRendererMode.wireValue,
                 "subtitleRendererModeRequested" to requestedSubtitleRendererMode.wireValue,
+                // Language and name of each track, numbered as setAudioTrack and
+                // setSubtitleTrack count them, for players that list the file's own
+                // tracks (IPTV films, where no server describes them).
+                "audioTracks" to trackInfos(C.TRACK_TYPE_AUDIO),
+                "textTracks" to trackInfos(C.TRACK_TYPE_TEXT),
             ),
         )
         emitAudioTrackMapping()
+    }
+
+    private fun trackInfos(trackType: Int): List<Map<String, Any?>> {
+        val out = mutableListOf<Map<String, Any?>>()
+        var position = 1
+        for (group in groupsInSourceOrder(trackType)) {
+            for (index in 0 until group.length) {
+                val format = group.getTrackFormat(index)
+                if (trackType == C.TRACK_TYPE_TEXT && isClosedCaptionTrack(format)) continue
+                out.add(
+                    mapOf(
+                        "position" to position,
+                        "language" to (format.language ?: ""),
+                        "label" to (format.label ?: ""),
+                        "codec" to (format.sampleMimeType ?: format.codecs ?: ""),
+                        "channels" to format.channelCount,
+                        "selected" to group.isTrackSelected(index),
+                        "supported" to group.isTrackSupported(index),
+                    ),
+                )
+                position += 1
+            }
+        }
+        return out
     }
 
     // Media3 raises nothing when no renderer takes the video or the extractor
