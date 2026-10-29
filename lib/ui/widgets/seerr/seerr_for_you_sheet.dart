@@ -4,13 +4,16 @@ import 'package:get_it/get_it.dart';
 import '../../../data/models/aggregated_item.dart';
 import '../../../data/repositories/seerr_repository.dart';
 import '../../../data/services/seerr/seerr_error.dart';
+import '../../../data/services/vjod/xtream_catalog.dart' show languageName;
 import '../../../l10n/app_localizations.dart';
 import '../floating_notification.dart';
 import '../focusable_dialog_row.dart';
 import '../track_selector_dialog.dart';
+import '../vjod/provider_play.dart';
 
 /// What the viewer picked on the For You sheet.
 enum _ForYouChoice {
+  playIptv,
   request,
   requestAllSeasons,
   requestRussian,
@@ -41,6 +44,10 @@ Future<void> showSeerrForYouSheet({
   final l10n = AppLocalizations.of(context);
   final isTv = (item.rawData['SeerrMediaType'] as String?) == 'tv';
   final title = item.name;
+  // The provider has it (the "IPTV" tag on the poster): watching it now comes
+  // first, before asking for a download.
+  final iptv = providerCopyNow(series: isTv, tmdbId: item.id);
+  final iptvLang = iptv == null || iptv.tag.isEmpty ? '' : languageName(iptv.tag);
 
   final choice = await showStyledPlayerDialog<_ForYouChoice>(
     context,
@@ -52,12 +59,21 @@ Future<void> showSeerrForYouSheet({
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (iptv != null)
+          FocusableDialogRow(
+            icon: Icons.play_arrow_rounded,
+            label: iptvLang.isEmpty
+                ? 'Regarder maintenant (IPTV)'
+                : 'Regarder maintenant (IPTV · $iptvLang)',
+            autofocus: true,
+            onTap: () => Navigator.pop(dialogContext, _ForYouChoice.playIptv),
+          ),
         FocusableDialogRow(
           icon: Icons.download_rounded,
           label: isTv
               ? l10n.seerrForYouRequestFirstSeason
               : l10n.seerrForYouRequestMovie,
-          autofocus: true,
+          autofocus: iptv == null,
           onTap: () => Navigator.pop(dialogContext, _ForYouChoice.request),
         ),
         if (isTv)
@@ -96,6 +112,10 @@ Future<void> showSeerrForYouSheet({
   );
 
   if (choice == null || !context.mounted) return;
+  if (choice == _ForYouChoice.playIptv) {
+    if (!playProviderCopy(context, series: isTv, tmdbId: item.id)) openDetails();
+    return;
+  }
   if (choice == _ForYouChoice.details) {
     openDetails();
     return;
