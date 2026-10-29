@@ -116,8 +116,10 @@ android {
             versionCode = androidTvVersionCode
             versionName = androidTvVersionName
             ndk { abiFilters += tvAbis }
+            // The perso build keeps its own id (".perso") so it updates over
+            // itself, but it is the real app, not a test one: plain "VJOD".
             manifestPlaceholders["appName"] =
-                if (testIdSuffix.isEmpty()) baseAppName else "$baseAppName Test"
+                if (testIdSuffix.isEmpty() || testIdSuffix == ".perso") baseAppName else "$baseAppName Test"
             // Impeller off by default on TV: the GLES fallback stutters on
             // TV-box GPUs. MoonfinApplication turns it on for boxes where it
             // runs on Vulkan.

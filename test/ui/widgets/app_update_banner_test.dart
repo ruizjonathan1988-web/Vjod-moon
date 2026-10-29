@@ -50,4 +50,21 @@ void main() {
 
     expect(find.byType(StatusBannerPill), findsNothing);
   });
+
+  testWidgets('a VJOD build reads as a date, not a version number', (tester) async {
+    final vjod = DesktopUpdateInfo(
+      version: '2026.10.29-1353',
+      downloadUri: Uri.parse('https://example.invalid/moonfin-tv.apk'),
+      releaseNotesUrl: 'https://example.invalid/notes',
+      builtAt: DateTime(2026, 10, 29, 13, 53),
+    );
+    await tester.pumpWidget(wrap(() async => vjod));
+    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(find.textContaining('VJOD'), findsOneWidget);
+    expect(find.textContaining('29/10'), findsOneWidget);
+    expect(find.textContaining('2026.10.29'), findsNothing);
+    await tester.pump(const Duration(seconds: 8));
+    await tester.pumpAndSettle();
+  });
 }
