@@ -125,6 +125,12 @@ class IptvProgress {
 
   bool get isSeries => kind == 'series';
 
+  /// Whether this place is the episode [season] × [episode] of [epId]: the
+  /// same file, or the same episode by its numbers when the series now comes
+  /// from another provider (its episode ids are that provider's own).
+  bool isEpisode(String epId, int season, int episode) =>
+      ep == epId || (season > 0 && episode > 0 && this.season == season && this.episode == episode);
+
   /// How far along, 0 to 1.
   double get fraction => duration.inSeconds <= 0
       ? 0
@@ -177,12 +183,19 @@ class IptvProgressStore {
     return (endpoint: server.endpoint, user: user);
   }
 
-  static Future<IptvProgress?> get(String kind, String id) async {
+  /// The place of [id]; failing that, of the same work ([tmdb]) watched
+  /// under another number (another language, another provider).
+  static Future<IptvProgress?> get(String kind, String id, {String tmdb = ''}) async {
     final c = _ctx();
     if (c == null || id.isEmpty) return null;
     try {
       final r = await http
-          .get(c.endpoint('/tv/api/vod/progress', {'u': c.user, 'kind': kind, 'id': id}))
+          .get(c.endpoint('/tv/api/vod/progress', {
+            'u': c.user,
+            'kind': kind,
+            'id': id,
+            if (tmdb.isNotEmpty) 'tmdb': tmdb,
+          }))
           .timeout(_timeout);
       if (r.statusCode != 200) return null;
       final j = jsonDecode(utf8.decode(r.bodyBytes));
