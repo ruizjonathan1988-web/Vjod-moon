@@ -103,6 +103,12 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
   DateTime? _openedAt;
   bool _picture = false;
   bool _retried = false;
+  bool _failed = false;
+  bool _nextSourceInFlight = false;
+  DateTime? _reconnectAfter;
+  Uri? _openedUri;
+  MaTvChannel? _openedCh;
+  final Set<String> _tried = {};
   String? _playingId;
   String _number = '';
   Set<String> _favorites = {};
@@ -164,8 +170,22 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
       if (b) _onStall();
     }));
     _subs.add(_player.stream.error.listen((e) {
-      if (!mounted || _picture) return;
-      setState(() => _status = 'Le flux ne démarre pas, nouvel essai…');
+      if (!mounted) return;
+      final wasPlaying = _picture;
+      setState(() => _status = wasPlaying ? 'Lecture interrompue, reconnexion…' : 'Le flux ne démarre pas, nouvel essai…');
+      if (wasPlaying) {
+        // Back to no picture: a recovery before the reconnect delay (ffmpeg's
+        // own reconnect) sets it again and cancels the reopen.
+        _picture = false;
+        _reconnect();
+      }
+    }));
+    // The picture had started and the stream ended anyway (the link to the
+    // seedbox dropped, the provider closed…): open the same address again.
+    _subs.add(_player.stream.completed.listen((done) {
+      if (done != true || !mounted || _replaying != null || _pausedAt != null || !_picture) return;
+      _picture = false;
+      _reconnect();
     }));
     _clock = Timer.periodic(const Duration(seconds: 20), (_) {
       if (mounted) setState(() => _now = DateTime.now());
@@ -288,10 +308,12 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     _seekPending = false;
     _seekTimer?.cancel();
     _zapTimer?.cancel();
+    _tried.clear();
     setState(() {
       _status = 'Ouverture…';
       _sourceLine = null;
       _now = DateTime.now();
+      _failed = false;
     });
     _showBanner();
     final ch = _channel;
@@ -306,6 +328,8 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     }
     final seq = ++_tuneSeq;
     _picture = false;
+    _openedUri = uri;
+    _openedCh = ch;
     _retried = retry;
     _openedAt = DateTime.now();
     _playingId = ch.id;
@@ -334,10 +358,91 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
       setState(() => _status = 'Pas d’image, nouvel essai…');
       unawaited(_open(ch, uri, retry: true));
     } else if (_retried && waited > _noPictureGiveUp - _noPictureRetry) {
-      _watchdog?.cancel();
-      setState(() => _status = 'Aucune source ne répond · MENU puis Sources pour en choisir une');
-      _showBanner(time: const Duration(seconds: 12));
+      // Source failover only exists for the live channel; a replay or a
+      // timeshift that gives no picture must not silently turn into live TV.
+      if (_replaying != null || _delay > Duration.zero) {
+        _watchdog?.cancel();
+        setState(() {
+          _status = 'Pas d’image pour cette lecture · Retour pour revenir au direct';
+          _failed = true;
+        });
+        _showBanner(time: const Duration(seconds: 12));
+      } else {
+        unawaited(_nextSource());
+      }
     }
+  }
+
+  /// The stream was playing and died: open the same address again once the
+  /// player settles, unless the relay already picks up on the other side.
+  void _reconnect() {
+    // Reopening replays the same address: live stays live, a timeshift comes
+    // back on the same point instead of jumping forward.
+    final uri = _openedUri;
+    final ch = _openedCh;
+    if (uri == null || ch == null || _replaying != null || _pausedAt != null || _overlay == _Overlay.sources) return;
+    final when = DateTime.now().add(const Duration(milliseconds: 1200));
+    final at = _reconnectAfter;
+    if (at != null && at.isAfter(when)) return;
+    _reconnectAfter = when;
+    Timer(const Duration(milliseconds: 1200), () {
+      if (!mounted || _reconnectAfter != when) return;
+      _reconnectAfter = null;
+      if (_picture || _replaying != null || _pausedAt != null) return;
+      unawaited(_open(ch, uri));
+    });
+  }
+
+  /// Every source the automatic order put first was tried: ask the relay for
+  /// the next one. Nothing left -> give up with the choice still open.
+  Future<void> _nextSource() async {
+    if (_nextSourceInFlight || _replaying != null || _delay > Duration.zero) return;
+    _nextSourceInFlight = true;
+    try {
+      final ch = _channel;
+      final data = await _sources.channel(ch.number);
+      if (!mounted || data == null || data.sources.isEmpty) {
+        _watchdog?.cancel();
+        setState(() {
+          _status = 'La chaîne ne répond pas';
+          _failed = true;
+        });
+        _showBanner(time: const Duration(seconds: 12));
+        return;
+      }
+      final cur = data.current;
+      if (cur != null) _tried.add(cur.key);
+      final rest = data.sources
+          .where((x) => x.key != cur?.key && !_tried.contains(x.key) && x.ok != false && !x.duplicate)
+          .toList();
+      if (rest.isEmpty) {
+        _watchdog?.cancel();
+        setState(() {
+          _status = 'Aucune source ne répond · MENU puis Sources pour en choisir une';
+          _failed = true;
+        });
+        _showBanner(time: const Duration(seconds: 12));
+        return;
+      }
+      final pick = rest.first;
+      setState(() => _status = 'Source ${pick.rank}/${data.sources.length} : ${pick.resolutionLabel.isEmpty ? pick.quality : pick.resolutionLabel}…');
+      await _sources.prefer(data.id, pick.key);
+      if (!mounted) return;
+      _retried = false;
+      unawaited(_open(ch, _client.liveUri(ch)));
+    } finally {
+      _nextSourceInFlight = false;
+    }
+  }
+
+  /// The "next source" action shown when everything failed.
+  void _tryNextSource() {
+    if (_replaying != null || _delay > Duration.zero) {
+      _goLive();
+      return;
+    }
+    _tried.clear();
+    unawaited(_nextSource());
   }
 
   Future<void> _fetchSummary(int seq, MaTvChannel ch) async {
@@ -818,6 +923,8 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     } else if (_number.isNotEmpty) {
       _numberTimer?.cancel();
       unawaited(_goNumber());
+    } else if (_failed) {
+      _tryNextSource();
     } else {
       _openList();
     }
