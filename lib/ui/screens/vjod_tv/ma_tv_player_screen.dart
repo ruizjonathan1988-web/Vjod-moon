@@ -1028,10 +1028,54 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     return j >= 0 ? '$j' : null;
   }
 
+  final List<GlobalKey> _guideKeys = [];
+
+  List<GlobalKey> _guideKeysFor(int n) {
+    while (_guideKeys.length < n) {
+      _guideKeys.add(GlobalKey());
+    }
+    return _guideKeys;
+  }
+
+  /// The button on the row below ([down]) or above the selected one, the
+  /// closest across; null on the last (or first) row.
+  int? _guideRowStep(bool down) {
+    Rect? rectOf(int i) {
+      final box = i < _guideKeys.length ? _guideKeys[i].currentContext?.findRenderObject() : null;
+      if (box is! RenderBox || !box.hasSize) return null;
+      return box.localToGlobal(Offset.zero) & box.size;
+    }
+
+    final from = rectOf(_guideAction);
+    if (from == null) return null;
+    int? best;
+    double bestDy = double.infinity, bestDx = double.infinity;
+    for (var i = 0; i < _guideActions.length; i++) {
+      final r = rectOf(i);
+      if (r == null) continue;
+      final dy = down ? r.center.dy - from.center.dy : from.center.dy - r.center.dy;
+      if (dy < from.height / 2) continue;
+      final dx = (r.center.dx - from.center.dx).abs();
+      if (dy < bestDy - 1 || ((dy - bestDy).abs() <= 1 && dx < bestDx)) {
+        best = i;
+        bestDy = dy;
+        bestDx = dx;
+      }
+    }
+    return best;
+  }
+
   KeyEventResult _guideKey(LogicalKeyboardKey key, KeyEvent event) {
     final n = _guideActions.length;
-    if (key.isBackKey || key.isDownKey || key.isUpKey) {
+    if (key.isBackKey) {
       _close();
+      return KeyEventResult.handled;
+    }
+    // Up and down move between the rows of buttons; past the first or the
+    // last row they do nothing (Back closes), instead of closing the menu.
+    if (key.isDownKey || key.isUpKey) {
+      final next = _guideRowStep(key.isDownKey);
+      if (next != null) setState(() => _guideAction = next);
       return KeyEventResult.handled;
     }
     if (key.isLeftKey) {
@@ -1210,6 +1254,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
                       now: DateTime.now(),
                       actions: _guideActions,
                       selectedAction: _guideAction,
+                      actionKeys: _guideKeysFor(_guideActions.length),
                       onAction: (i) => unawaited(_guideDo(i)),
                     ),
                   ),
