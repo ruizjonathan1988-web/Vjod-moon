@@ -741,7 +741,9 @@ class XtreamCatalog {
   // Ma TV merges the catalogues of many accounts (a few hundred thousand
   // titles): the lists take a while to arrive and to read.
   static const _listTimeout = Duration(minutes: 4);
-  static const _infoTimeout = Duration(seconds: 20);
+  // Ma TV asks every provider of the title at once and may take up to 40 s
+  // to find one with something behind it.
+  static const _infoTimeout = Duration(seconds: 60);
 
   Future<List<XtreamTitle>>? _titles;
 
