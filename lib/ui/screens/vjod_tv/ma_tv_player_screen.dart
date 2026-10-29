@@ -392,7 +392,20 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
         final uri = _client.liveUri(ch);
         if (uri != null) unawaited(_open(ch, uri));
       } else {
-        unawaited(_applyDelay(_delay));
+        unawaited(() async {
+          final seq = _tuneSeq;
+          await _applyDelay(_delay);
+          // _applyDelay only opens when the relay still has the buffer; when it
+          // can't, surface the failure like a dead source instead of a stuck
+          // screen — OK falls back to live via _tryNextSource.
+          if (!mounted || _picture || _tuneSeq != seq) return;
+          _watchdog?.cancel();
+          setState(() {
+            _status = 'Pas d’image pour cette lecture · Retour pour revenir au direct';
+            _failed = true;
+          });
+          _showBanner(time: const Duration(seconds: 12));
+        }());
       }
     });
   }
