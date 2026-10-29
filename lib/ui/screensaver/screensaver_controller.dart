@@ -42,6 +42,9 @@ class ScreensaverController {
 
   bool get activityPaused => _activityPaused;
 
+  /// Whether a player is on screen (an update waits until it closes).
+  bool get playbackActive => _playbackActive || _streamPlaying;
+
   set activityPaused(bool value) {
     if (_activityPaused == value) return;
     _activityPaused = value;

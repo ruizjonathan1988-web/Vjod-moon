@@ -22,6 +22,13 @@ object PersoApkInstaller {
                 val params = PackageInstaller.SessionParams(
                     PackageInstaller.SessionParams.MODE_FULL_INSTALL,
                 )
+                // Android 12+ lets an app update itself without asking once it is
+                // the one that installed itself; elsewhere the system asks as before.
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    params.setRequireUserAction(
+                        PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED,
+                    )
+                }
                 val sessionId = installer.createSession(params)
                 val session = installer.openSession(sessionId)
                 try {

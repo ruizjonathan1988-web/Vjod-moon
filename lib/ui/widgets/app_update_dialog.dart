@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../data/services/app_update_service.dart';
 import '../../l10n/app_localizations.dart';
 import '../../util/platform_detection.dart';
+import '../../util/vjod_text.dart';
 import 'track_selector_dialog.dart';
 
 /// Checks for an update and shows the dialog or an appropriate snackbar.
@@ -45,9 +46,18 @@ Future<void> showAppUpdateDialog(
 ) async {
   final l10n = AppLocalizations.of(context);
 
+  final builtAt = update.builtAt;
   final choice = await showStyledPlayerDialog<String>(
     context,
-    title: l10n.updateAvailableTitle(update.version),
+    title: builtAt != null
+        ? vjodText(
+            context,
+            fr: 'Nouvelle version de VJOD (${vjodBuildDate(context, builtAt)})',
+            en: 'New VJOD version (${vjodBuildDate(context, builtAt)})',
+            ru: 'Новая версия VJOD (${vjodBuildDate(context, builtAt)})',
+            zh: 'VJOD 新版本（${vjodBuildDate(context, builtAt)}）',
+          )
+        : l10n.updateAvailableTitle(update.version),
     showCancel: true,
     builder: (ctx) => Column(
       mainAxisSize: MainAxisSize.min,
@@ -86,6 +96,21 @@ Future<void> showAppUpdateDialog(
   await launchUrl(uri, mode: LaunchMode.externalApplication);
 }
 
+/// Installs [update] straight away when this app can do it itself (this
+/// fork's Android APK): download with progress, then the system installer,
+/// which on Android 12+ needs no tap once VJOD has updated itself once.
+/// Elsewhere it offers the update as usual.
+Future<void> installAppUpdateNow(BuildContext context, DesktopUpdateInfo update) async {
+  if (_installsApkInApp(update)) {
+    await _downloadAndInstallWindowsUpdate(context, update);
+  } else {
+    await showAppUpdateDialog(context, update);
+  }
+}
+
+/// Whether [update] installs inside the app (no choice to make).
+bool installsAppUpdateInApp(DesktopUpdateInfo update) => _installsApkInApp(update);
+
 Future<void> _downloadAndInstallWindowsUpdate(
   BuildContext context,
   DesktopUpdateInfo update,
@@ -94,9 +119,18 @@ Future<void> _downloadAndInstallWindowsUpdate(
   final valueNotifier = ValueNotifier<double>(0.0);
   final errorNotifier = ValueNotifier<String?>(null);
 
+  final builtAt = update.builtAt;
   showStyledPlayerDialog<void>(
     context,
-    title: l10n.updating,
+    title: builtAt != null
+        ? vjodText(
+            context,
+            fr: 'Mise à jour de VJOD (${vjodBuildDate(context, builtAt)})…',
+            en: 'Updating VJOD (${vjodBuildDate(context, builtAt)})…',
+            ru: 'Обновление VJOD (${vjodBuildDate(context, builtAt)})…',
+            zh: '正在更新 VJOD（${vjodBuildDate(context, builtAt)}）…',
+          )
+        : l10n.updating,
     barrierDismissible: false,
     builder: (dialogContext) => PopScope(
       canPop: false,

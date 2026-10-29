@@ -37,10 +37,15 @@ class DesktopUpdateInfo {
   final Uri downloadUri;
   final String releaseNotesUrl;
 
+  /// For this fork's builds: when the new one was published, shown instead
+  /// of a version number ("VJOD du 29/10 à 13h53").
+  final DateTime? builtAt;
+
   const DesktopUpdateInfo({
     required this.version,
     required this.downloadUri,
     required this.releaseNotesUrl,
+    this.builtAt,
   });
 }
 
@@ -225,12 +230,8 @@ class AppUpdateService {
     final version =
         '${local.year}.${two(local.month)}.${two(local.day)}'
         '-${two(local.hour)}${two(local.minute)}';
-    final lastNotified = _store.getString(_lastNotifiedVersionKey);
-    if (suppressIfAlreadyNotified && lastNotified == version) {
-      return const DesktopUpdateCheckResult(
-        status: DesktopUpdateCheckStatus.alreadyNotified,
-      );
-    }
+    // Not held back once offered: a perso build updates itself at every
+    // opening (an hour apart at most) until the new one is installed.
     await _store.setString(_lastNotifiedVersionKey, version);
 
     return DesktopUpdateCheckResult(
@@ -239,6 +240,7 @@ class AppUpdateService {
         version: version,
         downloadUri: Uri.parse(asset.downloadUrl),
         releaseNotesUrl: release.releaseNotesUrl,
+        builtAt: local,
       ),
     );
   }
