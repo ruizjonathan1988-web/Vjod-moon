@@ -108,6 +108,10 @@ class TvSource {
   final String server;
   final bool duplicate;
 
+  /// Its account is full because of connections outside Ma TV (someone's
+  /// TiviMate on a shared account): opening it would be refused, or cut them.
+  final bool takenElsewhere;
+
   const TvSource({
     required this.key,
     required this.rank,
@@ -132,6 +136,7 @@ class TvSource {
     this.where = '',
     this.server = '',
     this.duplicate = false,
+    this.takenElsewhere = false,
   });
 
   factory TvSource.fromJson(Map<String, dynamic> j) => TvSource(
@@ -158,6 +163,7 @@ class TvSource {
     where: j['where']?.toString() ?? '',
     server: j['server']?.toString() ?? '',
     duplicate: j['dup'] == true,
+    takenElsewhere: j['taken'] == true,
   );
 
   /// "1080p", or the quality the provider announces when never measured.

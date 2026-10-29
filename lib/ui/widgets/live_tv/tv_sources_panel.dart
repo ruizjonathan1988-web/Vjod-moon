@@ -316,6 +316,8 @@ class _TvSourcesPanelState extends State<TvSourcesPanel> {
       if (source != null && source.sticky) _badge(_t('toujours', 'always'), AppColorScheme.accent)
       else if (source != null && source.chosen) _badge(_t('choisie', 'chosen'), AppColorScheme.accent),
       if (source != null && source.ok == false) _badge(_t('en panne', 'down'), _bad),
+      if (source != null && source.takenElsewhere && !source.playing)
+        _badge(_t('occupée ailleurs', 'in use elsewhere'), _mute),
       if (source != null && source.ok == null) _badge(_t('pas testée', 'untested'), _mute),
     ];
     return GestureDetector(
