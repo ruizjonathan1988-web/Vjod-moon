@@ -155,6 +155,39 @@ class XtreamTitle {
   String get label => tag.isEmpty ? name : '$name · $tag';
 }
 
+/// One file of a title at Ma TV, to pick on the title's page: which provider
+/// (its domain), in which of its categories, quality and format.
+class MaTvVodSource {
+  final int source;
+  final String provider;
+  final String category;
+  final String quality;
+  final String extension;
+
+  const MaTvVodSource({
+    required this.source,
+    required this.provider,
+    this.category = '',
+    this.quality = '',
+    this.extension = '',
+  });
+
+  factory MaTvVodSource.fromJson(Map j) => MaTvVodSource(
+    source: _int(j['src']),
+    provider: _str(j['provider']),
+    category: _str(j['category']),
+    quality: _str(j['quality']),
+    extension: _str(j['ext']),
+  );
+
+  /// `fournisseur.com · FILMS 4K · mkv`
+  String get details => [
+    provider,
+    if (category.isNotEmpty) category,
+    if (extension.isNotEmpty) extension,
+  ].join(' · ');
+}
+
 /// One episode of a provider series.
 class XtreamEpisode {
   final String id;
@@ -808,6 +841,27 @@ class XtreamCatalog {
     if (found) loaded.value++;
   }
 
+  /// The files Ma TV keeps for [copy], to choose from; empty for another
+  /// provider or when it doesn't answer.
+  Future<List<MaTvVodSource>> sourcesOf(XtreamTitle copy) async {
+    if (!isMaTv) return const [];
+    try {
+      final answer = await _maTvGet('sources', {
+        'kind': copy.kind.name,
+        'id': copy.id,
+      });
+      final list = answer is Map && answer['sources'] is List
+          ? answer['sources'] as List
+          : const [];
+      return [
+        for (final j in list)
+          if (j is Map) MaTvVodSource.fromJson(j),
+      ];
+    } catch (_) {
+      return const [];
+    }
+  }
+
   /// Checks that Ma TV answers and has a catalogue, for the settings line.
   /// A Ma TV without one is passed over for a while (see [recentlyFailed]).
   Future<void> _checkMaTv() async {
@@ -1166,11 +1220,13 @@ class XtreamCatalog {
   Future<XtreamSeriesInfo> seriesInfo(
     String seriesId, {
     String quality = '',
+    int? source,
   }) async => parseSeriesInfo(
     await _get(
       _api('get_series_info', {
         'series_id': seriesId,
         if (quality.isNotEmpty) 'q': quality,
+        if (source != null && isMaTv) 'src': '$source',
       }),
       _infoTimeout,
     ),
@@ -1181,10 +1237,17 @@ class XtreamCatalog {
   /// Where a film plays from. A [quality] is asked for only when the title
   /// comes in several (Ma TV then plays that copy first, the others as a
   /// fallback); a provider read directly never sees it.
-  String movieUrl(XtreamTitle movie, {String quality = ''}) =>
-      '$base/movie/${_seg(username)}/${_seg(password)}/'
-      '${movie.id}.${movie.extension}'
-      '${quality.isNotEmpty && movie.qualities.length > 1 ? '?q=${Uri.encodeQueryComponent(quality)}' : ''}';
+  /// A [source] picked on the page (Ma TV's file number) is played first.
+  String movieUrl(XtreamTitle movie, {String quality = '', int? source}) {
+    final query = [
+      if (quality.isNotEmpty && movie.qualities.length > 1)
+        'q=${Uri.encodeQueryComponent(quality)}',
+      if (source != null && isMaTv) 'src=$source',
+    ];
+    return '$base/movie/${_seg(username)}/${_seg(password)}/'
+        '${movie.id}.${movie.extension}'
+        '${query.isEmpty ? '' : '?${query.join('&')}'}';
+  }
 
   /// Where an episode plays from.
   String episodeUrl(XtreamEpisode episode) =>
