@@ -7547,6 +7547,12 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
           onPressed: () =>
               showSeerrManageRequestsSheet(context: context, vm: seerr),
         ),
+      if (_canDeleteFromServer(item) && shows(DetailButton.deleteFromServer))
+        DetailButton.deleteFromServer: _DetailActionButton(
+          label: 'Supprimer',
+          icon: Icons.delete_forever_outlined,
+          onPressed: () => _deleteFromServer(context, item),
+        ),
       if (_adminActionsFor(item).isNotEmpty && shows(DetailButton.admin))
         DetailButton.admin: _DetailActionButton(
           label: l10n.admin,
@@ -8609,6 +8615,118 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
           ),
         );
       },
+    );
+  }
+
+  /// A film, an episode, a season or a series the profile may delete
+  /// (Jellyfin's own verdict, « Autoriser la suppression de médias »).
+  bool _canDeleteFromServer(AggregatedItem item) =>
+      item.canDelete &&
+      !viewModel.isSeerrOnly &&
+      const {'Movie', 'Episode', 'Season', 'Series'}.contains(item.type);
+
+  /// What can go: for an episode, it, its season or the whole series; for a
+  /// series, the whole of it or one of its seasons.
+  List<({String id, String label, String what, bool leaves})> _deleteChoices(AggregatedItem item) {
+    final series = item.seriesName ?? item.name;
+    return switch (item.type) {
+      'Episode' => [
+        (
+          id: item.id,
+          label: 'Cet épisode${item.parentIndexNumber != null && item.indexNumber != null ? ' (S${item.parentIndexNumber} É${item.indexNumber})' : ''}',
+          what: '« ${item.name} »',
+          leaves: true,
+        ),
+        if (item.seasonId != null)
+          (
+            id: item.seasonId!,
+            label: 'Toute la saison${item.parentIndexNumber != null ? ' ${item.parentIndexNumber}' : ''}',
+            what: 'la saison${item.parentIndexNumber != null ? ' ${item.parentIndexNumber}' : ''} de « $series »',
+            leaves: true,
+          ),
+        if (item.seriesId != null)
+          (id: item.seriesId!, label: 'Toute la série', what: 'toute la série « $series »', leaves: true),
+      ],
+      'Season' => [
+        (id: item.id, label: 'Cette saison', what: '${item.name.toLowerCase()} de « $series »', leaves: true),
+        if (item.seriesId != null)
+          (id: item.seriesId!, label: 'Toute la série', what: 'toute la série « $series »', leaves: true),
+      ],
+      'Series' => [
+        (id: item.id, label: 'Toute la série', what: 'toute la série « ${item.name} »', leaves: true),
+        for (final season in viewModel.seasons)
+          if (season.type == 'Season' && season.canDelete && season.id.isNotEmpty)
+            (
+              id: season.id,
+              label: 'Seulement ${season.name.toLowerCase()}',
+              what: '${season.name.toLowerCase()} de « ${item.name} »',
+              leaves: false,
+            ),
+      ],
+      _ => [(id: item.id, label: 'Supprimer', what: '« ${item.name} »', leaves: true)],
+    };
+  }
+
+  Future<void> _deleteFromServer(BuildContext context, AggregatedItem item) async {
+    final choices = _deleteChoices(item);
+    var pick = choices.first;
+    if (choices.length > 1) {
+      final picked = await showFocusRestoringDialog<int>(
+        context: context,
+        builder: (ctx) => AlertDialog.adaptive(
+          backgroundColor: const Color(0xFF171717),
+          title: const Text('Que supprimer ?', style: TextStyle(color: Colors.white)),
+          content: const Text(
+            'Effacé du serveur pour de bon : fichiers, surveillance de Sonarr et torrent.',
+            style: TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            for (var i = 0; i < choices.length; i++)
+              adaptiveDialogAction(
+                autofocus: i == 0,
+                onPressed: () => Navigator.pop(ctx, i),
+                focusRingColor: AppColorScheme.accent,
+                child: Text(choices[i].label),
+              ),
+            adaptiveDialogAction(
+              onPressed: () => Navigator.pop(ctx),
+              focusRingColor: AppColorScheme.accent,
+              child: Text(AppLocalizations.of(ctx).cancel),
+            ),
+          ],
+        ),
+      );
+      if (picked == null || !context.mounted) return;
+      pick = choices[picked];
+    }
+    final confirmed = await _showDeleteConfirmationDialog(
+      context,
+      title: 'Supprimer du serveur ?',
+      message:
+          'Cela efface ${pick.what} de la seedbox pour libérer la place. ${item.type == 'Movie' ? 'Radarr' : 'Sonarr'} ne le retéléchargera pas '
+          'et le torrent sera retiré. C’est définitif.',
+    );
+    if (!confirmed || !context.mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(const SnackBar(content: Text('Suppression en cours…'), duration: Duration(seconds: 30)));
+    if (pick.leaves) appRouter.go(Destinations.home);
+    final result = await viewModel.deleteFromServer(pick.id);
+    if (result.ok) homeRefreshBus.requestNowOrAfterNavigation();
+    if (!pick.leaves && result.ok && mounted) unawaited(viewModel.load());
+    final activeContext = appRouter.routerDelegate.navigatorKey.currentContext;
+    if (activeContext == null || !activeContext.mounted) return;
+    final out = ScaffoldMessenger.of(activeContext);
+    out.hideCurrentSnackBar();
+    out.showSnackBar(
+      SnackBar(
+        content: Text(
+          result.ok
+              ? [result.summary(pick.what.replaceAll('« ', '').replaceAll(' »', '')), ...result.notes.take(2)].join('\n')
+              : result.summary(''),
+        ),
+        duration: const Duration(seconds: 6),
+        backgroundColor: result.ok ? null : _destructiveRed,
+      ),
     );
   }
 
