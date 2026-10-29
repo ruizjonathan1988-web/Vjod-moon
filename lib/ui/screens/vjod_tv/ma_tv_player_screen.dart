@@ -106,7 +106,6 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
   bool _failed = false;
   bool _nextSourceInFlight = false;
   DateTime? _reconnectAfter;
-  Uri? _openedUri;
   MaTvChannel? _openedCh;
   final Set<String> _tried = {};
   String? _playingId;
@@ -328,7 +327,6 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     }
     final seq = ++_tuneSeq;
     _picture = false;
-    _openedUri = uri;
     _openedCh = ch;
     _retried = retry;
     _openedAt = DateTime.now();
@@ -376,11 +374,12 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
   /// The stream was playing and died: open the same address again once the
   /// player settles, unless the relay already picks up on the other side.
   void _reconnect() {
-    // Reopening replays the same address: live stays live, a timeshift comes
-    // back on the same point instead of jumping forward.
-    final uri = _openedUri;
+    // Live reopens the live address; a timeshift comes back where the picture
+    // stopped (recomputed at fire time, the anchor grows with elapsed
+    // playback) instead of restarting from the original seek point.
     final ch = _openedCh;
-    if (uri == null || ch == null || _replaying != null || _pausedAt != null || _overlay == _Overlay.sources) return;
+    final live = _delay == Duration.zero;
+    if (ch == null || _replaying != null || _pausedAt != null || _overlay == _Overlay.sources) return;
     final when = DateTime.now().add(const Duration(milliseconds: 1200));
     final at = _reconnectAfter;
     if (at != null && at.isAfter(when)) return;
@@ -388,8 +387,13 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     Timer(const Duration(milliseconds: 1200), () {
       if (!mounted || _reconnectAfter != when) return;
       _reconnectAfter = null;
-      if (_picture || _replaying != null || _pausedAt != null) return;
-      unawaited(_open(ch, uri));
+      if (_picture || _replaying != null || _pausedAt != null || _openedCh?.id != ch.id) return;
+      if (live) {
+        final uri = _client.liveUri(ch);
+        if (uri != null) unawaited(_open(ch, uri));
+      } else {
+        unawaited(_applyDelay(_delay));
+      }
     });
   }
 
