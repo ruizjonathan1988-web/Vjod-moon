@@ -72,7 +72,7 @@ class _ProviderSeriesScreenState extends State<ProviderSeriesScreen> {
           quality: widget.quality,
           source: widget.source,
         ),
-        IptvProgressStore.get('series', widget.seriesId),
+        IptvProgressStore.get('series', widget.seriesId, tmdb: widget.tmdb),
       ).wait;
       if (!mounted) return;
       final next = progress == null ? null : _nextEpisode(info, progress);
@@ -95,7 +95,7 @@ class _ProviderSeriesScreenState extends State<ProviderSeriesScreen> {
     final all = [
       for (final s in info.seasonNumbers) ...?info.seasons[s],
     ];
-    final i = all.indexWhere((e) => e.id == p.ep);
+    final i = all.indexWhere((e) => p.isEpisode(e.id, e.season, e.number));
     if (i < 0) return null;
     if (!p.done) return all[i];
     return i + 1 < all.length ? all[i + 1] : null;
@@ -130,7 +130,7 @@ class _ProviderSeriesScreenState extends State<ProviderSeriesScreen> {
   Future<void> _refreshProgress() async {
     final info = _info;
     if (info == null) return;
-    final p = await IptvProgressStore.get('series', widget.seriesId);
+    final p = await IptvProgressStore.get('series', widget.seriesId, tmdb: widget.tmdb);
     if (!mounted || p == null) return;
     setState(() {
       _progress = p;
@@ -140,7 +140,7 @@ class _ProviderSeriesScreenState extends State<ProviderSeriesScreen> {
 
   Widget _resumeButton(XtreamEpisode next) {
     final p = _progress;
-    final same = p != null && p.ep == next.id && !p.done;
+    final same = p != null && p.isEpisode(next.id, next.season, next.number) && !p.done;
     final label = same
         ? 'Reprendre S${next.season} É${next.number} (${p.position.inMinutes} min)'
         : 'Épisode suivant : S${next.season} É${next.number}';

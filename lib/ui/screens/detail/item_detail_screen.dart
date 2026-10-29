@@ -5851,7 +5851,7 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
     final id = copy.id;
     _iptvProgressFor = id;
     _iptvProgress = null;
-    unawaited(IptvProgressStore.get('movie', id).then((p) {
+    unawaited(IptvProgressStore.get('movie', id, tmdb: copy.tmdbId).then((p) {
       if (mounted && _iptvProgressFor == id && p != null) setState(() => _iptvProgress = p);
     }));
   }

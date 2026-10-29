@@ -165,12 +165,12 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
     final w = widget.watch;
     if (w == null || _askedServer) return null;
     _askedServer = true;
-    final p = await IptvProgressStore.get(w.kind, w.id).timeout(
+    final p = await IptvProgressStore.get(w.kind, w.id, tmdb: w.tmdb).timeout(
       const Duration(seconds: 3),
       onTimeout: () => null,
     );
     if (p == null || !p.resumable) return null;
-    if (w.isSeries && p.ep != w.ep) return null;
+    if (w.isSeries && !p.isEpisode(w.ep, w.season, w.episode)) return null;
     return p.position;
   }
 
