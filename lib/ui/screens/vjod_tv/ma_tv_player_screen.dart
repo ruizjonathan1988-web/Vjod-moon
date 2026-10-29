@@ -282,7 +282,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     int weight(TvSource x) => (x.kbps ?? 0) > 0 ? x.kbps! : ((x.height ?? 0) > 0 ? x.height! * 6 : 4000);
     final curWeight = cur == null ? 1 << 30 : weight(cur);
     final rest = data.sources
-        .where((x) => x.key != cur?.key && x.ok != false && !x.duplicate && !_stalledSources.contains('${ch.id}|${x.key}'))
+        .where((x) => x.key != cur?.key && x.ok != false && !x.duplicate && !x.takenElsewhere && !_stalledSources.contains('${ch.id}|${x.key}'))
         .toList();
     if (rest.isEmpty) {
       setState(() => _status = 'Ça saccade ($why) et aucune autre source à essayer');
@@ -481,6 +481,8 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
       final rest = data.sources
           .where((x) => x.key != cur?.key && !_tried.contains(x.key) && x.ok != false && !x.duplicate)
           .toList();
+      // A source whose account is full elsewhere comes last.
+      rest.setAll(0, [...rest.where((x) => !x.takenElsewhere), ...rest.where((x) => x.takenElsewhere)]);
       if (rest.isEmpty) {
         _watchdog?.cancel();
         setState(() {
