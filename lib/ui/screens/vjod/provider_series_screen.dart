@@ -71,7 +71,12 @@ class _ProviderSeriesScreenState extends State<ProviderSeriesScreen> {
   void _play(XtreamEpisode episode) {
     final catalog = _catalog;
     if (catalog == null) return;
-    context.push(Destinations.trailer(url: catalog.episodeUrl(episode)));
+    context.push(
+      Destinations.providerPlayer(
+        url: catalog.episodeUrl(episode),
+        title: '${widget.name} · S${episode.season} É${episode.number}',
+      ),
+    );
   }
 
   @override

@@ -24,6 +24,7 @@ import '../../../preference/preference_constants.dart';
 import '../../../preference/user_preferences.dart';
 import '../../../preference/seerr_preferences.dart';
 import '../../navigation/destinations.dart';
+import '../vjod/provider_player_screen.dart' show providerPlayerTitle;
 import '../../navigation/route_lifecycle_observer.dart';
 import '../../../util/artwork_request_size.dart';
 import '../../../util/platform_detection.dart';
@@ -1775,7 +1776,12 @@ class _SearchScreenState extends State<SearchScreen>
         ),
       );
     } else {
-      context.push(Destinations.trailer(url: catalog.movieUrl(title)));
+      context.push(
+        Destinations.providerPlayer(
+          url: catalog.movieUrl(title),
+          title: providerPlayerTitle(title),
+        ),
+      );
     }
   }
 
