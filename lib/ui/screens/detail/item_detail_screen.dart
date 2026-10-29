@@ -7,6 +7,7 @@ import '../../widgets/floating_notification.dart';
 import '../../../data/services/vjod/provider_catalog_access.dart';
 import '../../../data/services/vjod/xtream_catalog.dart';
 import '../../../data/services/vjod/ma_tv.dart' show MaTvDevice;
+import '../vjod/provider_player_screen.dart' show providerPlayerTitle;
 import '../../../data/services/seerr/taste_profile.dart';
 import '../../../data/services/seerr/for_you_ranker.dart' show forYouKey;
 import '../../widgets/offline_aware_image.dart';
@@ -5844,6 +5845,60 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
   /// come in several qualities; the button plays the profile's language in the
   /// best quality the device takes, and a sheet (long press, or a press when
   /// nothing is preferred) lets the viewer pick language and quality.
+  /// Plays one version of the title: a film in the IPTV player (audio
+  /// language, subtitles), a series on its seasons.
+  void _openProviderCopy(BuildContext context, XtreamTitle copy, String quality) {
+    final catalog = viewModel.providerCatalog;
+    if (catalog == null) return;
+    // Only a title Ma TV keeps in several qualities is asked for one.
+    final q = copy.qualities.length > 1 ? quality : '';
+    if (copy.kind == XtreamKind.series) {
+      context.push(
+        Destinations.providerSeries(
+          id: copy.id,
+          name: copy.name,
+          poster: copy.poster,
+          quality: q,
+        ),
+      );
+    } else {
+      context.push(
+        Destinations.providerPlayer(
+          url: catalog.movieUrl(copy, quality: q),
+          title: providerPlayerTitle(copy, quality: quality),
+        ),
+      );
+    }
+  }
+
+  /// The title's other languages at the provider, one button each beside the
+  /// main one ("En russe · 4K"), so they show on the page without a long
+  /// press. Three at most; the rest stay in the main button's sheet.
+  List<Widget> _providerLanguageButtons(BuildContext context) {
+    final copies = viewModel.providerCopies;
+    if (copies.length < 2 || viewModel.providerCatalog == null) return const [];
+    final maxHeight = MaTvDevice.maxHeight;
+    final seen = {copies.first.tag};
+    final out = <Widget>[];
+    for (final c in copies.skip(1)) {
+      if (c.tag.isEmpty || !seen.add(c.tag)) continue;
+      final quality = defaultQuality(c.qualities, maxHeight);
+      final phrase = languageButtonPhrase(c.tag);
+      final lang = phrase.startsWith('en ')
+          ? 'En ${phrase.substring(3)}'
+          : 'Version ${languageName(c.tag)}';
+      out.add(
+        _DetailActionButton(
+          label: quality.isEmpty ? lang : '$lang · $quality',
+          icon: Icons.translate_rounded,
+          onPressed: () => _openProviderCopy(context, c, quality),
+        ),
+      );
+      if (out.length == 3) break;
+    }
+    return out;
+  }
+
   Widget? _providerPlayButton(
     BuildContext context, {
     FocusNode? focusNode,
@@ -5852,25 +5907,8 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
     final copies = viewModel.providerCopies;
     final catalog = viewModel.providerCatalog;
     if (copies.isEmpty || catalog == null) return null;
-    final isSeries = copies.first.kind == XtreamKind.series;
-    void open(XtreamTitle copy, String quality) {
-      // Only a title Ma TV keeps in several qualities is asked for one.
-      final q = copy.qualities.length > 1 ? quality : '';
-      if (isSeries) {
-        context.push(
-          Destinations.providerSeries(
-            id: copy.id,
-            name: copy.name,
-            poster: copy.poster,
-            quality: q,
-          ),
-        );
-      } else {
-        context.push(
-          Destinations.trailer(url: catalog.movieUrl(copy, quality: q)),
-        );
-      }
-    }
+    void open(XtreamTitle copy, String quality) =>
+        _openProviderCopy(context, copy, quality);
 
     final preferred = currentProviderLanguages();
     final maxHeight = MaTvDevice.maxHeight;
@@ -7410,6 +7448,9 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
             autofocus: autofocusPlay,
           )
         : null;
+    final providerExtras = providerAction != null
+        ? _providerLanguageButtons(context)
+        : const <Widget>[];
     if (providerAction != null) {
       primaryAction = providerAction;
       byButton.removeWhere((button, _) => !button.availableInSeerrOnly);
@@ -7463,6 +7504,7 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
 
     var allButtons = <Widget>[
       ?primaryAction,
+      ...providerExtras,
       for (final button in _orderedButtons(prefs)) ...[
         ?byButton[button],
         ?cancelByButton[button],
@@ -7500,6 +7542,7 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
             ];
       final front = <Widget>[
         ?primaryAction,
+        ...providerExtras,
         for (final button in _orderedButtons(prefs))
           if (keep.contains(button)) ?byButton[button],
       ];

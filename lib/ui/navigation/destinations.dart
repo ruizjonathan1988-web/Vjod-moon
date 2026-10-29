@@ -114,6 +114,7 @@ class Destinations {
   static const bookReader = '/player/book/:itemId';
   static const photoPlayer = '/player/photo/:itemId';
   static const trailerPlayer = '/player/trailer';
+  static const providerPlayerPath = '/player/iptv';
   static const nextUp = '/player/next-up/:itemId';
   static const stillWatching = '/player/still-watching/:itemId';
 
@@ -316,6 +317,14 @@ class Destinations {
       if (quality.isNotEmpty) 'q': quality,
     },
   ).toString();
+  /// A film or an episode read from the IPTV provider, in the player that has
+  /// audio languages and subtitles.
+  static String providerPlayer({required String url, String title = ''}) =>
+      Uri(
+        path: providerPlayerPath,
+        queryParameters: {'url': url, if (title.isNotEmpty) 'title': title},
+      ).toString();
+
   static String trailer({String? videoId, String? url}) {
     final params = <String, String>{
       if (videoId != null && videoId.isNotEmpty) 'videoId': videoId,

@@ -7,7 +7,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../../data/services/vjod/provider_catalog_access.dart';
 import '../../../data/services/vjod/xtream_catalog.dart';
+import '../../../data/services/vjod/ma_tv.dart' show MaTvDevice;
 import '../../navigation/destinations.dart';
+import '../../screens/vjod/provider_player_screen.dart' show providerPlayerTitle;
 
 /// The provider's copy of a TMDB title, in the profile's language first, if
 /// the catalogue in memory has it. Null while it loads or without one.
@@ -30,7 +32,13 @@ bool playProviderCopy(BuildContext context, {required bool series, required Stri
   if (copy.kind == XtreamKind.series) {
     context.push(Destinations.providerSeries(id: copy.id, name: copy.name, poster: copy.poster));
   } else {
-    context.push(Destinations.trailer(url: catalog.movieUrl(copy)));
+    final quality = defaultQuality(copy.qualities, MaTvDevice.maxHeight);
+    context.push(
+      Destinations.providerPlayer(
+        url: catalog.movieUrl(copy, quality: quality),
+        title: providerPlayerTitle(copy, quality: quality),
+      ),
+    );
   }
   return true;
 }

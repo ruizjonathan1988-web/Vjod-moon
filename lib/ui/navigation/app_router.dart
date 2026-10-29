@@ -30,6 +30,7 @@ import '../screens/browse/favorites_screen.dart';
 import '../screens/seerr/en_route_screen.dart';
 import '../screens/seerr/bientot_screen.dart';
 import '../screens/vjod/explorer_screen.dart';
+import '../screens/vjod/provider_player_screen.dart';
 import '../screens/vjod/provider_series_screen.dart';
 import '../screens/livetv/vjod_tv_launch_screen.dart';
 import '../screens/browse/folder_browse_screen.dart';
@@ -671,6 +672,13 @@ final appRouter = GoRouter(
         final itemId = state.pathParameters['itemId']!;
         return PhotoPlayerScreen(itemId: itemId);
       },
+    ),
+    GoRoute(
+      path: Destinations.providerPlayerPath,
+      builder: (context, state) => ProviderPlayerScreen(
+        url: state.uri.queryParameters['url'] ?? '',
+        title: state.uri.queryParameters['title'] ?? '',
+      ),
     ),
     GoRoute(
       path: Destinations.trailerPlayer,
