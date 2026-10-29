@@ -5847,7 +5847,12 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
   /// nothing is preferred) lets the viewer pick language and quality.
   /// Plays one version of the title: a film in the IPTV player (audio
   /// language, subtitles), a series on its seasons.
-  void _openProviderCopy(BuildContext context, XtreamTitle copy, String quality) {
+  void _openProviderCopy(
+    BuildContext context,
+    XtreamTitle copy,
+    String quality, {
+    int? source,
+  }) {
     final catalog = viewModel.providerCatalog;
     if (catalog == null) return;
     // Only a title Ma TV keeps in several qualities is asked for one.
@@ -5859,12 +5864,13 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
           name: copy.name,
           poster: copy.poster,
           quality: q,
+          source: source,
         ),
       );
     } else {
       context.push(
         Destinations.providerPlayer(
-          url: catalog.movieUrl(copy, quality: q),
+          url: catalog.movieUrl(copy, quality: q, source: source),
           title: providerPlayerTitle(copy, quality: quality),
         ),
       );
@@ -5876,7 +5882,18 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
   /// press. Three at most; the rest stay in the main button's sheet.
   List<Widget> _providerLanguageButtons(BuildContext context) {
     final copies = viewModel.providerCopies;
-    if (copies.length < 2 || viewModel.providerCatalog == null) return const [];
+    final catalog = viewModel.providerCatalog;
+    if (copies.isEmpty || catalog == null) return const [];
+    // Every file Ma TV has for the title (each provider, each of its
+    // categories), to pick the one to play.
+    final files = catalog.isMaTv
+        ? _DetailActionButton(
+            label: 'Choisir le fichier',
+            icon: Icons.folder_open_rounded,
+            onPressed: () => unawaited(_chooseProviderFile(context)),
+          )
+        : null;
+    if (copies.length < 2) return [?files];
     final maxHeight = MaTvDevice.maxHeight;
     final seen = {copies.first.tag};
     final out = <Widget>[];
@@ -5896,7 +5913,65 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
       );
       if (out.length == 3) break;
     }
-    return out;
+    return [...out, ?files];
+  }
+
+  Future<void> _chooseProviderFile(BuildContext context) async {
+    final catalog = viewModel.providerCatalog;
+    final copies = viewModel.providerCopies;
+    if (catalog == null || copies.isEmpty) return;
+    final lists = await Future.wait([for (final c in copies) catalog.sourcesOf(c)]);
+    if (!context.mounted) return;
+    final files = [
+      for (final (i, c) in copies.indexed)
+        for (final s in lists[i]) (copy: c, file: s),
+    ];
+    final picked = await showModalBottomSheet<({XtreamTitle copy, MaTvVodSource file})>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(sheetContext).size.height * 0.8,
+          ),
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              const ListTile(
+                title: Text('Choisir le fichier'),
+                subtitle: Text(
+                  'Chaque fournisseur et chaque catégorie a son propre fichier. '
+                  'Si celui-ci ne répond pas, un autre prend le relais.',
+                ),
+              ),
+              if (files.isEmpty)
+                const ListTile(title: Text('Liste des fichiers indisponible pour le moment')),
+              for (final (i, f) in files.indexed)
+                ListTile(
+                  autofocus: i == 0,
+                  leading: const Icon(Icons.play_arrow_rounded),
+                  title: Text(
+                    [
+                      if (f.copy.tag.isNotEmpty) languageName(f.copy.tag),
+                      f.file.quality.isEmpty ? 'qualité non indiquée' : f.file.quality,
+                    ].join(' · '),
+                  ),
+                  subtitle: Text(f.file.details),
+                  onTap: () => Navigator.of(sheetContext).pop(f),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (picked != null && context.mounted) {
+      _openProviderCopy(
+        context,
+        picked.copy,
+        picked.file.quality,
+        source: picked.file.source,
+      );
+    }
   }
 
   Widget? _providerPlayButton(

@@ -365,6 +365,7 @@ final appRouter = GoRouter(
           name: q['name'] ?? '',
           poster: q['poster'] ?? '',
           quality: q['q'] ?? '',
+          source: int.tryParse(q['src'] ?? ''),
         );
       },
     ),

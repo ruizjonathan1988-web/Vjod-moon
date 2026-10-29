@@ -410,4 +410,16 @@ void main() {
       expect(series.extension, '');
     });
   });
+
+  test('Ma TV files: listed with provider and category, picked by number', () {
+    final s = MaTvVodSource.fromJson({'src': 2, 'provider': 'exemple.com', 'category': 'FILMS 4K', 'quality': '4K', 'ext': 'mkv'});
+    expect(s.source, 2);
+    expect(s.details, 'exemple.com · FILMS 4K · mkv');
+    final catalog = XtreamCatalog.forPlaylists(const [
+      TvPlaylist(id: 'm', name: 'Ma TV', url: 'http://m/tv/xc', kind: TvPlaylistKind.xtream, username: 'vjod', password: 'k'),
+    ])!;
+    final film = XtreamTitle.fromMaTv({'kind': 'movie', 'id': 5, 'name': 'Dune', 'ext': 'mkv', 'qualities': ['4K', '1080p']});
+    expect(catalog.movieUrl(film, quality: '4K', source: 2), 'http://m/tv/xc/movie/vjod/k/5.mkv?q=4K&src=2');
+    expect(catalog.movieUrl(film, source: 0), 'http://m/tv/xc/movie/vjod/k/5.mkv?src=0');
+  });
 }

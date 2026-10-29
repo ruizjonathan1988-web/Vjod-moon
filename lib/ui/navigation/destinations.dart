@@ -308,6 +308,7 @@ class Destinations {
     required String name,
     String poster = '',
     String quality = '',
+    int? source,
   }) => Uri(
     path: providerSeriesPath,
     queryParameters: {
@@ -315,6 +316,7 @@ class Destinations {
       'name': name,
       if (poster.isNotEmpty) 'poster': poster,
       if (quality.isNotEmpty) 'q': quality,
+      if (source != null) 'src': '$source',
     },
   ).toString();
   /// A film or an episode read from the IPTV provider, in the player that has
