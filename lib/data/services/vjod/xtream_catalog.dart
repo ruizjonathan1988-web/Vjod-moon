@@ -243,6 +243,10 @@ final _prefix = RegExp(
 
 const _qualityHeights = {'4K': 2160, '1080p': 1080, '720p': 720, 'SD': 480};
 
+/// The picture height a quality label (`4K`, `1080p`…) stands for, 0 when
+/// unknown.
+int qualityHeight(String quality) => _qualityHeights[quality] ?? 0;
+
 final _qualityPatterns = [
   ('4K', RegExp(r'\b(?:4k|uhd|2160p?)\b', caseSensitive: false)),
   ('1080p', RegExp(r'\b(?:fhd|1080p?)\b', caseSensitive: false)),

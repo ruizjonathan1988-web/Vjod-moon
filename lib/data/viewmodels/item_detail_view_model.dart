@@ -482,6 +482,56 @@ class ItemDetailViewModel extends ChangeNotifier {
   List<XtreamTitle> _providerCopies = const [];
   List<XtreamTitle> get providerCopies => _providerCopies;
 
+  /// For a film in the library: the IPTV copy that beats the library's file
+  /// (4K at the provider, 1080p on the disk…) and its quality, so the page
+  /// can offer it beside Play. Null when the library's is as good or better.
+  ({XtreamTitle copy, String quality})? _betterAtProvider;
+  ({XtreamTitle copy, String quality})? get betterAtProvider => _betterAtProvider;
+
+  /// Looks for a better copy of the library film at the provider.
+  Future<void> _loadBetterAtProvider() async {
+    final item = _item;
+    final tmdb = int.tryParse(item?.tmdbId ?? '');
+    final catalog = currentProviderCatalog();
+    if (item == null || catalog == null || (tmdb == null && item.name.isEmpty)) return;
+    final library = switch (item.videoResolution) {
+      '8K' => 4320,
+      '4K' => 2160,
+      final r? when r.startsWith('1440') => 1440,
+      final r? when r.startsWith('1080') => 1080,
+      final r? when r.startsWith('720') => 720,
+      null => 0,
+      _ => 480,
+    };
+    if (library == 0) return; // the library file's size is unknown: nothing to compare
+    try {
+      final copies = await catalog.copiesOf(
+        kind: XtreamKind.movie,
+        tmdbId: tmdb ?? 0,
+        titles: [item.name],
+        year: item.productionYear,
+      );
+      if (_isDisposed || copies.isEmpty) return;
+      // The profile's language first, then the best picture it comes in.
+      final ordered = orderByLanguages(copies, currentProviderLanguages());
+      ({XtreamTitle copy, String quality})? best;
+      for (final c in ordered) {
+        for (final q in c.qualities) {
+          if (qualityHeight(q) > (best == null ? library : qualityHeight(best.quality))) {
+            best = (copy: c, quality: q);
+          }
+        }
+        if (best != null) break; // a better copy in the preferred language wins
+      }
+      if (best == null) return;
+      _providerCatalog = catalog;
+      _betterAtProvider = best;
+      notifyListeners();
+    } catch (_) {
+      // The provider not answering leaves the page as it was.
+    }
+  }
+
   /// The provider those copies play from.
   XtreamCatalog? _providerCatalog;
   XtreamCatalog? get providerCatalog => _providerCatalog;
@@ -1096,6 +1146,7 @@ class ItemDetailViewModel extends ChangeNotifier {
     // Deliberately outside the Future.wait below, so a slow Seerr server never
     // holds up library content that is already here.
     unawaited(_loadSeerrOverlay());
+    if (type == 'Movie') unawaited(_loadBetterAtProvider());
     if (type == 'Person') {
       futures.add(_loadFilmography());
     } else if (type == 'Series') {
