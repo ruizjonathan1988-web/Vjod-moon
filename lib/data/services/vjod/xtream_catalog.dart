@@ -1223,16 +1223,38 @@ class XtreamCatalog {
     String seriesId, {
     String quality = '',
     int? source,
-  }) async => parseSeriesInfo(
-    await _get(
-      _api('get_series_info', {
-        'series_id': seriesId,
-        if (quality.isNotEmpty) 'q': quality,
-        if (source != null && isMaTv) 'src': '$source',
-      }),
-      _infoTimeout,
-    ),
-  );
+  }) async {
+    if (isMaTv) {
+      // Ma TV's own address: on the Ultra.cc seedbox the proxy refuses
+      // player_api.php (404), so the episodes never came. An older Ma TV
+      // without it falls back to player_api.php.
+      try {
+        return parseSeriesInfo(
+          await _get(
+            _vodApi('info', {
+              'kind': 'series',
+              'id': seriesId,
+              if (quality.isNotEmpty) 'q': quality,
+              if (source != null) 'src': '$source',
+            }),
+            _infoTimeout,
+          ),
+        );
+      } on StateError catch (e) {
+        if (!e.message.contains('404')) rethrow;
+      }
+    }
+    return parseSeriesInfo(
+      await _get(
+        _api('get_series_info', {
+          'series_id': seriesId,
+          if (quality.isNotEmpty) 'q': quality,
+          if (source != null && isMaTv) 'src': '$source',
+        }),
+        _infoTimeout,
+      ),
+    );
+  }
 
   String _seg(String value) => Uri.encodeComponent(value);
 
