@@ -85,6 +85,13 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
   late VodEngine _engine;
   final _focus = FocusNode(debugLabel: 'provider_player');
   final _playFocus = FocusNode(debugLabel: 'provider_player_play');
+  final _barFocus = FocusNode(debugLabel: 'provider_player_bar');
+
+  // Moving along the progress bar with the remote: the arrows move a target
+  // (10 s a press, faster when held), the jump happens once they stop.
+  Duration? _scrubTo;
+  Timer? _scrubTimer;
+  int _scrubHeld = 0;
   final _subs = <StreamSubscription<Object?>>[];
   final _session =
       '${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}-${Random().nextInt(1 << 30).toRadixString(36)}';
@@ -252,10 +259,13 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
     unawaited(_engine.dispose());
     _focus.dispose();
     _playFocus.dispose();
+    _barFocus.dispose();
+    _scrubTimer?.cancel();
     super.dispose();
   }
 
   void _showControls() {
+    final wasHidden = !_controls;
     setState(() => _controls = true);
     _hideTimer?.cancel();
     _hideTimer = Timer(const Duration(seconds: 6), () {
@@ -263,7 +273,8 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
       if (mounted) _focus.requestFocus();
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _controls && !_playFocus.hasFocus) _playFocus.requestFocus();
+      // Only on showing them: a button or the bar already chosen keeps the focus.
+      if (mounted && _controls && wasHidden && !_playFocus.hasFocus) _playFocus.requestFocus();
     });
   }
 
@@ -271,6 +282,39 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
     final to = _pos + Duration(seconds: seconds);
     unawaited(_engine.seek(to < Duration.zero ? Duration.zero : (_dur > Duration.zero && to > _dur ? _dur : to)));
     _showControls();
+  }
+
+  KeyEventResult _onBarKey(FocusNode node, KeyEvent event) {
+    if (event is KeyUpEvent) {
+      _scrubHeld = 0;
+      return KeyEventResult.ignored;
+    }
+    final key = event.logicalKey;
+    if (key.isSelectKey && _scrubTo != null) {
+      _commitScrub();
+      return KeyEventResult.handled;
+    }
+    if (!key.isLeftKey && !key.isRightKey) return KeyEventResult.ignored;
+    if (_dur == Duration.zero) return KeyEventResult.handled;
+    _scrubHeld = event is KeyRepeatEvent ? _scrubHeld + 1 : 0;
+    final step = _scrubHeld > 20 ? 120 : (_scrubHeld > 8 ? 60 : (_scrubHeld > 2 ? 30 : 10));
+    var to = (_scrubTo ?? _pos) + Duration(seconds: key.isLeftKey ? -step : step);
+    if (to < Duration.zero) to = Duration.zero;
+    if (to > _dur) to = _dur;
+    setState(() => _scrubTo = to);
+    _showControls();
+    _scrubTimer?.cancel();
+    _scrubTimer = Timer(const Duration(milliseconds: 800), _commitScrub);
+    return KeyEventResult.handled;
+  }
+
+  void _commitScrub() {
+    _scrubTimer?.cancel();
+    _scrubTimer = null;
+    final to = _scrubTo;
+    if (to == null) return;
+    unawaited(_engine.seek(to));
+    if (mounted) setState(() => _scrubTo = null);
   }
 
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
@@ -548,16 +592,38 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
                         const SizedBox(height: 8),
                         Row(
                           children: [
-                            Text(_fmt(_pos), style: const TextStyle(color: Colors.white)),
+                            Text(_fmt(_scrubTo ?? _pos),
+                                style: TextStyle(
+                                  color: _scrubTo != null ? Theme.of(context).colorScheme.primary : Colors.white,
+                                  fontWeight: _scrubTo != null ? FontWeight.w700 : FontWeight.normal,
+                                )),
                             Expanded(
-                              child: ExcludeFocus(
-                                child: Slider(
-                                  value: _dur.inMilliseconds == 0
-                                      ? 0
-                                      : (_pos.inMilliseconds / _dur.inMilliseconds).clamp(0.0, 1.0),
-                                  onChanged: _dur == Duration.zero
-                                      ? null
-                                      : (v) => unawaited(_engine.seek(_dur * v)),
+                              // Reachable with the remote (up from the buttons): left and
+                              // right move in the film, OK or a pause jumps there.
+                              child: Focus(
+                                focusNode: _barFocus,
+                                onKeyEvent: _onBarKey,
+                                onFocusChange: (_) => setState(() {}),
+                                child: Container(
+                                  margin: const EdgeInsets.symmetric(horizontal: 6),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: _barFocus.hasFocus ? Colors.white : Colors.transparent,
+                                      width: 2,
+                                    ),
+                                  ),
+                                  child: ExcludeFocus(
+                                    child: Slider(
+                                      value: _dur.inMilliseconds == 0
+                                          ? 0
+                                          : ((_scrubTo ?? _pos).inMilliseconds / _dur.inMilliseconds)
+                                              .clamp(0.0, 1.0),
+                                      onChanged: _dur == Duration.zero
+                                          ? null
+                                          : (v) => unawaited(_engine.seek(_dur * v)),
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
