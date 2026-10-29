@@ -107,9 +107,13 @@ class _TrailerPlayerScreenState extends State<TrailerPlayerScreen> {
     }
     _player ??= Player(configuration: const PlayerConfiguration(libass: false));
     _completedSub ??= _player!.stream.completed.listen((done) {
-      // The film or episode was playing and the stream ended early (a cut on
-      // the provider side): open the same address again rather than stop.
+      // The stream ended early (a cut on the provider side): open the same
+      // address again. Reaching the real end is completion, not a cut — a
+      // finished trailer or film must stay finished.
       if (done != true || !mounted || _loading || _playingUrl == null) return;
+      const endMargin = Duration(seconds: 3);
+      final duration = _player!.state.duration;
+      if (duration > endMargin && _player!.state.position >= duration - endMargin) return;
       _reconnectTimer?.cancel();
       _reconnectTimer = Timer(_reconnectDelay, () {
         if (!mounted || _playingUrl == null) return;
