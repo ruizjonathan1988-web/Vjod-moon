@@ -49,6 +49,7 @@ import '../../../data/services/betaseries/betaseries_client.dart';
 import '../../../data/services/chart_cards.dart';
 import '../../../data/services/trakt/trakt_client.dart';
 import '../../../data/services/vjod/vjod_collection_service.dart';
+import '../../../data/services/vjod/iptv_progress.dart';
 import '../../../data/services/vjod/vjod_collections.dart';
 import '../../../data/services/vjod/vjod_personalizer.dart';
 import '../../../data/services/tonight/evening_journal.dart';
@@ -825,7 +826,9 @@ class HomeViewModel extends ChangeNotifier {
       // The merged row is the one a viewer checks first, so it doesn't wait
       // behind every other section while its cached copy sits on screen.
       if (showMergedResume) {
-        unawaited(_loadResumeAndNextUpInBackground());
+        unawaited(
+          _loadResumeAndNextUpInBackground().then((_) => _refreshIptvResume()),
+        );
       }
 
       _loadDeferredSection = loadConfigItem;
@@ -989,7 +992,7 @@ class HomeViewModel extends ChangeNotifier {
 
     switch (cfg.type) {
       case HomeSectionType.resume:
-        return row.rowType == HomeRowType.resume;
+        return row.rowType == HomeRowType.resume || row.id == iptvResumeRowId;
       case HomeSectionType.resumeAudio:
         return row.rowType == HomeRowType.resumeAudio;
       case HomeSectionType.nextUp:
@@ -1191,6 +1194,7 @@ class HomeViewModel extends ChangeNotifier {
   Future<void> refreshResumeAndNextUp() async {
     // A full load already covers these rows, so don't compete with it.
     if (_isLoading) return;
+    unawaited(_refreshIptvResume());
 
     if (_prefs.effectiveMergeContinueWatchingNextUp) {
       await _loadResumeAndNextUpInBackground();
@@ -1230,6 +1234,80 @@ class HomeViewModel extends ChangeNotifier {
     _topShelf.update(_rows);
     _watchNext.update(_rows);
     _tvChannels.update();
+  }
+
+  static const iptvResumeRowId = 'iptv_resume';
+
+  /// On an IPTV card of the row: what to open (`kind`, `id`, `name`,
+  /// `poster`, `tmdb`, `ext`).
+  static const iptvResumeKey = 'IptvResume';
+
+  /// The IPTV films and series this profile has under way (Ma TV keeps them
+  /// on the seedbox), as cards; a press picks up where it was left.
+  Future<HomeRow?> _loadIptvResumeRow() async {
+    final List<IptvProgress> list;
+    try {
+      list = await IptvProgressStore.list().timeout(
+        const Duration(seconds: 6),
+        onTimeout: () => const <IptvProgress>[],
+      );
+    } catch (_) {
+      return null;
+    }
+    final cards = [
+      for (final p in list)
+        AggregatedItem(
+          id: p.tmdb.isNotEmpty ? p.tmdb : 'iptv-${p.kind}-${p.id}',
+          serverId: 'seerr',
+          rawData: {
+            'Name': p.isSeries && p.season > 0
+                ? '${p.name} · S${p.season} É${p.episode}'
+                : p.name,
+            'Type': p.isSeries ? 'Series' : 'Movie',
+            'PosterPath': p.poster,
+            'SeerrMediaType': p.isSeries ? 'tv' : 'movie',
+            if (!p.done) 'UserData': {'PlayedPercentage': p.fraction * 100},
+            iptvResumeKey: {
+              'kind': p.kind,
+              'id': p.id,
+              'name': p.name,
+              'poster': p.poster,
+              'tmdb': p.tmdb,
+              'ext': p.ext,
+            },
+          },
+        ),
+    ];
+    if (cards.isEmpty) return null;
+    return _seerrRow(
+      iptvResumeRowId,
+      'Reprendre (IPTV)',
+      cards,
+      totalCount: cards.length,
+    );
+  }
+
+  /// Back from a film: the IPTV row follows, added after the library's own
+  /// Continue row when it wasn't there, removed when nothing is left.
+  Future<void> _refreshIptvResume() async {
+    final row = await _loadIptvResumeRow();
+    final index = _rows.indexWhere((r) => r.id == iptvResumeRowId);
+    if (row == null) {
+      if (index >= 0) {
+        _rows = List.of(_rows)..removeAt(index);
+        notifyListeners();
+      }
+      return;
+    }
+    if (index >= 0) {
+      _rows = List.of(_rows);
+      _rows[index] = row;
+    } else {
+      final after = _rows.indexWhere((r) => r.rowType == HomeRowType.resume);
+      if (after < 0) return;
+      _rows = List.of(_rows)..insert(after + 1, row);
+    }
+    notifyListeners();
   }
 
   /// Refetches the row with [rowId] and replaces it in place, or removes it when
@@ -1586,10 +1664,16 @@ class HomeViewModel extends ChangeNotifier {
         .includeItemTypes;
     switch (section) {
       case HomeSectionType.resume:
-        final row = _multiServerEnabled
-            ? await _multiServerRepo.getAggregatedResume()
-            : await _dataSource.loadResume(_serverId);
-        return [row.copyWith(items: _prefs.filterContinueWatching(row.items))];
+        final (row, iptv) = await (
+          _multiServerEnabled
+              ? _multiServerRepo.getAggregatedResume()
+              : _dataSource.loadResume(_serverId),
+          _loadIptvResumeRow(),
+        ).wait;
+        return [
+          row.copyWith(items: _prefs.filterContinueWatching(row.items)),
+          ?iptv,
+        ];
       case HomeSectionType.resumeAudio:
         final row = _multiServerEnabled
             ? await _multiServerRepo.getAggregatedResumeAudio()

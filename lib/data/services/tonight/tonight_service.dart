@@ -273,6 +273,46 @@ class TonightService {
     }
   }
 
+  /// A film or an episode watched from the IPTV provider, outside the
+  /// library: it counts like a library sitting, so Home and Tonight learn
+  /// from it too. [itemId] stands for the film or the series.
+  Future<void> recordIptvSitting({
+    required DateTime startedAt,
+    required String itemId,
+    required String mediaType,
+    required String title,
+    int? tmdbId,
+    Set<TasteGenre> genres = const {},
+    int? runtimeMinutes,
+    int? year,
+    double? rating,
+    required int watchedMinutes,
+    required bool finished,
+  }) async {
+    if (watchedMinutes < 1) return;
+    final answers = TonightAnswers.decode(_prefs.tonightAnswersJson);
+    final company =
+        answers != null && startedAt.difference(answers.at) < answersLifetime
+        ? answers.company
+        : null;
+    final entry = JournalEntry(
+      at: startedAt,
+      itemId: itemId,
+      mediaType: mediaType,
+      title: title,
+      tmdbId: tmdbId,
+      genres: genres,
+      runtimeMinutes: runtimeMinutes,
+      year: year,
+      rating: rating,
+      watchedMinutes: watchedMinutes,
+      finished: finished,
+      company: company,
+      device: device,
+    );
+    await _saveJournal(journal.record(entry));
+  }
+
   static String? _tmdbKeyOf(AggregatedItem item) {
     final id = int.tryParse(item.tmdbId ?? '');
     if (id == null) return null;

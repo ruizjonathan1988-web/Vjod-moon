@@ -5,6 +5,7 @@ import '../../theme/focus_foreground.dart';
 import '../../widgets/bounded_network_image.dart';
 import '../../widgets/floating_notification.dart';
 import '../../../data/services/vjod/provider_catalog_access.dart';
+import '../../../data/services/vjod/iptv_progress.dart';
 import '../../../data/services/vjod/xtream_catalog.dart';
 import '../../../data/services/vjod/ma_tv.dart' show MaTvDevice;
 import '../vjod/provider_player_screen.dart' show providerPlayerTitle;
@@ -5840,6 +5841,21 @@ class _HorizontalActionRowState extends State<_HorizontalActionRow> {
 }
 
 class DetailActionButtonsState extends State<DetailActionButtons> {
+  /// Where this profile left the IPTV film (Ma TV keeps it), so the button
+  /// says « Reprendre » and the player picks up there.
+  IptvProgress? _iptvProgress;
+  String? _iptvProgressFor;
+
+  void _askIptvProgress(XtreamTitle copy) {
+    if (copy.kind != XtreamKind.movie || _iptvProgressFor == copy.id) return;
+    final id = copy.id;
+    _iptvProgressFor = id;
+    _iptvProgress = null;
+    unawaited(IptvProgressStore.get('movie', id).then((p) {
+      if (mounted && _iptvProgressFor == id && p != null) setState(() => _iptvProgress = p);
+    }));
+  }
+
   /// Plays the title from the IPTV provider when it has it: a film at once,
   /// a series on its seasons. Each copy is a language, and each language may
   /// come in several qualities; the button plays the profile's language in the
@@ -5863,6 +5879,7 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
           id: copy.id,
           name: copy.name,
           poster: copy.poster,
+          tmdb: copy.tmdbId,
           quality: q,
           source: source,
         ),
@@ -5872,6 +5889,7 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
         Destinations.providerPlayer(
           url: catalog.movieUrl(copy, quality: q, source: source),
           title: providerPlayerTitle(copy, quality: quality),
+          watch: IptvWatch.movie(copy),
         ),
       );
     }
@@ -6013,7 +6031,14 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
     // The button row is short on room: the language spelled out and the
     // quality ("Regarder en russe · 4K"). The sheet names each version in full.
     final qualitySuffix = firstQuality.isEmpty ? '' : ' · $firstQuality';
-    final label = direct
+    _askIptvProgress(first);
+    final resume = _iptvProgress;
+    final label = direct && resume != null && resume.resumable && _iptvProgressFor == first.id
+        ? (first.tag.isNotEmpty
+                  ? 'Reprendre ${languageButtonPhrase(first.tag)}'
+                  : 'Reprendre') +
+              ' (${resume.position.inMinutes} min)'
+        : direct
         ? (first.tag.isNotEmpty
                   ? 'Regarder ${languageButtonPhrase(first.tag)}'
                   : 'Regarder') +

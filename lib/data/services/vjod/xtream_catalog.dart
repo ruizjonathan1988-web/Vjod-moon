@@ -1273,6 +1273,12 @@ class XtreamCatalog {
         '${query.isEmpty ? '' : '?${query.join('&')}'}';
   }
 
+  /// Where a film plays from, known by its number alone (a film picked up
+  /// from where it was left, without its catalogue entry at hand).
+  String movieUrlById(String id, {String extension = ''}) =>
+      '$base/movie/${_seg(username)}/${_seg(password)}/'
+      '$id.${extension.isEmpty ? 'mkv' : extension}';
+
   /// Where an episode plays from.
   String episodeUrl(XtreamEpisode episode) =>
       '$base/series/${_seg(username)}/${_seg(password)}/'
