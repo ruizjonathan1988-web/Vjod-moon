@@ -318,6 +318,8 @@ class Media3PlayerBackend extends PlayerBackend
         _embeddedCaptionTracks = EmbeddedCaptionTrack.listFromWire(
           map['closedCaptionTracks'],
         );
+        _audioTrackInfos = _trackInfos(map['audioTracks']);
+        _textTrackInfos = _trackInfos(map['textTracks']);
         _requestedSubtitleRendererMode = _modeFromWire(
           map['subtitleRendererModeRequested'],
         );
@@ -1475,6 +1477,20 @@ class Media3PlayerBackend extends PlayerBackend
 
   @override
   Stream<void> get tracksChangedStream => _tracksChangedController.stream;
+
+  /// The file's own audio and subtitle tracks as the player sees them, each
+  /// with `position` (what [setAudioTrack] / [setSubtitleTrack] take),
+  /// `language`, `label`, `selected`. Used where no server describes the
+  /// tracks (IPTV films).
+  List<Map<String, dynamic>> get audioTrackInfos => _audioTrackInfos;
+  List<Map<String, dynamic>> get textTrackInfos => _textTrackInfos;
+  List<Map<String, dynamic>> _audioTrackInfos = const [];
+  List<Map<String, dynamic>> _textTrackInfos = const [];
+
+  static List<Map<String, dynamic>> _trackInfos(Object? raw) => [
+    for (final t in (raw is List ? raw : const []))
+      if (t is Map) t.map((k, v) => MapEntry(k.toString(), v)),
+  ];
 
   /// Fires when a newly opened source shows its first picture (Ma TV's
   /// player waits on it to know a channel works).
