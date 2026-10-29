@@ -5897,8 +5897,12 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
     final maxHeight = MaTvDevice.maxHeight;
     final seen = {copies.first.tag};
     final out = <Widget>[];
+    // Only the profile's own languages get a button: the row is short, and
+    // provider labels (EXYU, EAR…) pushed Regarder and Demander off screen.
+    // Every other version stays in Choisir le fichier and the long press.
+    final preferred = currentProviderLanguages();
     for (final c in copies.skip(1)) {
-      if (c.tag.isEmpty || !seen.add(c.tag)) continue;
+      if (c.tag.isEmpty || !isPreferredLanguage(c.tag, preferred) || !seen.add(c.tag)) continue;
       final quality = defaultQuality(c.qualities, maxHeight);
       final phrase = languageButtonPhrase(c.tag);
       final lang = phrase.startsWith('en ')
@@ -5911,7 +5915,7 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
           onPressed: () => _openProviderCopy(context, c, quality),
         ),
       );
-      if (out.length == 3) break;
+      if (out.length == 2) break;
     }
     return [...out, ?files];
   }
