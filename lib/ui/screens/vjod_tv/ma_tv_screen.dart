@@ -110,6 +110,7 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
   bool _loading = true;
   bool _failed = false;
   bool _loadingChans = false;
+  bool _chansFailed = false;
   int _chanRequest = 0;
   DateTime _now = DateTime.now();
   Timer? _clock;
@@ -235,6 +236,7 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
       _chans = chans ?? const [];
       _chan = at >= 0 ? at : 0;
       _loadingChans = false;
+      _chansFailed = chans == null;
     });
     _scrollTo(_chanScroll, _chan, MaTvChannelRow.height + 6);
     _scheduleDetails();
@@ -442,6 +444,7 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
       showDetails: _wide,
       narrow: _narrow,
       loadingChannels: _loadingChans,
+      channelsFailed: _chansFailed,
       toast: _toast,
       catScroll: _catScroll,
       chanScroll: _chanScroll,
@@ -515,6 +518,9 @@ class MaTvBrowserView extends StatelessWidget {
   final bool showDetails;
   final bool narrow;
   final bool loadingChannels;
+
+  /// Ma TV didn't answer for the list (as opposed to an empty category).
+  final bool channelsFailed;
   final String? toast;
   final ScrollController? catScroll;
   final ScrollController? chanScroll;
@@ -538,6 +544,7 @@ class MaTvBrowserView extends StatelessWidget {
     this.showDetails = true,
     this.narrow = false,
     this.loadingChannels = false,
+    this.channelsFailed = false,
     this.toast,
     this.catScroll,
     this.chanScroll,
@@ -599,7 +606,9 @@ class MaTvBrowserView extends StatelessWidget {
             controller: chanScroll,
             onTap: onChannel,
             onLongPress: onChannelLongPress,
-            emptyText: cat?.kind == 'fav'
+            emptyText: channelsFailed
+                ? 'Ma TV ne répond pas pour le moment. Reviens sur la catégorie pour réessayer.'
+                : cat?.kind == 'fav'
                 ? 'Pas encore de favori : MENU (ou appui long) sur une chaîne pour l’ajouter.'
                 : 'Aucune chaîne ici.',
           );

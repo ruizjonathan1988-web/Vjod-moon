@@ -190,6 +190,7 @@ class MaTvClient {
   final TvSourcesServer? _fixed;
 
   static const _timeout = Duration(seconds: 8);
+  static const _listTimeout = Duration(seconds: 30);
   static final Map<String, ({DateTime at, List<MaTvChannel> chans})> _chanCache = {};
   static ({DateTime at, List<MaTvCategory> cats})? _catCache;
 
@@ -205,12 +206,16 @@ class MaTvClient {
 
   TvSourcesClient sourcesClient() => TvSourcesClient(server: server, user: user, caps: MaTvDevice.capsSync);
 
-  Future<Object?> _get(String path, [Map<String, String> query = const {}]) async {
+  Future<Object?> _get(
+    String path, [
+    Map<String, String> query = const {},
+    Duration timeout = _timeout,
+  ]) async {
     final s = server;
     if (s == null) return null;
     try {
       final uri = s.endpoint(path, query);
-      final r = await (_http?.get(uri) ?? http.get(uri)).timeout(_timeout);
+      final r = await (_http?.get(uri) ?? http.get(uri)).timeout(timeout);
       if (r.statusCode != 200) return null;
       return jsonDecode(utf8.decode(r.bodyBytes));
     } catch (_) {
@@ -247,7 +252,9 @@ class MaTvClient {
     if (!fresh && c != null && DateTime.now().difference(c.at) < const Duration(minutes: 1)) {
       return c.chans;
     }
-    final json = await _get('/tv/api/chans', {'cat': category});
+    // A long list (all channels, with what is on now) can take a while on a
+    // busy seedbox: waited on longer than the small calls.
+    final json = await _get('/tv/api/chans', {'cat': category}, _listTimeout);
     if (json is! Map || json['chans'] is! List) return c?.chans;
     final chans = [
       for (final x in json['chans'] as List)
@@ -264,7 +271,7 @@ class MaTvClient {
   /// them rather than the whole lineup.
   Future<List<MaTvChannel>?> channelsByIds(List<String> ids) async {
     if (ids.isEmpty) return const [];
-    final json = await _get('/tv/api/chans', {'ids': ids.take(300).join(',')});
+    final json = await _get('/tv/api/chans', {'ids': ids.take(300).join(',')}, _listTimeout);
     if (json is! Map || json['chans'] is! List) return null;
     return [
       for (final x in json['chans'] as List)
