@@ -7552,9 +7552,20 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
             autofocus: autofocusPlay,
           )
         : null;
+    final better = viewModel.isSeerrOnly ? null : viewModel.betterAtProvider;
     final providerExtras = providerAction != null
         ? _providerLanguageButtons(context)
-        : const <Widget>[];
+        : [
+            // The library has the film, the provider has it in a better
+            // picture: offered right beside Play.
+            if (better != null)
+              _DetailActionButton(
+                label: 'IPTV · ${better.quality}',
+                icon: Icons.high_quality_rounded,
+                onPressed: () =>
+                    _openProviderCopy(context, better.copy, better.quality),
+              ),
+          ];
     if (providerAction != null) {
       primaryAction = providerAction;
       byButton.removeWhere((button, _) => !button.availableInSeerrOnly);
