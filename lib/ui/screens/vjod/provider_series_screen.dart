@@ -102,7 +102,8 @@ class _ProviderSeriesScreenState extends State<ProviderSeriesScreen> {
             Padding(
               padding: const EdgeInsets.all(24),
               child: Text(
-                'Le fournisseur ne répond pas pour cette série.\n$_error',
+                'Aucun fournisseur n\'a d\'épisodes pour cette série en ce moment. '
+                'Réessaie plus tard, ou demande-la avec « Demander ».',
                 textAlign: TextAlign.center,
               ),
             ),
@@ -117,7 +118,16 @@ class _ProviderSeriesScreenState extends State<ProviderSeriesScreen> {
     }
     final info = _info;
     if (info == null) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('Recherche des épisodes chez les fournisseurs…'),
+          ],
+        ),
+      );
     }
     final seasons = info.seasonNumbers;
     if (seasons.isEmpty) {
