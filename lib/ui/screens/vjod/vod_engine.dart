@@ -5,6 +5,9 @@
 //   Jellyfin: the box's video decoder, frame-rate matching.
 // - mpv (media_kit), the fallback for what ExoPlayer won't open, and the only
 //   engine off Android.
+// - In a browser only, its own <video> (Moonfin's web player, see
+//   WebVodEngine at the end): what the browser decodes, without the file's
+//   audio and subtitle tracks to choose from.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -13,6 +16,8 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:moonfin_native_video/moonfin_native_video.dart';
 
+import '../../../data/services/vjod/web_iptv.dart';
+import '../../../playback/html_video_backend.dart';
 import '../../../playback/media3_player_backend.dart';
 import '../../../playback/subtitle_style.dart';
 import '../../../preference/user_preferences.dart';
@@ -328,5 +333,122 @@ class ExoVodEngine implements VodEngine {
     try {
       await _backend.stop();
     } catch (_) {}
+  }
+}
+
+// ------------------------------------------------------------------ browser
+/// The web version's engine, the browser's own <video>. Used only in a
+/// browser (kIsWeb), so Android and the TV never see it.
+class WebVodEngine implements VodEngine {
+  WebVodEngine() : _backend = HtmlVideoBackend(GetIt.instance<UserPreferences>()) {
+    _subs.add(_backend.errorStream.listen((_) => _fail()));
+    // The browser has no "first frame" event of its own, and an error of the
+    // element doesn't always come through: both are looked at here.
+    _watch = Timer.periodic(const Duration(milliseconds: 500), (_) => _check());
+  }
+
+  final HtmlVideoBackend _backend;
+  final _first = StreamController<void>.broadcast();
+  final _errors = StreamController<String>.broadcast();
+  final _subs = <StreamSubscription<Object?>>[];
+  Timer? _watch;
+  bool _seen = false;
+  bool _failed = false;
+  // Time moving on without a picture: the sound plays, the picture can't be
+  // decoded (HEVC in most browsers).
+  int _soundOnly = 0;
+
+  void _check() {
+    if (_failed || _errors.isClosed) return;
+    final code = _backend.mediaErrorCode;
+    if (code != null) {
+      _fail(code == 2 ? webUnreachableMessage : webPlaybackFailedMessage);
+      return;
+    }
+    if (_seen || _backend.position <= Duration.zero) return;
+    if (_backend.videoWidth > 0) {
+      _seen = true;
+      _first.add(null);
+    } else if (++_soundOnly >= 8) {
+      _fail();
+    }
+  }
+
+  void _fail([String message = webPlaybackFailedMessage]) {
+    if (_failed || _seen || _errors.isClosed) return;
+    _failed = true;
+    _errors.add(message);
+  }
+
+  @override
+  String get name => 'Navigateur';
+  @override
+  Stream<Duration> get position => _backend.positionStream;
+  @override
+  Stream<Duration> get duration => _backend.durationStream;
+  @override
+  Stream<bool> get playing => _backend.playingStream;
+  @override
+  Stream<bool> get buffering => _backend.bufferingStream;
+  @override
+  Stream<String> get errors => _errors.stream;
+  @override
+  Stream<void> get firstFrame => _first.stream;
+  // The browser doesn't list the file's audio and subtitle tracks.
+  @override
+  Stream<void> get tracksChanged => const Stream.empty();
+  @override
+  List<VodTrack> get audio => const [];
+  @override
+  List<VodTrack> get subtitles => const [];
+  @override
+  String? get audioId => null;
+  @override
+  String? get subtitleId => null;
+
+  // A <video> sends no headers of its own: Ma TV tells devices apart by
+  // their address instead.
+  @override
+  Future<void> open(String url, Map<String, String> headers, {Duration start = Duration.zero}) async {
+    final reason = webUnplayableReason(extensionOfUrl(url));
+    if (reason != null) {
+      _fail(reason);
+      return;
+    }
+    _seen = false;
+    _failed = false;
+    _soundOnly = 0;
+    await _backend.play({'url': url, 'autoPlay': true}, startPosition: start);
+  }
+
+  @override
+  Future<void> seek(Duration position) => _backend.seekTo(position);
+  @override
+  Future<void> playOrPause() => _backend.isPlaying ? _backend.pause() : _backend.resume();
+  @override
+  Future<void> setAudio(VodTrack track) async {}
+  @override
+  Future<void> setSubtitle(VodTrack? track) async {}
+  @override
+  Future<void> styleSubtitles({required double scale, required bool raised}) async {}
+  @override
+  Future<void> setSubtitleDelay(double seconds) async {}
+
+  @override
+  Widget view({required double scale, required bool raised}) =>
+      ColoredBox(color: Colors.black, child: _backend.buildView());
+
+  @override
+  Future<void> dispose() async {
+    _watch?.cancel();
+    for (final s in _subs) {
+      await s.cancel();
+    }
+    await _first.close();
+    await _errors.close();
+    try {
+      await _backend.stop();
+    } catch (_) {}
+    _backend.dispose();
   }
 }
