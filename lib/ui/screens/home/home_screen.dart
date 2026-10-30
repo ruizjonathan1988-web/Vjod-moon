@@ -106,6 +106,7 @@ import '../../widgets/skeleton/skeleton_home_row.dart';
 import '../../widgets/skeleton/skeleton_shimmer.dart';
 import '../../widgets/vjod/provider_play.dart';
 import '../../../data/services/vjod/iptv_progress.dart';
+import '../../../util/startup_timeline.dart';
 import '../../../data/services/vjod/provider_catalog_access.dart' show currentProviderCatalog;
 
 Color get _homeBackground => AppColorScheme.background;
@@ -268,7 +269,10 @@ class _HomeShellState extends State<_HomeShell>
     _lastCanReachServer = _connectivity?.canReachServer ?? true;
     _connectivity?.addListener(_onServerReachabilityChanged);
     _maybeRegisterThemeMusic();
-    _viewModel.load(preserveExisting: _viewModel.rows.isNotEmpty);
+    StartupTimeline.mark('Accueil affiché');
+    if (!_viewModel.consumePrewarm()) {
+      _viewModel.load(preserveExisting: _viewModel.rows.isNotEmpty);
+    }
   }
 
   /// The rows on screen were built before the watched state changed, so patch

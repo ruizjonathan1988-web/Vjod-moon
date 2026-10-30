@@ -11,6 +11,8 @@ import '../models/media_bar_slide_item.dart';
 import '../models/media_bar_state.dart';
 import '../repositories/mdblist_repository.dart';
 import '../repositories/media_bar_repository.dart';
+import '../services/media_bar_cache_store.dart';
+import '../../util/startup_timeline.dart';
 import '../services/tonight/tonight_service.dart';
 
 class MediaBarViewModel extends ChangeNotifier {
@@ -21,6 +23,17 @@ class MediaBarViewModel extends ChangeNotifier {
 
   MediaBarState _state = const MediaBarLoading();
   MediaBarState get state => _state;
+
+  /// The last slides, painted at once on a cold start while the fresh ones
+  /// load.
+  final _cache = MediaBarCacheStore();
+  bool _triedCache = false;
+
+  String _cacheKey() =>
+      '${_client.baseUrl}|${_client.userId}|${_prefs.get(UserPreferences.mediaBarMode)}'
+      '|${_prefs.get(UserPreferences.mediaBarContentType)}'
+      '|${_prefs.get(UserPreferences.mediaBarItemCount)}'
+      '|${_prefs.get(UserPreferences.mediaBarSourceType)}';
 
   final _ratings = <String, Map<String, double>>{};
   final _bookshelfDetails = <String, BookshelfDetail>{};
@@ -206,8 +219,34 @@ class MediaBarViewModel extends ChangeNotifier {
     }
 
     try {
+      var fallback = previousReady;
+      if (!_triedCache && previousReady == null) {
+        _triedCache = true;
+        final mode = _prefs.get(UserPreferences.mediaBarMode);
+        if (UserPreferences.isMediaBarModeEnabled(mode)) {
+          final cached = await _cache.read(_cacheKey());
+          if (cached != null &&
+              loadGeneration == _loadGeneration &&
+              _state is MediaBarLoading) {
+            fallback = MediaBarReady(cached);
+            _state = fallback;
+            StartupTimeline.mark('Bandeau affiché (mémoire)');
+            notifyListeners();
+          }
+        }
+      }
+
       final nextState = await _repository.loadItems();
       if (loadGeneration != _loadGeneration) return;
+      StartupTimeline.mark('Bandeau à jour');
+      if (nextState is MediaBarReady) {
+        unawaited(_cache.write(_cacheKey(), nextState.items));
+      }
+      if (nextState is MediaBarError && fallback != null) {
+        _state = fallback;
+        notifyListeners();
+        return;
+      }
 
       if (nextState is MediaBarError &&
           previousReady != null &&
