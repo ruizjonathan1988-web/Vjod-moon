@@ -27,6 +27,7 @@ import '../../../util/focus/dpad_keys.dart';
 import '../../../util/system_ui.dart';
 import '../../navigation/destinations.dart';
 import '../../screensaver/screensaver_controller.dart';
+import '../../widgets/vjod/iptv_cast_sheet.dart';
 import '../vjod_tv/tv_engine.dart' show TvEngineChoice;
 import 'vod_engine.dart';
 
@@ -864,6 +865,17 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
     return h > 0 ? '$h:$m:$s' : '$m:$s';
   }
 
+  /// Sends the film to a Chromecast; the phone pauses once it plays there.
+  Future<void> _cast() => showIptvCastSheet(
+    context,
+    playUrl: widget.url,
+    title: widget.title,
+    position: _pos,
+    onStarted: () {
+      if (_playing) unawaited(_engine.playOrPause());
+    },
+  );
+
   Widget _button(IconData icon, String label, VoidCallback onTap, {FocusNode? focusNode}) => Padding(
     padding: const EdgeInsets.symmetric(horizontal: 6),
     child: FilledButton.tonalIcon(
@@ -1015,6 +1027,9 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
                                   audioName.isEmpty ? 'Audio' : 'Audio : $audioName', () => unawaited(_audioMenu())),
                               _button(Icons.subtitles_rounded, 'Sous-titres : $subName',
                                   () => unawaited(_subsMenu())),
+                              // Phones only: the TV and the web never show it.
+                              if (iptvCastAvailable)
+                                _button(Icons.cast_rounded, 'Caster', () => unawaited(_cast())),
                             ],
                           ),
                         ),
