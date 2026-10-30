@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:moonfin/ui/widgets/vjod/vjod_intro.dart';
 
 void main() {
@@ -13,7 +14,7 @@ void main() {
       for (final style in VjodIntroStyle.values) {
         var done = 0;
         await tester.pumpWidget(MaterialApp(home: VjodIntro(key: UniqueKey(), style: style, onDone: () => done++)));
-        for (var i = 0; i < 80; i++) {
+        for (var i = 0; i < 130; i++) {
           await tester.pump(const Duration(milliseconds: 80));
         }
         expect(tester.takeException(), isNull, reason: style.name);
@@ -34,5 +35,18 @@ void main() {
     expect(done, 1);
     await tester.pump(const Duration(seconds: 6));
     expect(done, 1);
+  });
+
+  test('« Le drop » est le favori, et l\'ouverture peut changer toute seule', () async {
+    SharedPreferences.setMockInitialValues({});
+    expect(await VjodIntroStyle.current(), VjodIntroStyle.drop);
+    await VjodIntroStyle.setRotation(VjodIntroRotation.eachDay);
+    final a = await VjodIntroStyle.current(now: DateTime(2026, 11, 1));
+    final b = await VjodIntroStyle.current(now: DateTime(2026, 11, 2));
+    expect(a, isNot(b));
+    expect(await VjodIntroStyle.current(now: DateTime(2026, 11, 1, 23)), a);
+    await VjodIntroStyle.choose(null);
+    expect(await VjodIntroStyle.current(now: DateTime(2026, 11, 1)), isNull);
+    expect(await VjodIntroStyle.chosen(), isNull);
   });
 }
