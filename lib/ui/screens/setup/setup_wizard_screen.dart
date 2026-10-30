@@ -426,7 +426,7 @@ class _SetupWizardScreenState extends State<SetupWizardScreen> {
     SetupStep.mediaBar => l10n.setupMediaBarQuestion,
     SetupStep.homeRows => l10n.setupHomeRowsQuestion,
     SetupStep.detailStyle => l10n.setupDetailQuestion,
-    SetupStep.tour => l10n.setupTourQuestion,
+    SetupStep.tour => _vjodLanguageQuestion(l10n.localeName),
   };
 
   Widget _buildStepBody(
@@ -1357,7 +1357,10 @@ class _SetupTourStepState extends State<_SetupTourStep> {
         crossAxisAlignment: CrossAxisAlignment.start,
         spacing: AppSpacing.spaceLg,
         children: [
-          // VJOD: no theme to pick here, everyone gets VJOD's own look.
+          // VJOD: no theme to pick here, everyone gets VJOD's own look. The
+          // app's language comes first: the page (and the taste questionnaire
+          // after it) switches to it at once.
+          _VjodAppLanguagePicker(prefs: widget.prefs, onChanged: () => setState(() {})),
           widget.playback,
           Container(
             padding: const EdgeInsets.all(AppSpacing.spaceMd),
@@ -1431,6 +1434,64 @@ class _SetupTourStepState extends State<_SetupTourStep> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// VJOD's first-run question, in the languages of the house.
+String _vjodLanguageQuestion(String localeName) => switch (localeName.split('_').first) {
+  'fr' => 'Dans quelle langue regardes-tu ?',
+  'ru' => 'На каком языке ты смотришь?',
+  'zh' => '你用哪种语言观看？',
+  _ => 'Which language do you watch in?',
+};
+
+/// The languages of the house, each written in itself, plus the phone's own.
+const vjodAppLanguages = <(String, String)>[
+  ('fr', 'Français'),
+  ('en', 'English'),
+  ('ru', 'Русский'),
+  ('zh', '中文'),
+];
+
+class _VjodAppLanguagePicker extends StatelessWidget {
+  const _VjodAppLanguagePicker({required this.prefs, required this.onChanged});
+
+  final UserPreferences prefs;
+  final VoidCallback onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final current = prefs.get(UserPreferences.languageOverride);
+    final phone = switch (Localizations.localeOf(context).languageCode) {
+      'fr' => 'Langue du téléphone',
+      'ru' => 'Язык телефона',
+      'zh' => '手机语言',
+      _ => "Phone's language",
+    };
+    return Wrap(
+      spacing: AppSpacing.spaceSm,
+      runSpacing: AppSpacing.spaceSm,
+      children: [
+        for (final (i, (tag, name)) in vjodAppLanguages.indexed)
+          ChoiceChip(
+            autofocus: i == 0,
+            label: Text(name),
+            selected: current == tag,
+            onSelected: (_) async {
+              await prefs.set(UserPreferences.languageOverride, tag);
+              onChanged();
+            },
+          ),
+        ChoiceChip(
+          label: Text(phone),
+          selected: current == 'system',
+          onSelected: (_) async {
+            await prefs.set(UserPreferences.languageOverride, 'system');
+            onChanged();
+          },
+        ),
+      ],
     );
   }
 }
