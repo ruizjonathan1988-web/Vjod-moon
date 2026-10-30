@@ -105,7 +105,6 @@ import 'home_view_model.dart';
 import '../../widgets/seerr/seerr_genre_label.dart';
 import '../../widgets/skeleton/skeleton_home_row.dart';
 import '../../widgets/skeleton/skeleton_shimmer.dart';
-import '../../widgets/vjod/provider_play.dart';
 import '../../../data/services/vjod/iptv_progress.dart';
 import '../../../util/startup_timeline.dart';
 import '../../../data/services/vjod/provider_catalog_access.dart' show currentProviderCatalog;
@@ -5551,8 +5550,7 @@ class _ContentRowsState extends State<_ContentRows>
             widget.viewModel.loadMoreForRow(rowIndex);
           }
         },
-        onLongPress: (_, item) =>
-            showContextMenu(context, item, onChanged: () => setState(() {})),
+        onLongPress: (_, item) => _onItemLongPress(item),
         onTap: (_, item) {
           _finishSharedPreview(releaseResources: true);
           if (row.rowType == HomeRowType.libraryTiles) {
@@ -5885,18 +5883,11 @@ class _ContentRowsState extends State<_ContentRows>
                         _stopPreviewFor(item, rowIndex);
                       }
                     },
-                    onLongPress: () => showContextMenu(
-                      context,
-                      item,
-                      onChanged: () => setState(() {}),
-                    ),
+                    onLongPress: () => _onItemLongPress(item),
                     onTap: () {
-                      // A title the library lacks but the provider has: it
-                      // plays from the poster.
-                      if (_iptvTmdb(item) != null &&
-                          playProviderCopy(context, series: item.seerrMediaType == 'tv', tmdbId: _iptvTmdb(item))) {
-                        return;
-                      }
+                      // VJOD: a title the library lacks opens its page (with
+                      // « IPTV · … » first); watching it straight away is in
+                      // the long press.
                       if (isV2MobileTouch) {
                         if (_v2Expansion.tapToOpen(previewKey)) {
                           _finishSharedPreview(releaseResources: true);
@@ -6288,16 +6279,10 @@ class _ContentRowsState extends State<_ContentRows>
     Future<void> Function()? onNotInterested,
     VoidCallback? onEditTaste,
   }) {
+    // VJOD: a press always opens the title's page (« Pour vous » included);
+    // its quick choices moved to the long press, see _seerrLongPress.
     if (item.rawData[HomeViewModel.forYouFlag] == true) {
-      showSeerrForYouSheet(
-        context: context,
-        item: item,
-        because: item.rawData[HomeViewModel.forYouReasonKey] as String?,
-        openDetails: () => _openSeerrMediaPage(context, item),
-        onRequested: onForYouRequested,
-        onNotInterested: onNotInterested,
-        onEditTaste: onEditTaste,
-      );
+      _openSeerrMediaPage(context, item);
       return;
     }
     final shortcut = SeerrShortcut.fromName(
@@ -6484,6 +6469,34 @@ class _ContentRowsState extends State<_ContentRows>
       else if (item.serverId != 'seerr' && isFreshlyAdded(item))
         CardHighlightPill(label: l10n.cardNewBadge),
     ];
+  }
+
+  /// A title the library lacks (not a shortcut or a filter tile).
+  static bool _isSeerrTitle(AggregatedItem item) =>
+      item.serverId == 'seerr' &&
+      item.rawData['SeerrShortcut'] == null &&
+      item.rawData['FilterType'] == null &&
+      item.rawData[HomeViewModel.iptvResumeKey] == null;
+
+  /// Long press on a title the library lacks: « Voir la fiche » first, then
+  /// watching it now at the IPTV provider and asking for it (the « Pour
+  /// vous » choices too on those cards). Library titles keep their menu.
+  void _onItemLongPress(AggregatedItem item) {
+    if (!_isSeerrTitle(item)) {
+      showContextMenu(context, item, onChanged: () => setState(() {}));
+      return;
+    }
+    final forYou = item.rawData[HomeViewModel.forYouFlag] == true;
+    showSeerrForYouSheet(
+      context: context,
+      item: item,
+      because: forYou ? item.rawData[HomeViewModel.forYouReasonKey] as String? : null,
+      openDetails: () => _openSeerrMediaPage(context, item),
+      detailsFirst: true,
+      onRequested: forYou ? () => widget.viewModel.removeFromForYouRow(item) : null,
+      onNotInterested: forYou ? () => widget.viewModel.markNotInterested(item) : null,
+      onEditTaste: forYou ? _openTasteQuestionnaire : null,
+    );
   }
 
   static void _openSeerrMediaPage(BuildContext context, AggregatedItem item) {
