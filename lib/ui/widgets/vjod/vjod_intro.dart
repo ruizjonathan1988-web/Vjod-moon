@@ -18,8 +18,8 @@ import '../../../util/platform_detection.dart';
 import '../../../util/startup_timeline.dart';
 
 enum VjodIntroStyle {
-  terminal('Les lignes de commande', 'Un torrent de données depuis la seedbox, « ./vjod --play », Entrée… une demi-seconde de silence, puis un énorme kick et l\'écran s\'allume.', 4.4),
-  hacker('Le hacker', 'Pluie de code frénétique, le logo se déchiffre, coupure, silence… puis un kick sec et « accès autorisé ».', 3.6),
+  terminal('Les lignes de commande', 'Un terminal se connecte à la seedbox, vérifie les 30 sources, imprime le logo en caractères, « ./vjod --play » et Entrée.', 4.4),
+  hacker('Le hacker', 'Pluie de code, le logo se déchiffre caractère par caractère, « accès autorisé », glitchs, puis la télé s\'éteint.', 3.35),
   plateforme('La plateforme', 'Des milliers de caractères forment VJOD, gros impact de bande-annonce, puis le logo se dissout en pixels.', 3.0),
   signal('Le signal', 'Une vieille télé s\'allume dans la neige, le signal se cale sur VJOD avec des glitchs, puis s\'éteint en un point.', 3.25),
   lame('La lame', 'Une lame de lumière dessine le logo, le bouton lecture frappe, plongée dedans.', 3.25),
@@ -189,11 +189,6 @@ const _aspect = 1024 / 572;
 const _tri = Offset(0.786, 0.511); // the play button in the logo picture
 const _glyphs = '01ABCDEF23456789#\$%&*+=<>/\\|{}[]VJOD';
 const _mono = 'monospace';
-const _softWhite = Color(0xC8FFFFFF), _dimWhite = Color(0x73FFFFFF);
-
-/// Laid-out lines of the data torrent, reused from frame to frame (a few
-/// hundred at most), so the torrent stays smooth on a modest TV box.
-final _textCache = <String, TextPainter>{};
 const _monoFallback = ['Roboto Mono', 'Droid Sans Mono', 'Courier New', 'Courier'];
 
 class _Cell {
@@ -444,23 +439,6 @@ class _IntroPainter extends CustomPainter {
     )..layout();
     tp.paint(c, at);
     return tp.width;
-  }
-
-  /// [text] for lines drawn again and again with the same look.
-  void cachedText(Canvas c, String s, Offset at, double size, Color color) {
-    final key = '${size.toStringAsFixed(1)}|${color.toARGB32()}|$s';
-    var tp = _textCache[key];
-    if (tp == null) {
-      if (_textCache.length > 600) _textCache.clear();
-      tp = _textCache[key] = TextPainter(
-        text: TextSpan(
-          text: s,
-          style: TextStyle(fontFamily: _mono, fontFamilyFallback: _monoFallback, fontSize: size, color: color, height: 1.0),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
-    }
-    tp.paint(c, at);
   }
 
   double textWidth(String s, double size) => (TextPainter(
@@ -724,15 +702,22 @@ class _IntroPainter extends CustomPainter {
   }
 
   // ----------------------------------------------------------------- E, le hacker
+  static const _eLines = [
+    (.05, '> vjod --connect seedbox'),
+    (.22, '  liaison chiffrée ........ OK'),
+    (.46, '  sources trouvées : 30'),
+    (.68, '> decrypt --signal vjod.4.0'),
+    (.88, '  clé acceptée · déchiffrement…'),
+  ];
 
-  void rain(Canvas c, double a, [double speed = 1]) {
+  void rain(Canvas c, double a) {
     if (a <= 0) return;
     final list = <(int, Offset, double, Color)>[];
     for (var i = 0; i < k.rain.length; i++) {
       final col = k.rain[i];
-      final y = ((t * speed * col.s * u * 900.0 + col.o * H) % (H + u * 400)) - u * 200;
+      final y = ((t * col.s * u * 900.0 + col.o * H) % (H + u * 400)) - u * 200;
       for (var j = 0; j < 9; j++) {
-        list.add((pick(i * 31.0 + j + (t * 14 * speed).floor()), Offset(col.x * W, y - j * u * 26), u * 22,
+        list.add((pick(i * 31.0 + j + (t * 14).floor()), Offset(col.x * W, y - j * u * 26), u * 22,
             _red.withValues(alpha: _clamp(a * (1.0 - j / 9)))));
       }
     }
@@ -740,59 +725,65 @@ class _IntroPainter extends CustomPainter {
   }
 
   void _hacker(Canvas c) {
-    // frenzy until [cut], then black and silent, then the kick at [drop]
-    const cut = 1.15, drop = 1.65, off = 2.95;
+    const drop = 1.6, off = 2.95;
     if (t > 3.3) return;
-    if (t >= cut && t < drop) {
-      breath(c, t - cut);
-      return;
-    }
     final offY = _seg(t, off, 3.12, _ic), offX = _seg(t, 3.1, 3.28, _ic);
     c.save();
-    if (t >= drop) shake(c, t - drop);
     crt(c, offY, offX);
-    if (t < cut) {
-      final fz = _seg(t, 0, cut);
-      rain(c, .3 + .35 * fz, 1.4 + 1.6 * fz);
-      torrent(c, from: .03, rate: 90, seed: 7, x0: W * .05, top: H * .05, bottom: H * .95, fs: u * 22, red: true);
-      if (t >= .45) {
-        // the logo decrypting, frantically
-        final cw = w / k.cols, ch = h / k.rows;
-        final prog = _seg(t, .5, cut - .04);
-        final list = <(int, Offset, double, Color)>[];
-        final solid = Paint();
-        for (final p in k.cells) {
-          final x = cx - w / 2.0 + (p.q + .5) * cw, y = cy - h / 2.0 + (p.r + .5) * ch;
-          if (p.rnd < prog * 1.05) {
-            solid.color = _red.withValues(alpha: .95 * p.a);
-            c.drawRect(Rect.fromCenter(center: Offset(x, y), width: cw * .8, height: ch * .9), solid);
-          } else if (_rnd.nextDouble() < .7) {
-            list.add((pick(p.q * 7.0 + p.r * 13.0 + (t * 60).floor()), Offset(x, y), ch * 1.15,
-                Colors.white.withValues(alpha: .6 * p.a)));
-          }
+    rain(c, t < drop ? .35 * _seg(t, 0, .4) : .12 * (1.0 - _seg(t, drop, drop + .5)) + .06);
+    final termA = t < drop ? 1.0 : 1.0 - _seg(t, drop, drop + .25);
+    if (termA > 0) {
+      final fs = u * 40;
+      var y = H * .08;
+      for (final (at, txt) in _eLines) {
+        if (t < at) continue;
+        final n = (_clamp((t - at) / .16) * txt.length).floor();
+        final col = txt.startsWith('>') ? Colors.white.withValues(alpha: .9 * termA) : _red.withValues(alpha: .95 * termA);
+        final wd = text(c, txt.substring(0, n), Offset(W * .06, y), fs, col);
+        if (n < txt.length && (t * 10).floor().isEven) {
+          c.drawRect(Rect.fromLTWH(W * .06 + wd + u * 4, y, u * 20, fs), Paint()..color = col);
         }
-        glyphs(c, list);
-        if (_rnd.nextDouble() < .25 + .4 * fz) glitchBand(c, u * (20 + 40 * _rnd.nextDouble()), u * (60 * _rnd.nextDouble() - 30));
+        y += u * 58;
       }
-      snow(c, .05 + .12 * fz);
-    } else {
+    }
+    if (t >= .95 && t < drop + .05) {
+      // the logo decrypting, cell by cell
+      final cw = w / k.cols, ch = h / k.rows;
+      final prog = _seg(t, 1.0, drop - .05);
+      final list = <(int, Offset, double, Color)>[];
+      final solid = Paint();
+      for (final p in k.cells) {
+        final x = cx - w / 2.0 + (p.q + .5) * cw, y = cy - h / 2.0 + (p.r + .5) * ch;
+        if (p.rnd < prog * 1.05) {
+          solid.color = _red.withValues(alpha: .95 * p.a);
+          c.drawRect(Rect.fromCenter(center: Offset(x, y), width: cw * .8, height: ch * .9), solid);
+        } else if (_rnd.nextBool()) {
+          list.add((pick(p.q * 7.0 + p.r * 13.0 + (t * 30).floor()), Offset(x, y), ch * 1.15,
+              Colors.white.withValues(alpha: .55 * p.a)));
+        }
+      }
+      glyphs(c, list);
+    }
+    if (t >= drop) {
       final hk = 1.0 - _seg(t, drop, drop + .6, _oc);
-      rain(c, .1 * (1.0 - _seg(t, drop, drop + .6)) + .05);
-      halo(c, Offset(cx, cy), w * (.55 + .3 * (1.0 - hk)), .2 + .5 * hk);
+      halo(c, Offset(cx, cy), w * (.55 + .3 * (1.0 - hk)), .18 + .4 * hk);
       final gl = [2.1, 2.18, 2.4].any((a) => t >= a && t < a + .045);
-      final split = u * (34 * hk + (gl ? 34 : 0));
+      final split = u * (26 * hk + (gl ? 34 : 0));
       logo(c, cx - split, cy, alpha: .5, tint: _Tint.cyan, plus: true);
       logo(c, cx + split * .6, cy + (gl ? u * 6 : 0), alpha: .35, tint: _Tint.gold, plus: true);
-      logo(c, cx, cy, scale: 1.06 - .06 * _seg(t, drop, drop + .3, _oc), bright: 1.0 + 1.1 * hk);
+      logo(c, cx, cy, scale: 1.0 + .03 * hk, bright: 1.0 + .8 * hk);
       if (gl) glitchBand(c, u * 46, u * 40);
-      const s = '[ ACCÈS AUTORISÉ ]';
-      final n = (_seg(t, drop, drop + .14) * s.length).floor();
-      final fs = u * 32;
-      text(c, s.substring(0, n), Offset(cx - textWidth(s, fs) / 2, cy + h * .62 - fs / 2), fs, _red.withValues(alpha: .95));
+      if (t >= drop + .15 && ((((t - drop) * 6).floor().isEven) || t > drop + .8)) {
+        const s = '[ ACCÈS AUTORISÉ ]';
+        final n = (_seg(t, drop + .15, drop + .4) * s.length).floor();
+        final fs = u * 30;
+        final str = s.substring(0, n);
+        text(c, str, Offset(cx - textWidth(s, fs) / 2, cy + h * .62 - fs / 2), fs, _red.withValues(alpha: .95));
+      }
       scan(c, .2);
-      snow(c, .04 + .08 * hk);
+      snow(c, .04 + .2 * hk);
     }
-    if (t >= drop && t < drop + .09) flash(c, .55 * (1.0 - _seg(t, drop, drop + .09)));
+    if (t >= drop && t < drop + .08) flash(c, .3 * (1.0 - _seg(t, drop, drop + .08)));
     flash(c, offY);
     c.restore();
   }
@@ -879,136 +870,15 @@ class _IntroPainter extends CustomPainter {
   }
 
   // ----------------------------------------------------------------- G, les lignes de commande
-  /// The cut before the kick: black, nothing but a cursor blinking twice.
-  void breath(Canvas c, double since) {
-    if ((since * 4).floor().isEven) {
-      c.drawRect(Rect.fromLTWH(W * .05, H * .86, u * 18, u * 30), Paint()..color = Colors.white.withValues(alpha: .85));
-    }
-  }
-
-  /// The jolt of the kick: the picture jumps and settles in a quarter second.
-  void shake(Canvas c, double since) {
-    final a = 1.0 - _seg(since, 0, .28);
-    if (a <= 0) return;
-    c.translate(u * 22 * a * math.sin(since * 170), u * 16 * a * math.cos(since * 130));
-  }
-
-  static const _chans = ['TF1', 'France 2', 'M6', 'Canal+', 'Arte', 'BFM TV', 'W9', 'TMC', 'C8', '6ter',
-    'RMC Sport', 'beIN 1', 'France 5', 'LCI', 'Gulli', 'CNews', 'TF1 4K', 'Paris Première', 'Ciné+', 'OCS'];
-
-  /// One line of the data torrent, the same for the same [i].
-  String torrentLine(int i, int seed) {
-    int r(int m) => ((math.sin((i + 1) * 12.9898 + seed * 78.233) * 43758.5453).abs().floor() + i * 7) % m;
-    switch (i % 6) {
-      case 0:
-        return '[ OK ] source ${'${i % 30 + 1}'.padLeft(2, '0')}/30  ${_chans[r(_chans.length)]}  ${[720, 1080, 2160][r(3)]}p  ${r(90) + 9} ms';
-      case 1:
-        return 'recv 0x${(0x7f3a00 + i * 0x2c0).toRadixString(16)}  ${r(900) + 64} Ko  ${hexLine(i).substring(0, 24)}';
-      case 2:
-        return 'seedbox » sync radarr/sonarr  ${r(4000) + 100} fichiers  ${r(980) + 20} Mo/s';
-      case 3:
-        return 'decrypt aes-256-gcm  bloc ${r(99999)}  ✓';
-      case 4:
-        return '0x${(0x7f3a00 + i * 16).toRadixString(16)}  ${hexLine(i + seed)}';
-      default:
-        return 'jellyfin » index ${r(12000)} médias · ${r(60) + 1} bibliothèques · ok';
-    }
-  }
-
-  /// A torrent of raw data scrolling far too fast to read, from [from] on,
-  /// [rate] lines a second.
-  void torrent(Canvas c,
-      {required double from, required double rate, required int seed, required double x0, required double top,
-      required double bottom, required double fs, bool red = false}) {
-    if (t < from) return;
-    final lh = fs * 1.25;
-    final count = ((t - from) * rate).floor();
-    final fit = ((bottom - top) / lh).floor();
-    final first = math.max(0, count - fit);
-    for (var i = first; i < count; i++) {
-      final y = top + (i - first) * lh;
-      final s = torrentLine(i, seed);
-      final ok = s.startsWith('[ OK ]');
-      final color = ok || (red && i % 3 == 0) ? _red : (i % 4 == 0 ? _dimWhite : _softWhite);
-      cachedText(c, s, Offset(x0, y), fs, color);
-    }
-  }
-
-  void _terminal(Canvas c) {
-    // the torrent, « ./vjod --play », Enter at [enter]; black and silent;
-    // the kick and the screen lighting up at [play]
-    const enter = 1.40, play = 1.90, off = 3.0;
-    if (t > 3.34) return;
-    if (t >= enter && t < play) {
-      breath(c, t - enter);
-      return;
-    }
-    final offY = _seg(t, off, 3.16, _ic), offX = _seg(t, 3.14, 3.32, _ic);
-    c.save();
-    if (t >= play) shake(c, t - play);
-    crt(c, offY, offX);
-    final fs = u * 30, x0 = W * .05, py = H * .86;
-    if (t < enter) {
-      const a = 'root@vjod:~# ', b = 'ssh seedbox.vjod';
-      final w0 = text(c, a, Offset(x0, H * .04), fs, _red);
-      text(c, b.substring(0, (_seg(t, 0, .11) * b.length).floor()), Offset(x0 + w0, H * .04), fs, Colors.white);
-      torrent(c, from: .14, rate: 85, seed: 3, x0: x0, top: H * .04 + fs * 1.6, bottom: H * .74, fs: u * 21);
-      // the logo stamped in characters over the torrent, fast
-      if (t >= .8) {
-        final rows = k.asciiRows, cols = k.asciiCols;
-        final prog = _seg(t, .8, 1.15) * rows;
-        final shown = prog.floor();
-        final cwid = w / cols, rh = h * .62 / rows;
-        final top = cy - h * .3;
-        final p = Paint();
-        for (var r = 0; r < math.min(shown + 1, rows); r++) {
-          final upto = r == shown ? ((prog - r) * cols).floor() : cols;
-          for (var q = 0; q < upto; q++) {
-            final lv = k.ascii[r * cols + q];
-            if (lv <= 0) continue;
-            p.color = _red.withValues(alpha: .95 * lv);
-            c.drawRect(Rect.fromLTWH(cx - w / 2.0 + q * cwid, top + r * rh, cwid * .92, rh * .9), p);
-          }
-        }
-      }
-      // the progress bar racing, under the torrent
-      final kk = _seg(t, .14, 1.2);
-      const n = 30;
-      final f = (kk * n).round(), cell = fs * .6, by = H * .78;
-      final w0 = text(c, '[', Offset(x0, by), fs, _red);
-      final on = Paint()..color = _red, dim = Paint()..color = _red.withValues(alpha: .3);
-      for (var i = 0; i < n; i++) {
-        c.drawRect(Rect.fromLTWH(x0 + w0 + i * cell, by + fs * .1, cell * .9, fs * .8), i < f ? on : dim);
-      }
-      text(c, ']${'${(kk * 100).round()}'.padLeft(4)}%  ${(kk * 30).round()}/30 sources  ${(kk * 940).round()} Mo/s',
-          Offset(x0 + w0 + n * cell, by), fs, _red);
-      if (t >= 1.24) {
-        const a2 = 'root@seedbox:~# ', b2 = './vjod --play';
-        final w1 = text(c, a2, Offset(x0, py), fs, _red);
-        final shown = b2.substring(0, (_seg(t, 1.24, 1.36) * b2.length).floor());
-        final w2 = text(c, shown, Offset(x0 + w1, py), fs, Colors.white);
-        c.drawRect(Rect.fromLTWH(x0 + w1 + w2 + u * 4, py, u * 18, fs), Paint()..color = Colors.white);
-      }
-      if (_rnd.nextDouble() < .3 * _seg(t, .3, 1.3)) glitchBand(c, u * (16 + 30 * _rnd.nextDouble()), u * (50 * _rnd.nextDouble() - 25));
-    } else {
-      final hk = 1.0 - _seg(t, play, play + .6, _oc);
-      halo(c, Offset(cx, cy), w * (.55 + .3 * (1.0 - hk)), .22 + .5 * hk);
-      final gl = [2.33, 2.4].any((a) => t >= a && t < a + .04);
-      final split = u * (34 * hk + (gl ? 30 : 0));
-      logo(c, cx - split, cy, alpha: .5, tint: _Tint.cyan, plus: true);
-      logo(c, cx + split * .6, cy, alpha: .3, tint: _Tint.gold, plus: true);
-      logo(c, cx, cy,
-          scale: 1.07 - .07 * _seg(t, play, play + .3, _oc) + .03 * _seg(t, play + .3, off, _io), bright: 1.0 + 1.2 * hk);
-      if (gl) glitchBand(c, u * 44, u * 36);
-      final w0 = text(c, '▶ lecture ', Offset(x0, py), fs, _red);
-      if ((t * 4).floor().isEven) c.drawRect(Rect.fromLTWH(x0 + w0, py, u * 18, fs), Paint()..color = _red);
-      scan(c, .16);
-      snow(c, .08 * hk);
-    }
-    if (t >= play && t < play + .09) flash(c, .6 * (1.0 - _seg(t, play, play + .09)));
-    flash(c, offY);
-    c.restore();
-  }
+  static const _gTerm = [
+    (0.02, .22, 'root@vjod:~# ', 'ssh seedbox.vjod', 'cmd'),
+    (0.26, 0.0, 'Connexion établie · chiffrement AES-256 · clé 4096 bits', '', 'out'),
+    (0.30, 0.0, 'Bienvenue sur la seedbox de VJOD.', '', 'dim'),
+    (0.48, .70, 'root@seedbox:~# ', './ma_tv --sources 30 --check', 'cmd'),
+    (0.74, .98, '', '', 'bar'),
+    (1.02, 1.18, 'root@seedbox:~# ', 'cat /dev/vjod | decrypt --ascii', 'cmd'),
+    (1.22, 0.0, '', '', 'hex'),
+  ];
 
   String hexLine(int seed) {
     final b = StringBuffer();
@@ -1019,4 +889,97 @@ class _IntroPainter extends CustomPainter {
     return b.toString();
   }
 
+  void _terminal(Canvas c) {
+    const play = 2.02, off = 2.92;
+    if (t > 3.26) return;
+    final offY = _seg(t, off, 3.08, _ic), offX = _seg(t, 3.06, 3.24, _ic);
+    c.save();
+    crt(c, offY, offX);
+    final fs = u * 30, lh = u * 40, x0 = W * .05;
+    final termA = t < play ? 1.0 : 1.0 - _seg(t, play, play + .3);
+    var y = H * .06;
+    final white = Colors.white.withValues(alpha: termA);
+    if (termA > 0) {
+      for (final (at, end, a, b, kind) in _gTerm) {
+        if (t < at) continue;
+        switch (kind) {
+          case 'cmd':
+            final n = (_seg(t, at, end) * b.length).floor();
+            final w0 = text(c, a, Offset(x0, y), fs, _red.withValues(alpha: termA));
+            final w1 = text(c, b.substring(0, n), Offset(x0 + w0, y), fs, white);
+            if (t < end + .05 && (t * 12).floor().isEven) {
+              c.drawRect(Rect.fromLTWH(x0 + w0 + w1 + u * 4, y, u * 18, fs), Paint()..color = white);
+            }
+          case 'out':
+            text(c, a, Offset(x0, y), fs, Colors.white.withValues(alpha: .85 * termA));
+          case 'dim':
+            text(c, a, Offset(x0, y), fs, Colors.white.withValues(alpha: .45 * termA));
+          case 'bar':
+            final kk = _seg(t, at, end);
+            const n = 30;
+            final f = (kk * n).round();
+            final cell = fs * .6;
+            final red = Paint()..color = _red.withValues(alpha: termA);
+            final dim = Paint()..color = _red.withValues(alpha: .3 * termA);
+            final w0 = text(c, '[', Offset(x0, y), fs, _red.withValues(alpha: termA));
+            for (var i = 0; i < n; i++) {
+              c.drawRect(Rect.fromLTWH(x0 + w0 + i * cell, y + fs * .1, cell * .9, fs * .8), i < f ? red : dim);
+            }
+            final ok = (kk * 30).round();
+            text(c, ']${'${(kk * 100).round()}'.padLeft(4)}%  $ok/30 sources${kk >= 1 ? '  OK' : ''}',
+                Offset(x0 + w0 + n * cell, y), fs, _red.withValues(alpha: termA));
+          case 'hex':
+            final lines = (_seg(t, at, 1.36) * 2.99).floor();
+            for (var i = 0; i < lines; i++) {
+              text(c, '0x${(0x7f3a00 + i * 16).toRadixString(16)}  ${hexLine(i + (t * 20).floor())}', Offset(x0, y), fs,
+                  Colors.white.withValues(alpha: .35 * termA));
+              if (i < lines - 1) y += lh;
+            }
+        }
+        y += lh;
+      }
+    }
+    // the logo printed in characters, row by row
+    if (t >= 1.36 && t < play + .12) {
+      final rows = k.asciiRows, cols = k.asciiCols;
+      final prog = _seg(t, 1.36, 1.86) * rows;
+      final shown = prog.floor();
+      final cwid = w / cols, rh = h * .62 / rows;
+      final top = cy - h * .18;
+      final fade = t >= play ? 1.0 - _seg(t, play, play + .12) : 1.0;
+      final p = Paint();
+      for (var r = 0; r < math.min(shown + 1, rows); r++) {
+        final upto = r == shown ? ((prog - r) * cols).floor() : cols;
+        for (var q = 0; q < upto; q++) {
+          final lv = k.ascii[r * cols + q];
+          if (lv <= 0) continue;
+          p.color = _red.withValues(alpha: .95 * fade * lv);
+          c.drawRect(Rect.fromLTWH(cx - w / 2.0 + q * cwid, top + r * rh, cwid * .92, rh * .9), p);
+        }
+      }
+    }
+    final py = H * .86;
+    if (t >= 1.88 && t < play) {
+      const a = 'root@seedbox:~# ', b = './vjod --play';
+      final n = (_seg(t, 1.88, 2.0) * b.length).floor();
+      final w0 = text(c, a, Offset(x0, py), fs, _red);
+      text(c, b.substring(0, n), Offset(x0 + w0, py), fs, Colors.white);
+    }
+    if (t >= play) {
+      final hk = 1.0 - _seg(t, play, play + .6, _oc);
+      halo(c, Offset(cx, cy), w * (.55 + .3 * (1.0 - hk)), .2 + .45 * hk);
+      final gl = [2.45, 2.52].any((a) => t >= a && t < a + .04);
+      final split = u * (24 * hk + (gl ? 30 : 0));
+      logo(c, cx - split, cy, alpha: .5, tint: _Tint.cyan, plus: true);
+      logo(c, cx, cy,
+          scale: 1.05 - .05 * _seg(t, play, play + .35, _oc) + .03 * _seg(t, play + .35, off, _io), bright: 1.0 + .9 * hk);
+      if (gl) glitchBand(c, u * 44, u * 36);
+      final w0 = text(c, '▶ lecture ', Offset(x0, py), fs, _red);
+      if ((t * 4).floor().isEven) c.drawRect(Rect.fromLTWH(x0 + w0, py, u * 18, fs), Paint()..color = _red);
+      scan(c, .16);
+    }
+    if (t >= play && t < play + .07) flash(c, .35 * (1.0 - _seg(t, play, play + .07)));
+    flash(c, offY);
+    c.restore();
+  }
 }
