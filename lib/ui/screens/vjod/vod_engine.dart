@@ -346,12 +346,9 @@ class WebVodEngine implements VodEngine {
         _first.add(null);
       }
     }));
-    final errors = _backend.errorStream;
-    if (errors != null) {
-      _subs.add(errors.listen((e) {
-        _errors.add((e['message'] ?? e['error'] ?? 'le navigateur ne lit pas ce fichier').toString());
-      }));
-    }
+    _subs.add(_backend.errorStream.listen((e) {
+      _errors.add((e['message'] ?? e['error'] ?? 'le navigateur ne lit pas ce fichier').toString());
+    }));
   }
 
   final HtmlVideoBackend _backend;
