@@ -26,7 +26,7 @@ class _AboutCategoryScreen extends StatelessWidget {
           const SizedBox(height: 24),
           Center(
             child: Text(
-              'VJOD',
+              'VJOD ${VjodBuild.version}',
               style: Theme.of(context).textTheme.displaySmall?.copyWith(
                 fontWeight: FontWeight.w800,
                 letterSpacing: 4,
@@ -38,10 +38,10 @@ class _AboutCategoryScreen extends StatelessWidget {
             child: Text(
               vjodText(
                 context,
-                fr: 'Version du $appVersion',
-                en: 'Version of $appVersion',
-                ru: 'Версия от $appVersion',
-                zh: '版本 $appVersion',
+                fr: 'Version ${VjodBuild.version} du $appVersion',
+                en: 'Version ${VjodBuild.version} of $appVersion',
+                ru: 'Версия ${VjodBuild.version} от $appVersion',
+                zh: '版本 ${VjodBuild.version} · $appVersion',
               ),
               style: Theme.of(context).textTheme.bodyMedium,
             ),
@@ -55,7 +55,7 @@ class _AboutCategoryScreen extends StatelessWidget {
                 autofocus: true,
                 leading: const Icon(Icons.info_outline),
                 title: Text(l10n.version),
-                subtitle: Text('VJOD · $appVersion'),
+                subtitle: Text('VJOD ${VjodBuild.version} · $appVersion'),
                 trailing: const SizedBox.shrink(),
                 onTap: () {},
               ),
