@@ -228,7 +228,7 @@ void main() {
         ),
       );
 
-      expect(find.text('LOADING STREAM...'), findsNothing);
+      expect(find.text('CHARGEMENT...'), findsNothing);
       expect(find.byType(StockSpinnerAnimation), findsOneWidget);
     });
 
@@ -246,7 +246,7 @@ void main() {
         ),
       );
 
-      expect(find.text('LOADING STREAM...'), findsOneWidget);
+      expect(find.text('CHARGEMENT...'), findsOneWidget);
       expect(find.byType(StockSpinnerAnimation), findsOneWidget);
     });
 
@@ -265,7 +265,7 @@ void main() {
         ),
       );
 
-      expect(find.text('LOADING STREAM...'), findsNothing);
+      expect(find.text('CHARGEMENT...'), findsNothing);
       expect(find.byType(LoadingAnimationWidget), findsNothing);
     });
 
