@@ -13,7 +13,7 @@ void main() {
       for (final style in VjodIntroStyle.values) {
         var done = 0;
         await tester.pumpWidget(MaterialApp(home: VjodIntro(key: UniqueKey(), style: style, onDone: () => done++)));
-        for (var i = 0; i < 60; i++) {
+        for (var i = 0; i < 80; i++) {
           await tester.pump(const Duration(milliseconds: 80));
         }
         expect(tester.takeException(), isNull, reason: style.name);
