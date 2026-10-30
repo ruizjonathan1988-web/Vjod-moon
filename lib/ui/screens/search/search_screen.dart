@@ -46,6 +46,7 @@ import '../../widgets/focus/context_menu_sheet.dart';
 import '../../widgets/focus/request_initial_focus.dart';
 import '../../widgets/sliding_pill_tabs.dart';
 import '../../widgets/skeleton/skeleton_library_grid.dart';
+import '../../../util/vjod_text.dart';
 
 class SearchScreen extends StatefulWidget {
   final String? initialQuery;
@@ -357,6 +358,10 @@ class _SearchScreenState extends State<SearchScreen>
       !GetIt.instance<UserPreferences>().get(UserPreferences.kidsModeEnabled);
   bool get _hasGames => _vm.gameResults.isNotEmpty;
   bool get _hasProvider => _vm.providerResults.isNotEmpty;
+
+  bool get _vjodNames =>
+      ThemeRegistry.active.id == ThemeRegistry.vjodId ||
+      ThemeRegistry.active.id == ThemeRegistry.ecrinId;
 
   int get _tabCount {
     final hasContent =
@@ -1353,7 +1358,13 @@ class _SearchScreenState extends State<SearchScreen>
       rows.add(
         LibraryRow(
           key: _allRowKey(providerRow),
-          title: 'Chez le fournisseur IPTV',
+          title: vjodText(
+            context,
+            fr: 'À regarder tout de suite (IPTV)',
+            en: 'Watch right now (IPTV)',
+            ru: 'Смотреть сразу (IPTV)',
+            zh: '立即观看（IPTV）',
+          ),
           rowHeight: cardWidth / (2 / 3) + 56,
           children: [
             for (var c = 0; c < _vm.providerResults.length; c++)
@@ -1379,7 +1390,8 @@ class _SearchScreenState extends State<SearchScreen>
       rows.add(
         LibraryRow(
           key: _allRowKey(seerrRow),
-          title: seerrLabel,
+          // VJOD: what is neither on the server nor at the provider.
+          title: _vjodNames ? l10n.vjodToRequest : seerrLabel,
           rowHeight: cardWidth / (2 / 3) + 56,
           children: [
             for (var c = 0; c < _vm.seerrResults.length; c++)
