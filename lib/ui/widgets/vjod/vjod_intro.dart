@@ -605,7 +605,7 @@ class _IntroPainter extends CustomPainter {
               Color(0x00FFFFFF),
               Color(0x59FFDCDC),
               Color(0x00FFFFFF),
-            ]),
+            ], const [0.0, 0.5, 1.0]),
         );
         c.restore();
         c.restore();
@@ -828,7 +828,7 @@ class _IntroPainter extends CustomPainter {
                   Color(0x00FFFFFF),
                   Color(0x80FFE6E6),
                   Color(0x00FFFFFF),
-                ]));
+                ], const [0.0, 0.5, 1.0]));
           glyphs(c, [
             for (var i = 0; i < 24; i++)
               (pick(i + (t * 30).floor()), Offset(cx - w * .5 + i * w / 23, y - u * 22), ch * 1.2,
