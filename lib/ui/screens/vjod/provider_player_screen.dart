@@ -12,9 +12,11 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get_it/get_it.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../data/services/seerr/taste_profile.dart';
 import '../../../data/services/vjod/iptv_learning.dart';
+import '../../../data/services/vjod/iptv_next.dart';
 import '../../../data/services/vjod/iptv_progress.dart';
 import '../../../data/services/vjod/provider_catalog_access.dart';
 import '../../../data/services/vjod/vjod_votes.dart';
@@ -22,6 +24,7 @@ import '../../../preference/seerr_preferences.dart';
 import '../../../data/services/vjod/xtream_catalog.dart';
 import '../../../util/focus/dpad_keys.dart';
 import '../../../util/system_ui.dart';
+import '../../navigation/destinations.dart';
 import '../../screensaver/screensaver_controller.dart';
 import '../vjod_tv/tv_engine.dart' show TvEngineChoice;
 import 'vod_engine.dart';
@@ -137,6 +140,21 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
   bool _voteAsked = false;
   Timer? _voteTimer;
 
+  // The episode after this one (series only), offered in the last seconds.
+  XtreamEpisode? _nextEp;
+  bool _nextVisible = false;
+  bool _nextDismissed = false;
+  bool _leaving = false;
+  int _nextCount = 10;
+  Timer? _nextTimer;
+  final _nextFocus = FocusNode(debugLabel: 'provider_player_next');
+
+  // « Passer le générique »: how far it jumps for this series, and the last
+  // jump, so a correction just after it is learned.
+  Duration _introLen = IptvIntroSkip.defaultLength;
+  Duration? _skipFrom;
+  DateTime? _skipAt;
+
   bool get _exoWanted => TvEngineChoice.exoAvailable && TvEngineChoice.value != 'mpv';
 
   @override
@@ -150,6 +168,111 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
     if (widget.watch != null) {
       _saveTimer = Timer.periodic(const Duration(seconds: 30), (_) => _savePlace());
     }
+    if (widget.watch?.isSeries ?? false) {
+      unawaited(_findNext());
+      unawaited(IptvIntroSkip.lengthFor(widget.watch!.id).then((d) => _introLen = d));
+    }
+  }
+
+  /// Looks up, in the background, the episode that follows this one.
+  Future<void> _findNext() async {
+    final w = widget.watch;
+    final catalog = currentProviderCatalog();
+    if (w == null || catalog == null) return;
+    try {
+      final info = await catalog.seriesInfo(w.id).timeout(const Duration(seconds: 30));
+      final next = episodeAfter(info, season: w.season, number: w.episode, id: w.ep);
+      if (mounted) _nextEp = next;
+    } catch (_) {}
+  }
+
+  /// In the last 40 seconds of an episode: « Épisode suivant » with a
+  /// 10-second countdown (OK plays it now, BACK or « Annuler » stays).
+  void _checkNext() {
+    if (_nextEp == null || _nextDismissed || _nextVisible || _leaving) return;
+    if (_dur < const Duration(minutes: 5)) return;
+    final remaining = _dur - _pos;
+    if (remaining > const Duration(seconds: 40) || remaining <= Duration.zero) return;
+    setState(() {
+      _nextVisible = true;
+      _nextCount = 10;
+    });
+    _nextTimer?.cancel();
+    _nextTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) {
+        t.cancel();
+      } else if (_nextCount <= 1) {
+        t.cancel();
+        _goNext();
+      } else {
+        setState(() => _nextCount--);
+      }
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _nextVisible) _nextFocus.requestFocus();
+    });
+  }
+
+  void _dismissNext() {
+    _nextTimer?.cancel();
+    setState(() {
+      _nextVisible = false;
+      _nextDismissed = true;
+    });
+    _focus.requestFocus();
+  }
+
+  void _goNext() {
+    final w = widget.watch;
+    final ep = _nextEp;
+    final catalog = currentProviderCatalog();
+    if (w == null || ep == null || catalog == null || _leaving) return;
+    _leaving = true;
+    _nextTimer?.cancel();
+    context.pushReplacement(
+      Destinations.providerPlayer(
+        url: catalog.episodeUrl(ep),
+        title: '${w.name} · S${ep.season} É${ep.number}',
+        watch: IptvWatch(
+          kind: 'series',
+          id: w.id,
+          name: w.name,
+          tmdb: w.tmdb,
+          poster: w.poster,
+          ep: ep.id,
+          ext: ep.extension,
+          season: ep.season,
+          episode: ep.number,
+          epName: ep.title,
+        ),
+      ),
+    );
+  }
+
+  /// « Passer le générique »: shown in an episode's first 6 minutes.
+  bool get _canSkipIntro =>
+      (widget.watch?.isSeries ?? false) && _skipFrom == null &&
+      _pos > const Duration(seconds: 2) && _pos < const Duration(minutes: 6);
+
+  void _skipIntro() {
+    final from = _pos;
+    setState(() {
+      _skipFrom = from;
+      _skipAt = DateTime.now();
+    });
+    unawaited(_engine.seek(from + _introLen));
+  }
+
+  /// A seek by hand just after « Passer le générique »: the jump was too short
+  /// or too long, the length it should have had is kept for this series.
+  void _learnIntro(Duration landed) {
+    final from = _skipFrom, at = _skipAt, w = widget.watch;
+    if (from == null || at == null || w == null) return;
+    if (DateTime.now().difference(at) > const Duration(seconds: 25)) return;
+    final len = IptvIntroSkip.corrected(from, landed);
+    if (len == null) return;
+    _introLen = len;
+    unawaited(IptvIntroSkip.remember(w.id, len));
   }
 
   /// Saves where this playback stands, on Ma TV, for this profile.
@@ -189,6 +312,7 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
         _pos = p;
         if (_dur > Duration.zero && p > Duration.zero) _resumeAt[widget.url] = p;
         _checkVote();
+        if (mounted) _checkNext();
         if (_controls && mounted) setState(() {});
       }),
       e.duration.listen((d) {
@@ -322,6 +446,8 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
     _noPicture?.cancel();
     _saveTimer?.cancel();
     _voteTimer?.cancel();
+    _nextTimer?.cancel();
+    _nextFocus.dispose();
     final w = widget.watch;
     if (w != null) {
       _savePlace();
@@ -358,7 +484,9 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
 
   void _seekBy(int seconds) {
     final to = _pos + Duration(seconds: seconds);
-    unawaited(_engine.seek(to < Duration.zero ? Duration.zero : (_dur > Duration.zero && to > _dur ? _dur : to)));
+    final target = to < Duration.zero ? Duration.zero : (_dur > Duration.zero && to > _dur ? _dur : to);
+    unawaited(_engine.seek(target));
+    _learnIntro(target);
     _showControls();
   }
 
@@ -461,6 +589,45 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
     );
   }
 
+  Widget _nextPrompt() {
+    final ep = _nextEp!;
+    return Positioned(
+      right: 24,
+      bottom: 120,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(18, 14, 14, 14),
+        decoration: BoxDecoration(color: const Color(0xE60B0B0D), borderRadius: BorderRadius.circular(14)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Épisode suivant : S${ep.season} É${ep.number}',
+                style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w700)),
+            if (ep.title.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(ep.title, style: const TextStyle(color: Colors.white70, fontSize: 14)),
+              ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FilledButton.icon(
+                  focusNode: _nextFocus,
+                  onPressed: _goNext,
+                  icon: const Icon(Icons.skip_next_rounded),
+                  label: Text('Lire ($_nextCount s)'),
+                ),
+                const SizedBox(width: 10),
+                FilledButton.tonal(onPressed: _dismissNext, child: const Text('Annuler')),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   KeyEventResult _onBarKey(FocusNode node, KeyEvent event) {
     if (event is KeyUpEvent) {
       _scrubHeld = 0;
@@ -498,7 +665,9 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
     if (!event.isActionable) return KeyEventResult.ignored;
     final key = event.logicalKey;
     if (key.isBackKey) {
-      if (_controls) {
+      if (_nextVisible) {
+        _dismissNext();
+      } else if (_controls) {
         setState(() => _controls = false);
         _focus.requestFocus();
       } else {
@@ -750,6 +919,7 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
                   ),
                 ),
               if (_voteVisible && _error == null) _votePrompt(),
+              if (_nextVisible && _error == null) _nextPrompt(),
               // Touch and remote: a visible way out, shown with the controls (and on an error).
               if (_controls || _error != null)
                 Positioned(
@@ -829,6 +999,8 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
                           scrollDirection: Axis.horizontal,
                           child: Row(
                             children: [
+                              if (_canSkipIntro)
+                                _button(Icons.fast_forward_rounded, 'Passer le générique', _skipIntro),
                               _button(Icons.replay_10_rounded, '−10 s', () => _seekBy(-10)),
                               _button(_playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
                                   _playing ? 'Pause' : 'Lecture', () => unawaited(_engine.playOrPause()),
