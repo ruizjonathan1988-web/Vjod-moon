@@ -992,6 +992,35 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
     return fallback;
   }
 
+  /// VJOD: Films and Séries open the whole catalogue (server, IPTV, to
+  /// request), the library one press away inside; without Seerr (or in kids
+  /// mode) they open the library as before.
+  void _openCatalogue(AggregatedLibrary? lib, {required bool tv, required bool seerr}) {
+    if (!seerr) {
+      _openLibrary(lib);
+      return;
+    }
+    if (_isCatalogueActive(tv: tv)) return;
+    context.navigateTopLevel(
+      Destinations.catalogueFor(
+        tv: tv,
+        library: lib == null
+            ? null
+            : libraryRoute(lib.id, lib.collectionType, lib.name, serverId: lib.serverId),
+      ),
+    );
+  }
+
+  bool _isCatalogueActive({required bool tv}) {
+    try {
+      final uri = GoRouterState.of(context).uri;
+      return uri.path == Destinations.catalogue &&
+          (uri.queryParameters['kind'] == 'tv') == tv;
+    } catch (_) {
+      return false;
+    }
+  }
+
   void _openLibrary(AggregatedLibrary? lib) {
     if (lib == null) {
       context.navigateTopLevel(Destinations.home);
@@ -1030,17 +1059,19 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
           context.go(Destinations.home);
         },
       ),
-      if (movies != null)
+      if (movies != null || seerr)
         VjodNavItem(
           label: l10n.vjodTabMovies,
           icon: Icons.movie_outlined,
-          onTap: () => _openLibrary(movies),
+          selected: _isCatalogueActive(tv: false),
+          onTap: () => _openCatalogue(movies, tv: false, seerr: seerr),
         ),
-      if (series != null)
+      if (series != null || seerr)
         VjodNavItem(
           label: l10n.vjodTabSeries,
           icon: Icons.tv_rounded,
-          onTap: () => _openLibrary(series),
+          selected: _isCatalogueActive(tv: true),
+          onTap: () => _openCatalogue(series, tv: true, seerr: seerr),
         ),
       // Live TV: Jellyfin's own channels and guide when the server has them
       // (a tuner or the Xtream plugin), played inside the app; otherwise the
