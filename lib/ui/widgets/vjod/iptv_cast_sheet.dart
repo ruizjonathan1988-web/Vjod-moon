@@ -32,7 +32,7 @@ Future<void> showIptvCastSheet(
   if (target == null || !context.mounted) return;
   final messenger = ScaffoldMessenger.maybeOf(context);
   messenger?.showSnackBar(SnackBar(content: Text('Préparation pour ${target.title}…')));
-  final source = await resolveIptvCast(playUrl);
+  final source = await resolveIptvCast(playUrl, title: title, position: position);
   if (!source.ok) {
     messenger?.hideCurrentSnackBar();
     messenger?.showSnackBar(SnackBar(content: Text(source.problem ?? iptvCastMaTvFailed)));
@@ -44,7 +44,7 @@ Future<void> showIptvCastSheet(
       streamUrl: source.url,
       contentType: source.contentType,
       title: title,
-      startPositionTicks: position.inMicroseconds * 10,
+      startPositionTicks: castStartTicks(source, position),
     );
   } catch (_) {
     messenger?.hideCurrentSnackBar();

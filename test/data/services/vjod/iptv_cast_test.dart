@@ -61,4 +61,23 @@ void main() {
       expect(castSourceFromMaTv(200, 'pas du json'), isNull);
     });
   });
+
+  group('reprise et messages de Ma TV 3.53', () {
+    test('flux préparé depuis le point de reprise : la Chromecast part de zéro', () {
+      final s = castSourceFromMaTv(200, '{"url":"https://h/tv/cast/abc/index.m3u8","offset":1195.0}')!;
+      expect(s.offset, const Duration(seconds: 1195));
+      expect(castStartTicks(s, const Duration(minutes: 20)), 0);
+    });
+
+    test('fichier envoyé tel quel : la Chromecast reprend elle-même', () {
+      final s = directCastSource('https://h/1.mp4', maTvTooOld: false);
+      expect(castStartTicks(s, const Duration(seconds: 90)), 900000000);
+    });
+
+    test('Ma TV refuse : son message en français est montré', () {
+      final s = castSourceFromMaTv(503, '{"error":"ce fichier doit être converti et Ma TV en convertit déjà un"}')!;
+      expect(s.ok, isFalse);
+      expect(s.problem, 'Ma TV : Ce fichier doit être converti et Ma TV en convertit déjà un.');
+    });
+  });
 }

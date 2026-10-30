@@ -71,13 +71,18 @@ class IptvCastSource {
   final String url;
   final String contentType;
 
+  /// Where the stream already starts (Ma TV prepared it from the resume
+  /// point), so the Chromecast is told to start at its beginning.
+  final Duration offset;
+
   /// Shown instead of casting, in French. Null when [url] is set.
   final String? problem;
 
-  const IptvCastSource(this.url, this.contentType) : problem = null;
+  const IptvCastSource(this.url, this.contentType, {this.offset = Duration.zero}) : problem = null;
   const IptvCastSource.impossible(String message)
     : url = '',
       contentType = '',
+      offset = Duration.zero,
       problem = message;
 
   bool get ok => problem == null && url.isNotEmpty;
@@ -100,31 +105,58 @@ IptvCastSource directCastSource(String playUrl, {required bool maTvTooOld}) {
   return IptvCastSource.impossible(maTvTooOld ? iptvCastUpdateMaTv : iptvCastUnsupported);
 }
 
-/// Reads Ma TV's answer to `/tv/api/cast`: `{"url": "...", "type": "..."}`.
+/// Reads Ma TV's answer to `/tv/api/cast`: `{"url": "...", "type": "...",
+/// "offset": seconds}`, or `{"error": "..."}` (a French sentence) when it
+/// can't, shown as it is.
 IptvCastSource? castSourceFromMaTv(int status, String body) {
-  if (status != 200) return null;
   try {
     final json = jsonDecode(body);
     if (json is! Map) return null;
+    final error = json['error']?.toString() ?? '';
+    if (status != 200) {
+      if (error.isEmpty) return null;
+      return IptvCastSource.impossible('Ma TV : ${error[0].toUpperCase()}${error.substring(1)}.');
+    }
     final url = json['url']?.toString() ?? '';
     final uri = Uri.tryParse(url);
     if (uri == null || !uri.isScheme('https') || uri.host.isEmpty) return null;
     final type = json['type']?.toString() ?? '';
-    return IptvCastSource(url, type.isEmpty ? 'application/x-mpegURL' : type);
+    final offset = json['offset'] is num ? (json['offset'] as num).toDouble() : 0.0;
+    return IptvCastSource(
+      url,
+      type.isEmpty ? 'application/x-mpegURL' : type,
+      offset: Duration(milliseconds: (offset * 1000).round()),
+    );
   } catch (_) {
     return null;
   }
 }
 
+/// The Chromecast's start, in Google Cast ticks: Ma TV's stream already
+/// starts at the resume point, a file sent as it is starts at zero.
+int castStartTicks(IptvCastSource source, Duration position) =>
+    source.offset > Duration.zero ? 0 : position.inMicroseconds * 10;
+
 /// Finds what to send to the Chromecast for [playUrl].
-Future<IptvCastSource> resolveIptvCast(String playUrl, {http.Client? client}) async {
+Future<IptvCastSource> resolveIptvCast(
+  String playUrl, {
+  String title = '',
+  Duration position = Duration.zero,
+  http.Client? client,
+}) async {
   final server = TvSourcesClient().server;
   final request = IptvCastRequest.fromPlayUrl(playUrl);
   final fromMaTv = server != null && request != null && playUrl.startsWith(server.url);
   if (!fromMaTv) return directCastSource(playUrl, maTvTooOld: false);
   try {
-    final uri = server.endpoint('/tv/api/cast', request.query);
-    final r = await (client?.get(uri) ?? http.get(uri)).timeout(const Duration(seconds: 30));
+    final uri = server.endpoint('/tv/api/cast', {
+      ...request.query,
+      // Ma TV prepares the stream from where the film was left.
+      if (position > const Duration(minutes: 1)) 'start': '${position.inSeconds - 5}',
+      if (title.isNotEmpty) 'title': title,
+    });
+    // Ma TV looks at the file (a few seconds, up to 45 when the source is slow).
+    final r = await (client?.get(uri) ?? http.get(uri)).timeout(const Duration(seconds: 60));
     // An older Ma TV doesn't know the route.
     if (r.statusCode == 404) return directCastSource(playUrl, maTvTooOld: true);
     return castSourceFromMaTv(r.statusCode, utf8.decode(r.bodyBytes)) ??
