@@ -15,7 +15,6 @@ import '../../../util/focus/dpad_keys.dart';
 import '../../../util/language_codes.dart';
 import '../../../util/platform_detection.dart';
 import '../../navigation/destinations.dart';
-import '../../theme/app_theme_controller.dart';
 import '../../widgets/bottom_nav/bottom_nav_destinations.dart';
 import '../../widgets/navigation_layout.dart';
 import '../../widgets/settings/preference_tiles.dart';
@@ -427,7 +426,7 @@ class _SetupWizardScreenState extends State<SetupWizardScreen> {
     SetupStep.mediaBar => l10n.setupMediaBarQuestion,
     SetupStep.homeRows => l10n.setupHomeRowsQuestion,
     SetupStep.detailStyle => l10n.setupDetailQuestion,
-    SetupStep.tour => l10n.setupTourQuestion,
+    SetupStep.tour => _vjodLanguageQuestion(l10n.localeName),
   };
 
   Widget _buildStepBody(
@@ -1352,43 +1351,16 @@ class _SetupTourStepState extends State<_SetupTourStep> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final active = widget.prefs.get(UserPreferences.visualTheme);
 
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         spacing: AppSpacing.spaceLg,
         children: [
-          Text(
-            l10n.setupPickALook,
-            style: TextStyle(
-              color: AppColorScheme.onSurface.withValues(alpha: 0.62),
-              fontSize: AppTypography.fontSizeSm,
-            ),
-          ),
-          Wrap(
-            spacing: AppSpacing.spaceMd,
-            runSpacing: AppSpacing.spaceMd,
-            children: [
-              for (var i = 0; i < VisualThemeId.values.length; i++)
-                _ThemeSwatch(
-                  order: i,
-                  theme: VisualThemeId.values[i],
-                  selected: active == VisualThemeId.values[i],
-                  autofocus: active == VisualThemeId.values[i],
-                  // Written straight away rather than held back with the
-                  // rest, because the point is that the wizard restyles
-                  // around you as you move across the row.
-                  onPressed: () async {
-                    await widget.prefs.set(
-                      UserPreferences.visualTheme,
-                      VisualThemeId.values[i],
-                    );
-                    if (mounted) setState(() {});
-                  },
-                ),
-            ],
-          ),
+          // VJOD: no theme to pick here, everyone gets VJOD's own look. The
+          // app's language comes first: the page (and the taste questionnaire
+          // after it) switches to it at once.
+          _VjodAppLanguagePicker(prefs: widget.prefs, onChanged: () => setState(() {})),
           widget.playback,
           Container(
             padding: const EdgeInsets.all(AppSpacing.spaceMd),
@@ -1425,7 +1397,6 @@ class _SetupTourStepState extends State<_SetupTourStep> {
                   l10n.setupTourBulletRequests,
                   l10n.setupTourBulletSyncPlay,
                   l10n.liveTv,
-                  l10n.setupTourBulletThemes,
                   if (!PlatformDetection.useLeanbackUi)
                     l10n.setupTourBulletDownloads,
                   l10n.setupTourBulletMore,
@@ -1467,109 +1438,60 @@ class _SetupTourStepState extends State<_SetupTourStep> {
   }
 }
 
-class _ThemeSwatch extends StatelessWidget {
-  const _ThemeSwatch({
-    required this.order,
-    required this.theme,
-    required this.selected,
-    required this.autofocus,
-    required this.onPressed,
-  });
+/// VJOD's first-run question, in the languages of the house.
+String _vjodLanguageQuestion(String localeName) => switch (localeName.split('_').first) {
+  'fr' => 'Dans quelle langue regardes-tu ?',
+  'ru' => 'На каком языке ты смотришь?',
+  'zh' => '你用哪种语言观看？',
+  _ => 'Which language do you watch in?',
+};
 
-  final int order;
-  final VisualThemeId theme;
-  final bool selected;
-  final bool autofocus;
-  final VoidCallback onPressed;
+/// The languages of the house, each written in itself, plus the phone's own.
+const vjodAppLanguages = <(String, String)>[
+  ('fr', 'Français'),
+  ('en', 'English'),
+  ('ru', 'Русский'),
+  ('zh', '中文'),
+];
+
+class _VjodAppLanguagePicker extends StatelessWidget {
+  const _VjodAppLanguagePicker({required this.prefs, required this.onChanged});
+
+  final UserPreferences prefs;
+  final VoidCallback onChanged;
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final label = switch (theme) {
-      VisualThemeId.moonfin => l10n.themeMoonfin,
-      VisualThemeId.neonPulse => l10n.themeNeonPulse,
-      VisualThemeId.glass => l10n.themeGlass,
-      VisualThemeId.eightbitHero => l10n.theme8BitHero,
-      VisualThemeId.vjod => l10n.themeVjod,
-      VisualThemeId.ecrin => l10n.themeEcrin,
+    final current = prefs.get(UserPreferences.languageOverride);
+    final phone = switch (Localizations.localeOf(context).languageCode) {
+      'fr' => 'Langue du téléphone',
+      'ru' => 'Язык телефона',
+      'zh' => '手机语言',
+      _ => "Phone's language",
     };
-    final spec = ThemeRegistry.resolveById(
-      AppThemeController.builtInThemeIdFor(theme),
-    );
-
-    return _Focusable(
-      order: order,
-      autofocus: autofocus,
-      onPressed: onPressed,
-      builder: (focused) => Column(
-        spacing: AppSpacing.spaceXs,
-        children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            width: 72,
-            height: 44,
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [spec.colors.surface, spec.colors.background],
-              ),
-              borderRadius: AppRadius.circular(8),
-              border: Border.all(
-                color: focused
-                    ? AppColorScheme.onSurface
-                    : AppColorScheme.onSurface.withValues(
-                        alpha: selected ? 0.4 : 0.16,
-                      ),
-                width: focused ? 2 : 1,
-              ),
-              boxShadow: focused
-                  ? [
-                      BoxShadow(
-                        color: AppColorScheme.onSurface.withValues(alpha: 0.3),
-                        blurRadius: 18,
-                      ),
-                    ]
-                  : null,
-            ),
-            child: Align(
-              alignment: Alignment.bottomLeft,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                spacing: 4,
-                children: [
-                  Container(
-                    width: 10,
-                    height: 10,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: spec.colors.accent,
-                    ),
-                  ),
-                  Container(
-                    width: 22,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: spec.colors.onSurface.withValues(alpha: 0.7),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+    return Wrap(
+      spacing: AppSpacing.spaceSm,
+      runSpacing: AppSpacing.spaceSm,
+      children: [
+        for (final (i, (tag, name)) in vjodAppLanguages.indexed)
+          ChoiceChip(
+            autofocus: i == 0,
+            label: Text(name),
+            selected: current == tag,
+            onSelected: (_) async {
+              await prefs.set(UserPreferences.languageOverride, tag);
+              onChanged();
+            },
           ),
-          Text(
-            label,
-            style: TextStyle(
-              color: AppColorScheme.onSurface.withValues(
-                alpha: selected ? 1 : 0.62,
-              ),
-              fontSize: AppTypography.fontSizeXs,
-            ),
-          ),
-        ],
-      ),
+        ChoiceChip(
+          label: Text(phone),
+          selected: current == 'system',
+          onSelected: (_) async {
+            await prefs.set(UserPreferences.languageOverride, 'system');
+            onChanged();
+          },
+        ),
+      ],
     );
   }
 }

@@ -55,66 +55,36 @@ void main() {
     () => PlatformDetection.setInterfaceLayout(InterfaceLayout.automatic),
   );
 
-  group('what the wizard still has to ask', () {
-    test('a fresh sign-in is asked everything, and ends on the tour', () {
-      expect(gate.remainingSteps(), [
-        SetupStep.navbar,
-        SetupStep.mediaBar,
-        SetupStep.homeRows,
-        SetupStep.detailStyle,
-        SetupStep.tour,
-      ]);
+  group('what the wizard still has to ask (VJOD)', () {
+    test('a fresh sign-in is only asked the language', () {
+      expect(gate.remainingSteps(), [SetupStep.tour]);
       expect(gate.shouldRun(client), isTrue);
     });
 
-    test('a question answered elsewhere is not asked again', () async {
-      await prefs.set(
-        UserPreferences.mediaBarMode,
-        UserPreferences.mediaBarModeBanner,
+    test('the look is never asked: VJOD is set as designed', () {
+      expect(
+        gate.remainingSteps(),
+        isNot(anyOf(
+          contains(SetupStep.navbar),
+          contains(SetupStep.navbarStyle),
+          contains(SetupStep.mediaBar),
+          contains(SetupStep.homeRows),
+          contains(SetupStep.detailStyle),
+        )),
       );
-
-      expect(gate.remainingSteps(), [
-        SetupStep.navbar,
-        SetupStep.homeRows,
-        SetupStep.detailStyle,
-        SetupStep.tour,
-      ]);
     });
 
-    // The whole point of the second-device case: the account already knows how
-    // it likes to look, so there is nothing worth interrupting anyone for.
-    test(
-      'an account that has answered everything is not shown the wizard',
-      () async {
-        await prefs.set(UserPreferences.navbarPosition, NavbarPosition.left);
-        await prefs.set(
-          UserPreferences.mediaBarMode,
-          UserPreferences.mediaBarModeGallery,
-        );
-        await prefs.set(UserPreferences.homeRowsStyle, HomeRowsStyle.v1);
-        await prefs.set(
-          UserPreferences.detailScreenStyle,
-          DetailScreenStyle.classic,
-        );
+    // Second device: the language came over with the account.
+    test('a language chosen elsewhere is not asked again', () async {
+      await prefs.set(UserPreferences.languageOverride, 'ru');
 
-        expect(gate.remainingSteps(), isEmpty);
-        expect(gate.shouldRun(client), isFalse);
-      },
-    );
+      expect(gate.remainingSteps(), isEmpty);
+      expect(gate.shouldRun(client), isFalse);
+    });
 
-    test('the tour never shows up on its own', () async {
-      await prefs.set(UserPreferences.navbarPosition, NavbarPosition.top);
-      await prefs.set(
-        UserPreferences.mediaBarMode,
-        UserPreferences.mediaBarModeOff,
-      );
-      await prefs.set(UserPreferences.homeRowsStyle, HomeRowsStyle.v2);
-      await prefs.set(
-        UserPreferences.detailScreenStyle,
-        DetailScreenStyle.modern,
-      );
-
-      expect(gate.remainingSteps(), isNot(contains(SetupStep.tour)));
+    test('the rule on its own', () {
+      expect(vjodFirstRunSteps(languageChosen: false), [SetupStep.tour]);
+      expect(vjodFirstRunSteps(languageChosen: true), isEmpty);
     });
   });
 
@@ -172,30 +142,7 @@ void main() {
   group('the bottom navbar style question', () {
     setUp(() => PlatformDetection.setInterfaceLayout(InterfaceLayout.phone));
 
-    test('a phone asks it right after where navigation goes', () {
-      expect(gate.remainingSteps(), [
-        SetupStep.navbar,
-        SetupStep.navbarStyle,
-        SetupStep.mediaBar,
-        SetupStep.homeRows,
-        SetupStep.detailStyle,
-        SetupStep.tour,
-      ]);
-    });
-
-    test('isn\'t asked on its own when the navbar came from elsewhere',
-        () async {
-      await prefs.set(UserPreferences.navbarPosition, NavbarPosition.bottom);
-
-      expect(gate.remainingSteps(), isNot(contains(SetupStep.navbarStyle)));
-    });
-
-    test('isn\'t asked again once answered', () async {
-      await prefs.set(
-        UserPreferences.bottomNavbarStyle,
-        BottomNavbarStyle.split,
-      );
-
+    test('a first run on a phone does not ask it (VJOD look)', () {
       expect(gate.remainingSteps(), isNot(contains(SetupStep.navbarStyle)));
     });
 
@@ -206,6 +153,7 @@ void main() {
     });
 
     test('only shows once Bottom is picked', () {
+      gate.beginRerun();
       final steps = gate.remainingSteps();
 
       expect(
