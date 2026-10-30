@@ -9,6 +9,7 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get_it/get_it.dart';
@@ -162,7 +163,8 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
     super.initState();
     setImmersive(true);
     GetIt.instance<ScreensaverController>().setPlaybackActive(true);
-    _engine = _exoWanted ? ExoVodEngine() : MpvVodEngine();
+    // In a browser, its own player; the apps keep ExoPlayer / mpv as before.
+    _engine = kIsWeb ? WebVodEngine() : (_exoWanted ? ExoVodEngine() : MpvVodEngine());
     _listen();
     unawaited(_open());
     if (widget.watch != null) {
@@ -339,7 +341,8 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
       e.errors.listen((msg) {
         if (!mounted || _picture) return;
         if (_fallBack()) return;
-        setState(() => _error = 'Lecture impossible : $msg');
+        // The web engine's messages are already a full French sentence.
+        setState(() => _error = _engine is WebVodEngine ? msg : 'Lecture impossible : $msg');
       }),
     ]);
   }
@@ -380,7 +383,7 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
           )
           .timeout(_openTimeout);
       unawaited(_engine.styleSubtitles(scale: _subScale, raised: _subRaised));
-      if (mounted && _engine is MpvVodEngine) setState(() => _loading = false);
+      if (mounted && (_engine is MpvVodEngine || _engine is WebVodEngine)) setState(() => _loading = false);
     } catch (e) {
       if (!mounted || seq != _openSeq) return;
       if (_fallBack()) return;

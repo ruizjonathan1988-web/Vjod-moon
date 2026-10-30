@@ -419,7 +419,8 @@ class MaTvDevice {
 
   static Future<String> caps() async {
     if (_hevc == null) {
-      var hevc = true;
+      // A browser rarely decodes HEVC: Ma TV then hands H.264 files first.
+      var hevc = !PlatformDetection.isWeb;
       if (PlatformDetection.isAndroid) {
         try {
           hevc = await _channel.invokeMethod<bool>('hasHevcDecoder') ?? true;

@@ -8,6 +8,7 @@ import '../../../preference/seerr_preferences.dart';
 import '../../../preference/user_preferences.dart';
 import 'tv_playlists.dart';
 import 'tv_sources.dart';
+import 'web_iptv.dart';
 import 'xtream_cache_store.dart';
 import 'xtream_catalog.dart';
 
@@ -79,11 +80,10 @@ void _bootstrapServerAccount(SeerrPreferences prefs, String url) {
 /// The provider catalogue this device and profile play from. With the
 /// seedbox's address set, the account it hands out wins, so changing
 /// provider in Jellyfin moves every device; otherwise the profile's first
-/// Xtream source. Null in a browser (an HTTPS page can't reach a plain-HTTP
-/// provider), in kids mode (the provider's catalogue isn't filtered), or with
-/// no account at all.
+/// Xtream source. Null in kids mode (the provider's catalogue isn't
+/// filtered) or with no account at all. In a browser, Ma TV only, over HTTPS
+/// (see web_iptv.dart): an HTTPS page can't reach a plain-HTTP provider.
 XtreamCatalog? currentProviderCatalog() {
-  if (kIsWeb) return null;
   final getIt = GetIt.instance;
   if (!getIt.isRegistered<SeerrPreferences>()) return null;
   if (getIt.isRegistered<UserPreferences>() &&
@@ -95,6 +95,9 @@ XtreamCatalog? currentProviderCatalog() {
   // best accounts of several providers, played through its relay with a
   // fallback, and handed out with the TV's address, so nothing to set.
   final maTv = maTvCatalogAccount();
+  if (kIsWeb) {
+    if (maTv == null || !webMayUseCatalog(isMaTv: true, portal: maTv.portal)) return null;
+  }
   if (maTv != null) {
     final catalog = XtreamCatalog.forPlaylists([maTv.toPlaylist()]);
     // A Ma TV that failed to hand its catalogue a short while ago (not built
@@ -106,6 +109,8 @@ XtreamCatalog? currentProviderCatalog() {
       return catalog;
     }
   }
+  // Never a provider read directly in a browser, even when Ma TV is resting.
+  if (kIsWeb) return null;
   final serverUrl = prefs.vjodCatalogServerUrl;
   final fromServer = serverUrl.isEmpty ? null : _serverAccount(prefs);
   if (serverUrl.isNotEmpty && fromServer == null) {
