@@ -296,6 +296,14 @@ class _AppearanceScreenState extends State<_AppearanceScreen> {
                     ),
                   ),
                   _TvSettingsListTile(
+                    leading: const Icon(Icons.movie_creation_outlined),
+                    title: const Text('Ouverture de VJOD'),
+                    subtitle: const Text('L\'animation et le son au lancement, ou aucune'),
+                    onTap: () => context.pushSettingsScreen(
+                      const _VjodIntroScreen(),
+                    ),
+                  ),
+                  _TvSettingsListTile(
                     leading: const Icon(Icons.motion_photos_on_outlined),
                     title: Text(l10n.loadingAnimation),
                     subtitle: Text(l10n.loadingAnimationDescription),
