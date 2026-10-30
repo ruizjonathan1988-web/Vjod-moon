@@ -24,6 +24,7 @@ enum VjodIntroStyle {
   signal('Le signal', 'Une vieille télé s\'allume dans la neige, le signal se cale sur VJOD avec des glitchs, puis s\'éteint en un point.', 3.25),
   lame('La lame', 'Une lame de lumière dessine le logo, le bouton lecture frappe, plongée dedans.', 3.25),
   ruban('Le ruban', 'Un ruban rouge ondule et se noue en VJOD, un reflet passe, puis il repart en trait de lumière.', 3.3),
+  montee('La montée', 'En musique : grosse drum mi-hip-hop mi-drum\'n\'bass, les lignes de commande envahissent l\'écran, un temps de vide sur « ./vjod --drop »… puis la signature « TA… DAM ! » et la basse qui grogne.', 5.75),
   battement('Le battement', 'Le bouton lecture bat deux fois, se range dans le D, puis V, J, O, D tombent un par un.', 3.4);
 
   final String label;
@@ -189,6 +190,11 @@ const _aspect = 1024 / 572;
 const _tri = Offset(0.786, 0.511); // the play button in the logo picture
 const _glyphs = '01ABCDEF23456789#\$%&*+=<>/\\|{}[]VJOD';
 const _mono = 'monospace';
+const _softWhite = Color(0xC8FFFFFF);
+
+/// Laid-out lines of the data torrent, reused from frame to frame, so the
+/// screen full of lines stays smooth on a modest TV box.
+final _textCache = <String, TextPainter>{};
 const _monoFallback = ['Roboto Mono', 'Droid Sans Mono', 'Courier New', 'Courier'];
 
 class _Cell {
@@ -351,6 +357,8 @@ class _IntroPainter extends CustomPainter {
         _plateforme(c);
       case VjodIntroStyle.terminal:
         _terminal(c);
+      case VjodIntroStyle.montee:
+        _montee(c);
     }
   }
 
@@ -439,6 +447,23 @@ class _IntroPainter extends CustomPainter {
     )..layout();
     tp.paint(c, at);
     return tp.width;
+  }
+
+  /// [text] for lines drawn again and again with the same look.
+  void cachedText(Canvas c, String s, Offset at, double size, Color color) {
+    final key = '${size.toStringAsFixed(1)}|${color.toARGB32()}|$s';
+    var tp = _textCache[key];
+    if (tp == null) {
+      if (_textCache.length > 900) _textCache.clear();
+      tp = _textCache[key] = TextPainter(
+        text: TextSpan(
+          text: s,
+          style: TextStyle(fontFamily: _mono, fontFamilyFallback: _monoFallback, fontSize: size, color: color, height: 1.0),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+    }
+    tp.paint(c, at);
   }
 
   double textWidth(String s, double size) => (TextPainter(
@@ -879,6 +904,139 @@ class _IntroPainter extends CustomPainter {
     (1.02, 1.18, 'root@seedbox:~# ', 'cat /dev/vjod | decrypt --ascii', 'cmd'),
     (1.22, 0.0, '', '', 'hex'),
   ];
+
+  // ----------------------------------------------------------------- H, la montée
+  // In time with its music: 174 BPM (87 half-time), F minor. Two bars rising,
+  // one empty beat, then « TA… DAM ! », one heavy bar and the last hit.
+  static const _hb = 60 / 174, _hbar = 4 * _hb;
+  static const _hVoid = 2 * _hbar - _hb, _hTa = 2 * _hbar, _hDam = _hTa + _hb, _hFin = _hDam + _hbar;
+  static const _hKicksUp = [0.0, 1.5 * _hb, 2.75 * _hb, _hbar, _hbar + 1.5 * _hb], _hSnaresUp = [2 * _hb, _hbar + 2 * _hb];
+  static const _hKicks = [_hTa, _hDam, _hDam + 1.5 * _hb, _hDam + 2.75 * _hb, _hDam + 3.5 * _hb, _hFin], _hSnares = [_hDam + 2 * _hb];
+
+  static const _chans = ['TF1', 'France 2', 'M6', 'Canal+', 'Arte', 'BFM TV', 'W9', 'TMC', 'C8', '6ter',
+    'RMC Sport', 'beIN 1', 'France 5', 'LCI', 'Gulli', 'CNews', 'TF1 4K', 'Paris Première', 'Ciné+', 'OCS'];
+
+  /// One line of the data torrent, the same for the same [i].
+  String torrentLine(int i, int seed) {
+    int r(int m) => ((math.sin((i + 1) * 12.9898 + seed * 78.233) * 43758.5453).abs().floor() + i * 7) % m;
+    switch (i % 6) {
+      case 0:
+        return '[ OK ] source ${'${i % 30 + 1}'.padLeft(2, '0')}/30  ${_chans[r(_chans.length)]}  ${[720, 1080, 2160][r(3)]}p  ${r(90) + 9} ms';
+      case 1:
+        return 'recv 0x${(0x7f3a00 + i * 0x2c0).toRadixString(16)}  ${r(900) + 64} Ko  ${hexLine(i).substring(0, 24)}';
+      case 2:
+        return 'seedbox » sync radarr/sonarr  ${r(4000) + 100} fichiers  ${r(980) + 20} Mo/s';
+      case 3:
+        return 'decrypt aes-256-gcm  bloc ${r(99999)}  ✓';
+      case 4:
+        return '0x${(0x7f3a00 + i * 16).toRadixString(16)}  ${hexLine(i + seed)}';
+      default:
+        return 'jellyfin » index ${r(12000)} médias · ${r(60) + 1} bibliothèques · ok';
+    }
+  }
+
+  /// How strongly the last of [hits] still rings at [t].
+  double pulse(List<double> hits, double dec) {
+    var p = 0.0;
+    for (final b in hits) {
+      if (t >= b) p = math.max(p, math.exp(-(t - b) / dec));
+    }
+    return p;
+  }
+
+  /// Three columns of command lines covering the whole screen, [rate] lines
+  /// so far in each.
+  void lineWall(Canvas c, {required double rate, required int seed, required double fs, required double alpha, required double redK}) {
+    final cw = W / 3, lh = fs * 1.25;
+    final fit = (H / lh).floor() + 1;
+    // a few alpha steps only, so the laid-out lines can be reused
+    final a = (_clamp(alpha) * 8).round() / 8;
+    if (a <= 0) return;
+    for (var col = 0; col < 3; col++) {
+      final count = (rate + col * 37).floor();
+      final first = math.max(0, count - fit);
+      for (var i = first; i < count; i++) {
+        final s = torrentLine(i + col * 1000, seed + col);
+        final red = ((i * 7 + col) % 10) / 10 < redK || s.startsWith('[ OK ]');
+        final color = red ? _red.withValues(alpha: a) : _softWhite.withValues(alpha: a * (i % 4 == 0 ? .5 : .8));
+        cachedText(c, s, Offset(col * cw + cw * .03, (i - first) * lh), fs, color);
+      }
+    }
+  }
+
+  void _montee(Canvas c) {
+    if (t > _hFin + 1.0) return;
+    if (t >= _hVoid && t < _hTa) {
+      // the empty beat: the command, alone
+      const a = 'root@seedbox:~# ', s = './vjod --drop';
+      final fs = u * 44;
+      final n = (_seg(t, _hVoid, _hVoid + _hb * .6) * s.length).floor();
+      final x0 = cx - (textWidth(a, fs) + textWidth(s, fs)) / 2;
+      final wa = text(c, a, Offset(x0, cy - fs / 2), fs, _red);
+      final ws = text(c, s.substring(0, n), Offset(x0 + wa, cy - fs / 2), fs, Colors.white);
+      if ((t * 8).floor().isEven) c.drawRect(Rect.fromLTWH(x0 + wa + ws + u * 6, cy - fs / 2, u * 20, fs), Paint()..color = Colors.white);
+      return;
+    }
+    final offY = _seg(t, _hFin + .6, _hFin + .77, _ic), offX = _seg(t, _hFin + .75, _hFin + .93, _ic);
+    final up = t < _hVoid;
+    final kp = up ? pulse(_hKicksUp, .14) : pulse(_hKicks, .2);
+    final big = t >= _hDam ? 1.0 : .5;
+    c.save();
+    final sh = (up ? 10 : 34 * big) * u * kp;
+    c.translate(sh * math.sin(t * 170), sh * .7 * math.cos(t * 130));
+    crt(c, offY, offX);
+    if (up) {
+      final k = _seg(t, 0, _hVoid);
+      final sn = pulse(_hSnaresUp, .1);
+      halo(c, Offset(cx, cy), W * .7, .14 * kp + .06 * k);
+      lineWall(c, rate: t * (25 + 60 * k) + k * k * k * 180, seed: 5, fs: u * 18, alpha: .3 + .35 * k + .35 * kp, redK: k * k * .9 + .5 * sn);
+      // the gauge, one block a beat
+      final by = H * .9, bw = W * .5, bx = cx - bw / 2;
+      final beats = math.min(8, (t / _hb).floor() + 1);
+      c.drawRect(Rect.fromLTWH(bx - u * 20, by - u * 50, bw + u * 40, u * 110), Paint()..color = const Color(0xBF000000));
+      text(c, '▲ 174 BPM · montée ${'${(k * 100).round()}'.padLeft(3)}%', Offset(bx, by - u * 42), u * 26, _red);
+      for (var i = 0; i < 8; i++) {
+        final a = i < beats ? (i == beats - 1 ? .6 + .4 * kp : 1.0) : .18;
+        c.drawRect(Rect.fromLTWH(bx + i * bw / 8, by, bw / 8 - u * 8, u * 34), Paint()..color = _red.withValues(alpha: a));
+      }
+      if (sn > .4) {
+        glitchBand(c, u * (20 + 30 * _rnd.nextDouble()), u * (50 * _rnd.nextDouble() - 25));
+      } else if (t > _hbar && _rnd.nextDouble() < .4 * k) {
+        glitchBand(c, u * (14 + 30 * _rnd.nextDouble()), u * (40 * _rnd.nextDouble() - 20));
+      }
+    } else {
+      final sn = pulse(_hSnares, .1);
+      lineWall(c, rate: t * 240, seed: 9, fs: u * 18, alpha: .12 + .2 * kp, redK: .6 + .4 * sn);
+      halo(c, Offset(cx, cy), w * (.6 + .3 * kp), (.2 + .55 * kp) * big);
+      final double sl;
+      if (t < _hDam) {
+        sl = 1.35 - .12 * _seg(t, _hTa, _hTa + .15, _oc);
+      } else if (t < _hFin) {
+        sl = 1.18 - .18 * _seg(t, _hDam, _hDam + .2, _oc);
+      } else {
+        sl = 1.12 - .12 * _seg(t, _hFin, _hFin + .2, _oc);
+      }
+      if (t < _hDam) {
+        // TA: the logo, still pale
+        logo(c, cx, cy, scale: sl, alpha: .55, bright: 2.2);
+      } else {
+        // DAM: it lands
+        final split = u * (10 + 44 * kp * big + (sn > .3 ? 34 : 0));
+        logo(c, cx - split, cy, scale: sl, alpha: .55, tint: _Tint.cyan, plus: true);
+        logo(c, cx + split * .6, cy, scale: sl, alpha: .3, tint: _Tint.gold, plus: true);
+        logo(c, cx, cy, scale: sl, bright: 1.0 + 1.3 * kp);
+      }
+      if (sn > .3) glitchBand(c, u * 50, u * 44);
+      final label = t < _hFin ? '[ DROP ]' : '▶ lecture';
+      final fs = u * 30;
+      text(c, label, Offset(cx - textWidth(label, fs) / 2, cy + h * .7 - fs / 2), fs, _red.withValues(alpha: .95));
+      scan(c, .16);
+      snow(c, .03 * kp);
+    }
+    if (t >= _hTa) flash(c, .35 * pulse(const [_hTa, _hDam, _hFin], .04));
+    flash(c, offY);
+    c.restore();
+  }
 
   String hexLine(int seed) {
     final b = StringBuffer();
