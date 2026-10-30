@@ -1,6 +1,6 @@
 // VJOD's opening, once per launch, with its own sound (made for VJOD, in
-// assets/sounds/). Seven to choose from in Réglages → Apparence → Ouverture
-// de VJOD, or none; « Les lignes de commande » by default. Any key or a tap
+// assets/sounds/). Eight to choose from in Réglages → Apparence → Ouverture
+// de VJOD, or none, or changing on its own; « Le drop » by default. Any key or a tap
 // skips it. Everything is drawn in one painter from the logo picture, so it
 // stays sharp on a 4K screen and weighs nothing.
 import 'dart:async';
@@ -18,13 +18,13 @@ import '../../../util/platform_detection.dart';
 import '../../../util/startup_timeline.dart';
 
 enum VjodIntroStyle {
+  drop('Le drop', 'Le favori. Jump-up drum\'n\'bass à 174 BPM : le terminal tape ses commandes plein écran, le logo vibre de plus en plus, un temps de vide sur « ./vjod --drop »… puis le drop, et le logo vibre au rythme de la basse.', 9.5),
   terminal('Les lignes de commande', 'Un terminal se connecte à la seedbox, vérifie les 30 sources, imprime le logo en caractères, « ./vjod --play » et Entrée.', 4.4),
   hacker('Le hacker', 'Pluie de code, le logo se déchiffre caractère par caractère, « accès autorisé », glitchs, puis la télé s\'éteint.', 3.35),
   plateforme('La plateforme', 'Des milliers de caractères forment VJOD, gros impact de bande-annonce, puis le logo se dissout en pixels.', 3.0),
   signal('Le signal', 'Une vieille télé s\'allume dans la neige, le signal se cale sur VJOD avec des glitchs, puis s\'éteint en un point.', 3.25),
   lame('La lame', 'Une lame de lumière dessine le logo, le bouton lecture frappe, plongée dedans.', 3.25),
   ruban('Le ruban', 'Un ruban rouge ondule et se noue en VJOD, un reflet passe, puis il repart en trait de lumière.', 3.3),
-  montee('La montée', 'En musique : grosse drum mi-hip-hop mi-drum\'n\'bass, les lignes de commande envahissent l\'écran, un temps de vide sur « ./vjod --drop »… puis la signature « TA… DAM ! » et la basse qui grogne.', 5.75),
   battement('Le battement', 'Le bouton lecture bat deux fois, se range dans le D, puis V, J, O, D tombent un par un.', 3.4);
 
   final String label;
@@ -35,11 +35,13 @@ enum VjodIntroStyle {
 
   String get sound => 'assets/sounds/intro_$name.ogg';
 
-  static const _key = 'vjod_intro_style';
-  static const fallback = VjodIntroStyle.terminal;
+  // A new key: « Le drop » became the favourite, so every device starts on it.
+  static const _key = 'vjod_intro_choice';
+  static const _rotationKey = 'vjod_intro_rotation';
+  static const fallback = VjodIntroStyle.drop;
 
-  /// The opening chosen on this device; null for « Aucune ».
-  static Future<VjodIntroStyle?> current() async {
+  /// The opening chosen in the settings; null for « Aucune ».
+  static Future<VjodIntroStyle?> chosen() async {
     try {
       final p = await SharedPreferences.getInstance();
       final v = p.getString(_key);
@@ -50,12 +52,54 @@ enum VjodIntroStyle {
     }
   }
 
+  /// The opening to play now: the chosen one, or another one when the
+  /// opening changes on its own (each launch, or each day).
+  static Future<VjodIntroStyle?> current({DateTime? now, math.Random? random}) async {
+    final picked = await chosen();
+    if (picked == null) return null;
+    return switch (await rotation()) {
+      VjodIntroRotation.never => picked,
+      VjodIntroRotation.eachLaunch => values[(random ?? math.Random()).nextInt(values.length)],
+      VjodIntroRotation.eachDay => values[_dayIndex(now ?? DateTime.now()) % values.length],
+    };
+  }
+
+  static int _dayIndex(DateTime d) => DateTime.utc(d.year, d.month, d.day).millisecondsSinceEpoch ~/ Duration.millisecondsPerDay;
+
+  static Future<VjodIntroRotation> rotation() async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      final v = p.getString(_rotationKey);
+      return VjodIntroRotation.values.where((r) => r.name == v).firstOrNull ?? VjodIntroRotation.never;
+    } catch (_) {
+      return VjodIntroRotation.never;
+    }
+  }
+
+  static Future<void> setRotation(VjodIntroRotation r) async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      await p.setString(_rotationKey, r.name);
+    } catch (_) {}
+  }
+
   static Future<void> choose(VjodIntroStyle? style) async {
     try {
       final p = await SharedPreferences.getInstance();
       await p.setString(_key, style?.name ?? 'none');
     } catch (_) {}
   }
+}
+
+/// Whether the opening changes on its own.
+enum VjodIntroRotation {
+  never('Jamais', 'Toujours l\'ouverture choisie.'),
+  eachLaunch('À chaque lancement', 'Une ouverture au hasard à chaque fois.'),
+  eachDay('Chaque jour', 'Une ouverture différente chaque jour.');
+
+  final String label;
+  final String description;
+  const VjodIntroRotation(this.label, this.description);
 }
 
 class VjodIntro extends StatefulWidget {
@@ -190,7 +234,6 @@ const _aspect = 1024 / 572;
 const _tri = Offset(0.786, 0.511); // the play button in the logo picture
 const _glyphs = '01ABCDEF23456789#\$%&*+=<>/\\|{}[]VJOD';
 const _mono = 'monospace';
-const _softWhite = Color(0xC8FFFFFF);
 
 /// Laid-out lines of the data torrent, reused from frame to frame, so the
 /// screen full of lines stays smooth on a modest TV box.
@@ -357,8 +400,8 @@ class _IntroPainter extends CustomPainter {
         _plateforme(c);
       case VjodIntroStyle.terminal:
         _terminal(c);
-      case VjodIntroStyle.montee:
-        _montee(c);
+      case VjodIntroStyle.drop:
+        _drop(c);
     }
   }
 
@@ -905,13 +948,27 @@ class _IntroPainter extends CustomPainter {
     (1.22, 0.0, '', '', 'hex'),
   ];
 
-  // ----------------------------------------------------------------- H, la montée
-  // In time with its music: 174 BPM (87 half-time), F minor. Two bars rising,
-  // one empty beat, then « TA… DAM ! », one heavy bar and the last hit.
-  static const _hb = 60 / 174, _hbar = 4 * _hb;
-  static const _hVoid = 2 * _hbar - _hb, _hTa = 2 * _hbar, _hDam = _hTa + _hb, _hFin = _hDam + _hbar;
-  static const _hKicksUp = [0.0, 1.5 * _hb, 2.75 * _hb, _hbar, _hbar + 1.5 * _hb], _hSnaresUp = [2 * _hb, _hbar + 2 * _hb];
-  static const _hKicks = [_hTa, _hDam, _hDam + 1.5 * _hb, _hDam + 2.75 * _hb, _hDam + 3.5 * _hb, _hFin], _hSnares = [_hDam + 2 * _hb];
+  // ----------------------------------------------------------------- ★, le drop
+  // In time with its music: jump-up drum'n'bass, 174 BPM. Two bars rising
+  // (the last beat empty), four bars of drop, the last hit.
+  static const _jb = 60 / 174, _jbar = 4 * _jb;
+  static const _jVoid = 2 * _jbar - _jb, _jDrop = 2 * _jbar, _jEnd = _jDrop + 4 * _jbar;
+  static const _jKicksUp = [0.0, 2 * _jb, 4 * _jb, 6 * _jb];
+  static const _jKicks = [
+    _jDrop, _jDrop + 2.5 * _jb, _jDrop + _jbar, _jDrop + _jbar + 2.5 * _jb,
+    _jDrop + 2 * _jbar, _jDrop + 2 * _jbar + 2.5 * _jb, _jDrop + 3 * _jbar, _jDrop + 3 * _jbar + 2.5 * _jb, _jEnd,
+  ];
+  static const _jSnares = [
+    _jDrop + _jb, _jDrop + 3 * _jb, _jDrop + _jbar + _jb, _jDrop + _jbar + 3 * _jb,
+    _jDrop + 2 * _jbar + _jb, _jDrop + 2 * _jbar + 3 * _jb, _jDrop + 3 * _jbar + _jb, _jDrop + 3 * _jbar + 3 * _jb,
+  ];
+  static const _jCmds = [
+    (0.0, 'sudo vjod --boot'),
+    (2 * _jb, 'mount /dev/caisson /mnt/basses'),
+    (4 * _jb, './basse --gain 11 --wobble'),
+    (6 * _jb, 'export BPM=174'),
+  ];
+  static const _jDropCmds = ['./basse --wobble 1/8', './kick --punch max', './snare --crack', './vjod --drop --encore'];
 
   static const _chans = ['TF1', 'France 2', 'M6', 'Canal+', 'Arte', 'BFM TV', 'W9', 'TMC', 'C8', '6ter',
     'RMC Sport', 'beIN 1', 'France 5', 'LCI', 'Gulli', 'CNews', 'TF1 4K', 'Paris Première', 'Ciné+', 'OCS'];
@@ -944,96 +1001,116 @@ class _IntroPainter extends CustomPainter {
     return p;
   }
 
-  /// Three columns of command lines covering the whole screen, [rate] lines
-  /// so far in each.
-  void lineWall(Canvas c, {required double rate, required int seed, required double fs, required double alpha, required double redK}) {
-    final cw = W / 3, lh = fs * 1.25;
-    final fit = (H / lh).floor() + 1;
-    // a few alpha steps only, so the laid-out lines can be reused
+  /// The logo shaking: [vib] pixels of jitter, split in colours by [split].
+  void vibratingLogo(Canvas c, {required double vib, required double scale, required double split, required double bright, double alpha = 1}) {
+    final dx = (_rnd.nextDouble() * 2 - 1) * vib, dy = (_rnd.nextDouble() * 2 - 1) * vib * .45;
+    logo(c, cx + dx - split, cy + dy, scale: scale, alpha: .55 * alpha, tint: _Tint.cyan, plus: true);
+    logo(c, cx + dx + split * .7, cy - dy, scale: scale, alpha: .35 * alpha, tint: _Tint.gold, plus: true);
+    logo(c, cx + dx, cy + dy, scale: scale, bright: bright, alpha: alpha);
+  }
+
+  /// The full-screen terminal of the rise: the commands typed, their output
+  /// pouring under them.
+  void typedTerminal(Canvas c, {required double fs, required double alpha, required double lines}) {
+    final lh = fs * 1.3, x0 = W * .035;
+    final fit = (H * .96 / lh).floor();
+    final rows = <(bool, String, bool)>[];
+    for (final (at, cmd) in _jCmds) {
+      if (t < at) break;
+      final n = (_seg(t, at, at + _jb * .45) * cmd.length).floor();
+      rows.add((true, cmd.substring(0, n), t < at + _jb * .5));
+      if (t >= at + _jb * .5) {
+        final k = math.min(40, ((t - at - _jb * .5) * lines).floor());
+        for (var i = 0; i < k; i++) {
+          rows.add((false, torrentLine((at * 100).floor() + i, 4), false));
+        }
+      }
+    }
     final a = (_clamp(alpha) * 8).round() / 8;
-    if (a <= 0) return;
-    for (var col = 0; col < 3; col++) {
-      final count = (rate + col * 37).floor();
-      final first = math.max(0, count - fit);
-      for (var i = first; i < count; i++) {
-        final s = torrentLine(i + col * 1000, seed + col);
-        final red = ((i * 7 + col) % 10) / 10 < redK || s.startsWith('[ OK ]');
-        final color = red ? _red.withValues(alpha: a) : _softWhite.withValues(alpha: a * (i % 4 == 0 ? .5 : .8));
-        cachedText(c, s, Offset(col * cw + cw * .03, (i - first) * lh), fs, color);
+    final first = math.max(0, rows.length - fit);
+    for (var i = first; i < rows.length; i++) {
+      final (cmd, s, typing) = rows[i];
+      final y = H * .02 + (i - first) * lh;
+      if (cmd) {
+        final w0 = text(c, '\$ ', Offset(x0, y), fs, _red.withValues(alpha: a));
+        final w1 = text(c, s, Offset(x0 + w0, y), fs, Colors.white.withValues(alpha: a));
+        if (typing && (t * 12).floor().isEven) {
+          c.drawRect(Rect.fromLTWH(x0 + w0 + w1 + u * 3, y, fs * .55, fs), Paint()..color = Colors.white.withValues(alpha: a));
+        }
+      } else {
+        cachedText(c, s, Offset(x0, y), fs,
+            s.startsWith('[ OK ]') ? _red.withValues(alpha: a * .9) : Colors.white.withValues(alpha: a * .55));
       }
     }
   }
 
-  void _montee(Canvas c) {
-    if (t > _hFin + 1.0) return;
-    if (t >= _hVoid && t < _hTa) {
+  void _drop(Canvas c) {
+    if (t > _jEnd + 1.0) return;
+    if (t >= _jVoid && t < _jDrop) {
       // the empty beat: the command, alone
-      const a = 'root@seedbox:~# ', s = './vjod --drop';
-      final fs = u * 44;
-      final n = (_seg(t, _hVoid, _hVoid + _hb * .6) * s.length).floor();
-      final x0 = cx - (textWidth(a, fs) + textWidth(s, fs)) / 2;
-      final wa = text(c, a, Offset(x0, cy - fs / 2), fs, _red);
+      const s = './vjod --drop';
+      final fs = u * 48;
+      final n = (_seg(t, _jVoid, _jVoid + _jb * .55) * s.length).floor();
+      final x0 = cx - (textWidth('\$ ', fs) + textWidth(s, fs)) / 2;
+      final wa = text(c, '\$ ', Offset(x0, cy - fs / 2), fs, _red);
       final ws = text(c, s.substring(0, n), Offset(x0 + wa, cy - fs / 2), fs, Colors.white);
-      if ((t * 8).floor().isEven) c.drawRect(Rect.fromLTWH(x0 + wa + ws + u * 6, cy - fs / 2, u * 20, fs), Paint()..color = Colors.white);
+      if ((t * 8).floor().isEven) c.drawRect(Rect.fromLTWH(x0 + wa + ws + u * 6, cy - fs / 2, u * 22, fs), Paint()..color = Colors.white);
       return;
     }
-    final offY = _seg(t, _hFin + .6, _hFin + .77, _ic), offX = _seg(t, _hFin + .75, _hFin + .93, _ic);
-    final up = t < _hVoid;
-    final kp = up ? pulse(_hKicksUp, .14) : pulse(_hKicks, .2);
-    final big = t >= _hDam ? 1.0 : .5;
+    final offY = _seg(t, _jEnd + .6, _jEnd + .77, _ic), offX = _seg(t, _jEnd + .75, _jEnd + .93, _ic);
     c.save();
-    final sh = (up ? 10 : 34 * big) * u * kp;
-    c.translate(sh * math.sin(t * 170), sh * .7 * math.cos(t * 130));
     crt(c, offY, offX);
-    if (up) {
-      final k = _seg(t, 0, _hVoid);
-      final sn = pulse(_hSnaresUp, .1);
-      halo(c, Offset(cx, cy), W * .7, .14 * kp + .06 * k);
-      lineWall(c, rate: t * (25 + 60 * k) + k * k * k * 180, seed: 5, fs: u * 18, alpha: .3 + .35 * k + .35 * kp, redK: k * k * .9 + .5 * sn);
-      // the gauge, one block a beat
-      final by = H * .9, bw = W * .5, bx = cx - bw / 2;
-      final beats = math.min(8, (t / _hb).floor() + 1);
-      c.drawRect(Rect.fromLTWH(bx - u * 20, by - u * 50, bw + u * 40, u * 110), Paint()..color = const Color(0xBF000000));
-      text(c, '▲ 174 BPM · montée ${'${(k * 100).round()}'.padLeft(3)}%', Offset(bx, by - u * 42), u * 26, _red);
-      for (var i = 0; i < 8; i++) {
-        final a = i < beats ? (i == beats - 1 ? .6 + .4 * kp : 1.0) : .18;
-        c.drawRect(Rect.fromLTWH(bx + i * bw / 8, by, bw / 8 - u * 8, u * 34), Paint()..color = _red.withValues(alpha: a));
-      }
-      if (sn > .4) {
-        glitchBand(c, u * (20 + 30 * _rnd.nextDouble()), u * (50 * _rnd.nextDouble() - 25));
-      } else if (t > _hbar && _rnd.nextDouble() < .4 * k) {
-        glitchBand(c, u * (14 + 30 * _rnd.nextDouble()), u * (40 * _rnd.nextDouble() - 20));
-      }
+    if (t < _jVoid) {
+      final k = _seg(t, 0, _jVoid);
+      final kp = pulse(_jKicksUp, .2);
+      vibratingLogo(c,
+          vib: u * (2 + 14 * k * k + 10 * kp), scale: .9 + .04 * kp, split: u * (4 + 10 * kp), bright: .5 + .6 * kp,
+          alpha: .18 + .25 * k + .2 * kp);
+      typedTerminal(c, fs: u * 26, alpha: .55 + .4 * k, lines: 22 + 60 * k);
     } else {
-      final sn = pulse(_hSnares, .1);
-      lineWall(c, rate: t * 240, seed: 9, fs: u * 18, alpha: .12 + .2 * kp, redK: .6 + .4 * sn);
-      halo(c, Offset(cx, cy), w * (.6 + .3 * kp), (.2 + .55 * kp) * big);
-      final double sl;
-      if (t < _hDam) {
-        sl = 1.35 - .12 * _seg(t, _hTa, _hTa + .15, _oc);
-      } else if (t < _hFin) {
-        sl = 1.18 - .18 * _seg(t, _hDam, _hDam + .2, _oc);
-      } else {
-        sl = 1.12 - .12 * _seg(t, _hFin, _hFin + .2, _oc);
+      final kp = pulse(_jKicks, .16), sp = pulse(_jSnares, .09);
+      final bar = math.min(3, ((t - _jDrop) / _jbar).floor());
+      final inBar = t - _jDrop - bar * _jbar;
+      // the bass pulsing in eighths
+      final wob = math.sin(math.pi * (t - _jDrop) / (_jb / 2)).abs();
+      // the wall of lines, poured out on each beat
+      final beat = ((t - _jDrop) / _jb).floor();
+      final fs = u * 20, lh = fs * 1.25;
+      final fit = (H / lh).floor() + 1;
+      final count = beat * 6 + (_seg(inBar % _jb, 0, _jb * .3) * 6).floor() + 30;
+      final first = math.max(0, count - fit);
+      final aRed = ((.16 + .3 * kp) * 8).round() / 8, aWhite = ((.1 + .18 * kp) * 8).round() / 8;
+      for (var i = first; i < count; i++) {
+        final red = i % 5 == 0 || sp > .4;
+        cachedText(c, torrentLine(i, 11), Offset(W * .035, (i - first) * lh), fs,
+            red ? _red.withValues(alpha: aRed) : Colors.white.withValues(alpha: aWhite));
       }
-      if (t < _hDam) {
-        // TA: the logo, still pale
-        logo(c, cx, cy, scale: sl, alpha: .55, bright: 2.2);
+      halo(c, Offset(cx, cy), w * (.6 + .3 * kp), .22 + .5 * kp);
+      final end = t >= _jEnd;
+      final roll = bar == 3 && inBar > 3 * _jb;
+      vibratingLogo(c,
+          vib: u * (end ? 4 : 6 + 22 * wob + 26 * kp + (roll ? 30 : 0)),
+          scale: end ? 1.12 - .12 * _seg(t, _jEnd, _jEnd + .2, _oc) : 1.0 + .07 * kp,
+          split: u * (8 + 30 * kp + 40 * sp),
+          bright: 1.0 + 1.2 * kp);
+      if (sp > .35) glitchBand(c, u * (40 + 30 * _rnd.nextDouble()), u * (60 * _rnd.nextDouble() - 30));
+      // this bar's command, at the bottom
+      final by = H * .84, tfs = u * 34;
+      c.drawRect(Rect.fromLTWH(0, by, W, u * 64), Paint()..color = const Color(0xB3000000));
+      if (end) {
+        text(c, '▶ lecture', Offset(W * .035, by + u * 14), tfs, Colors.white);
       } else {
-        // DAM: it lands
-        final split = u * (10 + 44 * kp * big + (sn > .3 ? 34 : 0));
-        logo(c, cx - split, cy, scale: sl, alpha: .55, tint: _Tint.cyan, plus: true);
-        logo(c, cx + split * .6, cy, scale: sl, alpha: .3, tint: _Tint.gold, plus: true);
-        logo(c, cx, cy, scale: sl, bright: 1.0 + 1.3 * kp);
+        final cmd = _jDropCmds[bar];
+        final n = (_seg(inBar, 0, _jb * .5) * cmd.length).floor();
+        final w0 = text(c, '\$ ', Offset(W * .035, by + u * 14), tfs, _red);
+        text(c, cmd.substring(0, n), Offset(W * .035 + w0, by + u * 14), tfs, Colors.white);
       }
-      if (sn > .3) glitchBand(c, u * 50, u * 44);
-      final label = t < _hFin ? '[ DROP ]' : '▶ lecture';
-      final fs = u * 30;
-      text(c, label, Offset(cx - textWidth(label, fs) / 2, cy + h * .7 - fs / 2), fs, _red.withValues(alpha: .95));
-      scan(c, .16);
+      final meter = '174 BPM · ${'█' * (beat % 16 + 1)}';
+      text(c, meter, Offset(W * .965 - textWidth(meter, tfs), by + u * 14), tfs, _red.withValues(alpha: .6 + .4 * kp));
+      scan(c, .15);
       snow(c, .03 * kp);
     }
-    if (t >= _hTa) flash(c, .35 * pulse(const [_hTa, _hDam, _hFin], .04));
+    if (t >= _jDrop) flash(c, .4 * pulse(const [_jDrop, _jEnd], .05));
     flash(c, offY);
     c.restore();
   }

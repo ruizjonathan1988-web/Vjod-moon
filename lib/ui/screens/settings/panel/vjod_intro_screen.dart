@@ -11,17 +11,23 @@ class _VjodIntroScreen extends StatefulWidget {
 
 class _VjodIntroScreenState extends State<_VjodIntroScreen> {
   VjodIntroStyle? _current = VjodIntroStyle.fallback;
+  VjodIntroRotation _rotation = VjodIntroRotation.never;
   bool _loaded = false;
 
   @override
   void initState() {
     super.initState();
-    unawaited(VjodIntroStyle.current().then((s) {
-      if (mounted) setState(() {
-        _current = s;
-        _loaded = true;
-      });
-    }));
+    unawaited(() async {
+      final s = await VjodIntroStyle.chosen();
+      final r = await VjodIntroStyle.rotation();
+      if (mounted) {
+        setState(() {
+          _current = s;
+          _rotation = r;
+          _loaded = true;
+        });
+      }
+    }());
   }
 
   Future<void> _choose(VjodIntroStyle? style) async {
@@ -58,7 +64,7 @@ class _VjodIntroScreenState extends State<_VjodIntroScreen> {
       title: Text(style == null
           ? 'Aucune'
           : style == VjodIntroStyle.fallback
-          ? '${style.label} (par défaut)'
+          ? '★ ${style.label} (favori)'
           : style.label),
       subtitle: Text(style?.description ?? 'VJOD s\'ouvre directement, sans animation ni son.'),
       trailing: style == null
@@ -85,10 +91,26 @@ class _VjodIntroScreenState extends State<_VjodIntroScreen> {
               _tile(null),
             ],
           ),
+          const _SectionHeader('Changer d\'ouverture'),
+          adaptiveListSection(
+            children: [
+              for (final r in VjodIntroRotation.values)
+                _TvSettingsListTile(
+                  leading: Icon(_loaded && _rotation == r ? Icons.radio_button_checked : Icons.radio_button_off),
+                  title: Text(r.label),
+                  subtitle: Text(r.description),
+                  trailing: const SizedBox.shrink(),
+                  onTap: () async {
+                    await VjodIntroStyle.setRotation(r);
+                    if (mounted) setState(() => _rotation = r);
+                  },
+                ),
+            ],
+          ),
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 12, 16, 24),
             child: Text(
-              'Choisir une ouverture la joue tout de suite. Au lancement, n\'importe quelle touche ou un toucher la passe.',
+              'Choisir une ouverture la joue tout de suite. Quand l\'ouverture change toute seule, « Aucune » la coupe quand même. Au lancement, n\'importe quelle touche ou un toucher la passe.',
             ),
           ),
         ],
