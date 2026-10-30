@@ -15,6 +15,8 @@ import '../../../auth/store/credential_store.dart';
 import '../../../data/services/connectivity_service.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../util/pin_code_util.dart';
+import '../../../util/startup_timeline.dart';
+import '../home/home_view_model.dart';
 import '../../../preference/preference_constants.dart';
 import '../../navigation/destinations.dart';
 import '../../widgets/adaptive/adaptive_dialog.dart';
@@ -48,12 +50,24 @@ class _StartupScreenState extends State<StartupScreen>
   /// Goes on once the opening is over.
   Future<void> _go(String location) async {
     await _introDone.future;
+    StartupTimeline.mark("Fin de l'ouverture");
     if (mounted) context.go(location);
+  }
+
+  /// Starts loading home (rows and banner) while the opening still plays,
+  /// rather than once it's over.
+  void _prewarmHome() {
+    try {
+      if (GetIt.instance.isRegistered<HomeViewModel>()) {
+        GetIt.instance<HomeViewModel>().prewarm();
+      }
+    } catch (_) {}
   }
 
   @override
   void initState() {
     super.initState();
+    StartupTimeline.mark('Écran de démarrage');
     _showIntro = !VjodIntro.played;
     if (!_showIntro) _introDone.complete();
     _fadeController = AnimationController(
@@ -109,10 +123,13 @@ class _StartupScreenState extends State<StartupScreen>
           );
     }
 
+    StartupTimeline.mark('Session prête');
     await serverRepo.loadStoredServers();
 
     if (widget.bootstrapActiveSession && session.activeUserId != null) {
       await _waitForNetworkSettle();
+      StartupTimeline.mark('Réseau prêt');
+      _prewarmHome();
       await _go(Destinations.home);
       return;
     }
@@ -182,6 +199,8 @@ class _StartupScreenState extends State<StartupScreen>
       }
 
       await _waitForNetworkSettle();
+      StartupTimeline.mark('Réseau prêt');
+      _prewarmHome();
       await _go(Destinations.home);
     } else {
       if (mounted) {

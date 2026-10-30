@@ -59,6 +59,7 @@ class _AboutCategoryScreen extends StatelessWidget {
                 trailing: const SizedBox.shrink(),
                 onTap: () {},
               ),
+              const _StartupTimelineTile(),
               if (AppDistribution.supportsInAppUpdates)
                 const _CheckForUpdatesTile(),
               const _ReportProblemTile(),
@@ -261,6 +262,35 @@ class _CheckForUpdatesTileState extends State<_CheckForUpdatesTile> {
         zh: '查找最新版本的 VJOD',
       )),
       onTap: _checking ? null : _check,
+    );
+  }
+}
+
+/// How long the last launch took, step by step (see StartupTimeline).
+class _StartupTimelineTile extends StatelessWidget {
+  const _StartupTimelineTile();
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<(String, int)>>(
+      future: StartupTimeline.last(),
+      builder: (context, snap) {
+        final steps = snap.data ?? const <(String, int)>[];
+        return _TvSettingsListTile(
+          leading: const Icon(Icons.timer_outlined),
+          title: Text(steps.isEmpty
+              ? 'Démarrage précédent'
+              : 'Démarrage précédent : ${StartupTimeline.seconds(steps.last.$2)}'),
+          subtitle: Text(steps.isEmpty
+              ? 'Pas encore mesuré : relance VJOD pour le voir.'
+              : [
+                  for (final s in steps)
+                    '${StartupTimeline.seconds(s.$2)}  ${s.$1}',
+                ].join('\n')),
+          trailing: const SizedBox.shrink(),
+          onTap: () {},
+        );
+      },
     );
   }
 }

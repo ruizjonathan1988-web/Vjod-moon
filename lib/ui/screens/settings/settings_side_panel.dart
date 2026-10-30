@@ -27,6 +27,7 @@ import '../../../data/services/seerr/seerr_discover_sliders.dart';
 import '../../../di/providers.dart';
 import '../../../util/idiom/app_ui_idiom.dart';
 import '../../../util/insecure_certificates.dart';
+import '../../../util/startup_timeline.dart';
 import '../../../platform/web_runtime_config.dart';
 import '../../../playback/display_hdr_probe.dart';
 import '../../../util/focus/dpad_keys.dart';

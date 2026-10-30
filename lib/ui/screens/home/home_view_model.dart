@@ -62,6 +62,7 @@ import '../../../data/services/home_highlights.dart';
 import '../../../data/services/home_row_tidy.dart';
 import '../../../data/utils/bounded_concurrency.dart';
 import '../../../util/platform_detection.dart';
+import '../../../util/startup_timeline.dart';
 import '../../../util/server_url.dart';
 import '../../../preference/seerr_preferences.dart';
 import '../../../data/viewmodels/seerr_discover_view_model.dart';
@@ -488,6 +489,23 @@ class HomeViewModel extends ChangeNotifier {
   /// [newSectionsOnly] loads just the sections that have no rows yet, such as
   /// the Seerr rows that show up once Seerr signs in, and leaves the others
   /// as they are.
+  DateTime? _prewarmedAt;
+
+  /// Loads home ahead of its screen, during the opening of a cold start.
+  void prewarm() {
+    _prewarmedAt = DateTime.now();
+    unawaited(load());
+  }
+
+  /// True once when home was loaded ahead by [prewarm] within the last
+  /// minute, so the screen doesn't start the same load again.
+  bool consumePrewarm() {
+    final at = _prewarmedAt;
+    _prewarmedAt = null;
+    return at != null &&
+        DateTime.now().difference(at) < const Duration(minutes: 1);
+  }
+
   Future<void> load({
     bool preserveExisting = false,
     bool forceRefresh = false,
@@ -521,6 +539,7 @@ class HomeViewModel extends ChangeNotifier {
         if (cached != null && _rows.isEmpty) {
           _rows = cached;
           hydratedFromCache = true;
+          StartupTimeline.mark('Rangées affichées (mémoire)');
           notifyListeners();
         }
       }
@@ -839,6 +858,7 @@ class HomeViewModel extends ChangeNotifier {
       );
 
       _saveRowCache();
+      unawaited(StartupTimeline.finish('Toutes les rangées chargées'));
       _topShelf.update(_rows);
       _watchNext.update(_rows);
       _tvChannels.update();

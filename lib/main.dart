@@ -34,6 +34,7 @@ import 'data/services/log_service.dart';
 import 'data/services/storage_path_service.dart';
 import 'util/scroll_sensitivity_binding.dart';
 import 'util/webview_environment.dart';
+import 'util/startup_timeline.dart';
 import 'data/services/theme_store_service.dart';
 import 'di/injection.dart';
 import 'playback/appletv_audio_now_playing_feeder.dart';
@@ -855,6 +856,7 @@ Future<void> autoDownloadBackgroundMain() =>
     auto_download_bg.autoDownloadBackgroundMain();
 
 void main() async {
+  StartupTimeline.start();
   configureHttpOverrides();
   ScrollSensitivityBinding.ensureInitialized();
 
@@ -1041,6 +1043,7 @@ void main() async {
     GetIt.instance<AirPlayCommandBridge>().start();
   } catch (_) {}
 
+  StartupTimeline.mark('Initialisation terminée');
   runApp(const MoonfinApp());
 }
 
