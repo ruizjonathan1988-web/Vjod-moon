@@ -77,6 +77,12 @@ class Destinations {
   static const allFavorites = '/favorites';
   static const enRoute = '/en-route';
   static const bientot = '/bientot';
+  /// VJOD's Films and Séries: the whole catalogue (see catalogue_screen.dart).
+  static const catalogue = '/catalogue';
+  static String catalogueFor({required bool tv, String? library}) => Uri(
+    path: catalogue,
+    queryParameters: {'kind': tv ? 'tv' : 'movie', 'library': ?library},
+  ).toString();
   static const explorer = '/explorer';
   static const providerSeriesPath = '/provider-series';
   static const tv = '/tv';
