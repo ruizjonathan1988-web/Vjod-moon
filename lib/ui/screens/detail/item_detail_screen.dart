@@ -7680,6 +7680,7 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
       final keep = item.type == 'Series' || item.type == 'Season'
           ? const [
               DetailButton.restart,
+              DetailButton.trailer,
               DetailButton.favorite,
               DetailButton.seerrWatchlist,
               DetailButton.seerrRequest,
@@ -7695,12 +7696,15 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
               DetailButton.seerrRequest,
               DetailButton.seerrRequest4k,
             ];
-      final front = <Widget>[
-        ?primaryAction,
-        ...providerExtras,
-        for (final button in _orderedButtons(prefs))
-          if (keep.contains(button)) ?byButton[button],
-      ];
+      // The trailer comes right after the main button (Play, IPTV or
+      // Request), ahead of the language buttons, so it is seen at once.
+      final front = vjodFrontRow<Widget>(
+        primary: primaryAction,
+        byButton: byButton,
+        providerExtras: providerExtras,
+        ordered: _orderedButtons(prefs),
+        keep: keep,
+      );
       final rest = [
         for (final b in allButtons)
           if (!front.contains(b)) b,
@@ -18494,3 +18498,21 @@ class _NavbarRevealZone extends StatelessWidget {
     );
   }
 }
+
+/// VJOD: the buttons shown in the row (the rest goes behind « + »): the main
+/// button, then the trailer when the page has one, then the IPTV language
+/// buttons, then the kept buttons in the viewer's order.
+@visibleForTesting
+List<T> vjodFrontRow<T>({
+  required T? primary,
+  required Map<DetailButton, T> byButton,
+  required List<T> providerExtras,
+  required Iterable<DetailButton> ordered,
+  required List<DetailButton> keep,
+}) => <T>[
+  ?primary,
+  if (keep.contains(DetailButton.trailer)) ?byButton[DetailButton.trailer],
+  ...providerExtras,
+  for (final button in ordered)
+    if (keep.contains(button) && button != DetailButton.trailer) ?byButton[button],
+];
