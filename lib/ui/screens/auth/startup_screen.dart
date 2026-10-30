@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
@@ -19,6 +21,7 @@ import '../../widgets/adaptive/adaptive_dialog.dart';
 import '../../widgets/overlay_sheet.dart';
 import '../../widgets/pin_entry_dialog.dart';
 import '../../widgets/focus/request_initial_focus.dart';
+import '../../widgets/vjod/vjod_intro.dart';
 
 class StartupScreen extends StatefulWidget {
   final bool bootstrapActiveSession;
@@ -37,9 +40,22 @@ class _StartupScreenState extends State<StartupScreen>
   late final AnimationController _fadeController;
   late final Animation<double> _fadeAnimation;
 
+  /// VJOD's opening plays once per launch, while the session restores; the
+  /// app opens once both are done.
+  late bool _showIntro;
+  final _introDone = Completer<void>();
+
+  /// Goes on once the opening is over.
+  Future<void> _go(String location) async {
+    await _introDone.future;
+    if (mounted) context.go(location);
+  }
+
   @override
   void initState() {
     super.initState();
+    _showIntro = !VjodIntro.played;
+    if (!_showIntro) _introDone.complete();
     _fadeController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800),
@@ -97,7 +113,7 @@ class _StartupScreenState extends State<StartupScreen>
 
     if (widget.bootstrapActiveSession && session.activeUserId != null) {
       await _waitForNetworkSettle();
-      if (mounted) context.go(Destinations.home);
+      await _go(Destinations.home);
       return;
     }
 
@@ -137,6 +153,8 @@ class _StartupScreenState extends State<StartupScreen>
     // that came back has the token it needs and the warning is just noise.
     final storageFailed = credentialStore.consumeSecureStorageUnavailable();
     if (storageFailed && !(restored && session.activeUserId != null)) {
+      await _introDone.future;
+      if (!mounted) return;
       await _showSecureStorageWarning();
       if (!mounted) return;
     }
@@ -146,31 +164,33 @@ class _StartupScreenState extends State<StartupScreen>
       final pinUtil = PinCodeUtil(store, session.activeUserId!);
 
       if (pinUtil.isPinEnabled) {
+        await _introDone.future;
+        if (!mounted) return;
         final verified = await PinEntryDialog.show(
           context,
           mode: PinEntryMode.verify,
           onVerify: pinUtil.verifyPin,
           onForgotPin: () {
-            if (mounted) context.go(Destinations.serverSelect);
+            unawaited(_go(Destinations.serverSelect));
           },
         );
 
         if (!verified) {
-          if (mounted) context.go(Destinations.serverSelect);
+          unawaited(_go(Destinations.serverSelect));
           return;
         }
       }
 
       await _waitForNetworkSettle();
-      if (mounted) context.go(Destinations.home);
+      await _go(Destinations.home);
     } else {
       if (mounted) {
         if (targetServerId != null && targetServerId.isNotEmpty) {
           // A previously-used server is known — go straight to user selection
           // for that server rather than the Add Server page.
-          context.go('${Destinations.server}?serverId=$targetServerId');
+          await _go('${Destinations.server}?serverId=$targetServerId');
         } else {
-          context.go(Destinations.serverSelect);
+          await _go(Destinations.serverSelect);
         }
       }
     }
@@ -204,15 +224,30 @@ class _StartupScreenState extends State<StartupScreen>
   }
 
   @override
-  Widget build(BuildContext context) =>
-      RequestInitialFocus(child: _buildContent(context));
+  Widget build(BuildContext context) {
+    if (_showIntro) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF040404),
+        body: VjodIntro(
+          onDone: () {
+            if (!_introDone.isCompleted) _introDone.complete();
+            if (mounted) setState(() => _showIntro = false);
+          },
+        ),
+      );
+    }
+    return RequestInitialFocus(child: _buildContent(context));
+  }
 
   Widget _buildContent(BuildContext context) {
-    final gradientColors = [
-      AppColorScheme.background,
-      AppColorScheme.surfaceVariant,
-      AppColorScheme.surface,
-    ];
+    // After VJOD's opening, the wait stays on its black.
+    final gradientColors = VjodIntro.played
+        ? const [Color(0xFF040404), Color(0xFF040404), Color(0xFF040404)]
+        : [
+            AppColorScheme.background,
+            AppColorScheme.surfaceVariant,
+            AppColorScheme.surface,
+          ];
     return Scaffold(
       body: Container(
         decoration: BoxDecoration(
