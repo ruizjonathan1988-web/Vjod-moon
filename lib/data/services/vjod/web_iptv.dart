@@ -48,3 +48,28 @@ const webPlaybackFailedMessage =
 const webUnreachableMessage =
     'Le navigateur n\'arrive pas à joindre Ma TV pour ce fichier. '
     'Vérifie que Ma TV est à jour sur la seedbox, ou regarde-le sur l\'appli Android ou la TV.';
+
+/// Shown when Ma TV's address is plain HTTP: the browser blocks it.
+const webCatalogHttpMessage =
+    'Catalogue IPTV indisponible dans le navigateur : l\'adresse de Ma TV est en http://. '
+    'Ouvre la page Ma TV par son adresse https:// et enregistre ses réglages '
+    '(ou clique « Brancher Jellyfin »).';
+
+/// Why the web version has no IPTV catalogue, from Ma TV's address as it
+/// knows it (null when not known yet), in French; null when nothing stops it.
+String? webCatalogBlockedReason(String? maTvUrl) {
+  final url = maTvUrl?.trim() ?? '';
+  if (url.isEmpty) {
+    return 'Catalogue IPTV indisponible dans le navigateur : l\'adresse de Ma TV '
+        'n\'est pas connue (collection « VJOD – TV » absente de Jellyfin). '
+        'Dans Ma TV, clique « Brancher Jellyfin ».';
+  }
+  if (webMayUseCatalog(isMaTv: true, portal: url)) return null;
+  if (Uri.tryParse(url)?.isScheme('http') ?? false) return webCatalogHttpMessage;
+  return 'Catalogue IPTV indisponible dans le navigateur : l\'adresse de Ma TV n\'est pas valide.';
+}
+
+/// Whether the home page warns about it once: only for an address in plain
+/// HTTP, the one mistake the viewer can fix (no Ma TV at all says nothing).
+bool webCatalogShouldWarn(String? maTvUrl) =>
+    webCatalogBlockedReason(maTvUrl) == webCatalogHttpMessage;
