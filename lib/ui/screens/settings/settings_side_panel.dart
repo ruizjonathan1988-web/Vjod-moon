@@ -47,6 +47,7 @@ import '../../../util/app_distribution.dart';
 import '../../../util/pin_code_util.dart';
 import '../../widgets/pin_entry_dialog.dart';
 import '../../widgets/app_update_dialog.dart';
+import '../../widgets/vjod/vjod_intro.dart';
 
 import '../../../auth/store/authentication_preferences.dart';
 import '../../../auth/store/client_certificate_store.dart';
@@ -134,6 +135,7 @@ part 'panel/home_screen_category_screen.dart';
 part 'panel/libraries_category_screen.dart';
 part 'panel/seasonal_effects_screen.dart';
 part 'panel/loading_animation_screen.dart';
+part 'panel/vjod_intro_screen.dart';
 part 'panel/services_screen.dart';
 part 'panel/external_lists_screen.dart';
 part 'panel/plugin_screen.dart';
