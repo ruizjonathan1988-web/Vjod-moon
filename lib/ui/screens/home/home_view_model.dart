@@ -539,7 +539,7 @@ class HomeViewModel extends ChangeNotifier {
         if (cached != null && _rows.isEmpty) {
           _rows = cached;
           hydratedFromCache = true;
-          StartupTimeline.mark('Rangées affichées (mémoire)');
+          StartupTimeline.mark('Rangées affichées (mémoire) : ${cached.length}');
           notifyListeners();
         }
       }
@@ -814,6 +814,15 @@ class HomeViewModel extends ChangeNotifier {
               anchorId = r.id;
               break;
             }
+          }
+        }
+        // A row that wasn't already on screen with something in it is one
+        // the viewer waited for.
+        for (final r in loadedRows) {
+          if (r.items.isEmpty) continue;
+          final before = _rows.firstWhereOrNull((x) => x.id == r.id);
+          if (before == null || before.items.isEmpty) {
+            StartupTimeline.mark('Rangée arrivée : ${r.title}');
           }
         }
         final newRows = List<HomeRow>.from(_rows);
@@ -1425,6 +1434,9 @@ class HomeViewModel extends ChangeNotifier {
   void _replaceRowById(HomeRow row) {
     final index = _rows.indexWhere((r) => r.id == row.id);
     if (index < 0) return;
+    if (_rows[index].items.isEmpty && row.items.isNotEmpty) {
+      StartupTimeline.mark('Rangée arrivée : ${row.title}');
+    }
     _rows = List.of(_rows)..[index] = row;
     notifyListeners();
   }

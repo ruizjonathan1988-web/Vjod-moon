@@ -15,6 +15,7 @@ import 'package:media_kit/media_kit.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../util/platform_detection.dart';
+import '../../../util/startup_timeline.dart';
 
 enum VjodIntroStyle {
   terminal('Les lignes de commande', 'Un terminal se connecte à la seedbox, vérifie les 30 sources, imprime le logo en caractères, « ./vjod --play » et Entrée.', 4.4),
@@ -108,6 +109,7 @@ class _VjodIntroState extends State<VjodIntro> with SingleTickerProviderStateMix
       _kit = kit;
       _c = c;
     });
+    StartupTimeline.mark("Ouverture : début de l'animation");
     unawaited(_playSound(style));
     c.forward().whenComplete(_finish);
   }
@@ -126,6 +128,7 @@ class _VjodIntroState extends State<VjodIntro> with SingleTickerProviderStateMix
   void _finish() {
     if (_done) return;
     _done = true;
+    StartupTimeline.mark("Ouverture : fin de l'animation");
     widget.onDone();
   }
 
