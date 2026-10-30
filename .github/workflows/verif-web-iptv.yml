@@ -1,0 +1,22 @@
+# Temporaire : vérifie la branche web-iptv (analyse + build web) avant de la passer sur perso.
+name: Verif web IPTV
+
+on:
+  push:
+    branches: [web-iptv]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.2'
+      - run: flutter pub get
+      - name: Analyse des fichiers touches
+        run: flutter analyze --no-fatal-infos lib/data/services/vjod/provider_catalog_access.dart lib/data/services/vjod/jellyfin_vjod_config.dart lib/ui/screens/vjod/vod_engine.dart lib/ui/screens/vjod/provider_player_screen.dart
+      - name: Tests VJOD
+        run: flutter test test/data/services/vjod/jellyfin_vjod_config_test.dart test/data/services/vjod/xtream_catalog_test.dart test/ui/screens/vjod/provider_player_test.dart test/util/provider_stream_test.dart
+      - name: Build web
+        run: flutter build web --wasm --release --base-href "/vjod-moon/"

@@ -162,7 +162,7 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
     super.initState();
     setImmersive(true);
     GetIt.instance<ScreensaverController>().setPlaybackActive(true);
-    _engine = _exoWanted ? ExoVodEngine() : MpvVodEngine();
+    _engine = kIsWeb ? WebVodEngine() : (_exoWanted ? ExoVodEngine() : MpvVodEngine());
     _listen();
     unawaited(_open());
     if (widget.watch != null) {
@@ -380,7 +380,7 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
           )
           .timeout(_openTimeout);
       unawaited(_engine.styleSubtitles(scale: _subScale, raised: _subRaised));
-      if (mounted && _engine is MpvVodEngine) setState(() => _loading = false);
+      if (mounted && _engine is! ExoVodEngine) setState(() => _loading = false);
     } catch (e) {
       if (!mounted || seq != _openSeq) return;
       if (_fallBack()) return;

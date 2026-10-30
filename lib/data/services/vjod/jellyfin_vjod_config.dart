@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:get_it/get_it.dart';
 import 'package:server_core/server_core.dart';
 
@@ -61,8 +60,11 @@ VjodServerConfig? configFromOverview(String? overview) {
 /// on what it carries: the provider account for the whole device, and a
 /// catalogue address if one is there. Returns whether anything changed.
 /// Nothing found changes nothing, so what was set by hand stays.
+///
+/// Also runs in a browser: that is how the web app learns Ma TV's address, and
+/// a plain-HTTP provider it can't reach is set aside later, when the
+/// catalogue is chosen (see `reachableFromPage`).
 Future<bool> syncVjodConfigFromServer() async {
-  if (kIsWeb) return false;
   final getIt = GetIt.instance;
   if (!getIt.isRegistered<MediaServerClient>() ||
       !getIt.isRegistered<SeerrPreferences>()) {

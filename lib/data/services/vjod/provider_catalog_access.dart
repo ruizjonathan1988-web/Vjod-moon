@@ -79,11 +79,11 @@ void _bootstrapServerAccount(SeerrPreferences prefs, String url) {
 /// The provider catalogue this device and profile play from. With the
 /// seedbox's address set, the account it hands out wins, so changing
 /// provider in Jellyfin moves every device; otherwise the profile's first
-/// Xtream source. Null in a browser (an HTTPS page can't reach a plain-HTTP
-/// provider), in kids mode (the provider's catalogue isn't filtered), or with
-/// no account at all.
+/// Xtream source. Null in kids mode (the provider's catalogue isn't
+/// filtered) or with no account at all. In a browser only HTTPS sources count
+/// (an HTTPS page can't reach a plain-HTTP provider): in practice Ma TV, whose
+/// seedbox address is HTTPS and which relays the files itself.
 XtreamCatalog? currentProviderCatalog() {
-  if (kIsWeb) return null;
   final getIt = GetIt.instance;
   if (!getIt.isRegistered<SeerrPreferences>()) return null;
   if (getIt.isRegistered<UserPreferences>() &&
@@ -95,7 +95,7 @@ XtreamCatalog? currentProviderCatalog() {
   // best accounts of several providers, played through its relay with a
   // fallback, and handed out with the TV's address, so nothing to set.
   final maTv = maTvCatalogAccount();
-  if (maTv != null) {
+  if (maTv != null && reachableFromPage(maTv.portal)) {
     final catalog = XtreamCatalog.forPlaylists([maTv.toPlaylist()]);
     // A Ma TV that failed to hand its catalogue a short while ago (not built
     // yet, unreachable, too slow) gives way to the other sources until it is
@@ -117,12 +117,19 @@ XtreamCatalog? currentProviderCatalog() {
     ?fromServer?.toPlaylist(),
     ?_jellyfinAccount(prefs)?.toPlaylist(),
     ...TvPlaylists.decode(prefs.vjodTvPlaylistsJson),
-  ]);
+  ].where((p) => reachableFromPage(p.url)).toList());
   if (catalog == null) return null;
   catalog.serverCatalogUrl = serverUrl;
   catalog.onServerAccount = (account) =>
       unawaited(_saveServerAccount(prefs, account));
   return catalog;
+}
+
+/// Whether this app can reach [url]: always in the apps, only over HTTPS in a
+/// browser (the page itself is HTTPS, and a browser blocks plain HTTP from it).
+bool reachableFromPage(String url) {
+  if (!kIsWeb) return true;
+  return Uri.tryParse(url.trim())?.isScheme('https') ?? false;
 }
 
 /// Ma TV's films and series, read like a provider's: its Xtream-shaped
