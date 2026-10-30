@@ -826,6 +826,14 @@ class HtmlVideoBackend extends PlayerBackend {
   @override
   bool get demuxesEmbeddedSubtitles => false;
 
+  /// Width of the decoded picture, 0 while there is none (or the browser
+  /// plays only the sound of a file whose picture it can't decode).
+  int get videoWidth => _videoElement.videoWidth;
+
+  /// The element's own error code (MediaError: 2 network, 3 decode,
+  /// 4 source not supported), null without an error.
+  int? get mediaErrorCode => _videoElement.error?.code;
+
   Widget buildView({BoxFit fit = BoxFit.contain}) {
     _videoElement.style.objectFit = _cssObjectFit(fit);
     return HtmlElementView(viewType: _viewType);

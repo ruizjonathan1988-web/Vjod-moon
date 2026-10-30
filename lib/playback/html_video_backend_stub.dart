@@ -153,6 +153,10 @@ class HtmlVideoBackend extends PlayerBackend {
   @override
   bool get demuxesEmbeddedSubtitles => false;
 
+  int get videoWidth => 0;
+
+  int? get mediaErrorCode => null;
+
   Widget buildView({BoxFit fit = BoxFit.contain}) {
     return const SizedBox.shrink();
   }

@@ -9,6 +9,7 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get_it/get_it.dart';
@@ -26,6 +27,7 @@ import '../../../util/focus/dpad_keys.dart';
 import '../../../util/system_ui.dart';
 import '../../navigation/destinations.dart';
 import '../../screensaver/screensaver_controller.dart';
+import '../../widgets/vjod/iptv_cast_sheet.dart';
 import '../vjod_tv/tv_engine.dart' show TvEngineChoice;
 import 'vod_engine.dart';
 
@@ -162,7 +164,8 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
     super.initState();
     setImmersive(true);
     GetIt.instance<ScreensaverController>().setPlaybackActive(true);
-    _engine = _exoWanted ? ExoVodEngine() : MpvVodEngine();
+    // In a browser, its own player; the apps keep ExoPlayer / mpv as before.
+    _engine = kIsWeb ? WebVodEngine() : (_exoWanted ? ExoVodEngine() : MpvVodEngine());
     _listen();
     unawaited(_open());
     if (widget.watch != null) {
@@ -339,7 +342,8 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
       e.errors.listen((msg) {
         if (!mounted || _picture) return;
         if (_fallBack()) return;
-        setState(() => _error = 'Lecture impossible : $msg');
+        // The web engine's messages are already a full French sentence.
+        setState(() => _error = _engine is WebVodEngine ? msg : 'Lecture impossible : $msg');
       }),
     ]);
   }
@@ -380,7 +384,7 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
           )
           .timeout(_openTimeout);
       unawaited(_engine.styleSubtitles(scale: _subScale, raised: _subRaised));
-      if (mounted && _engine is MpvVodEngine) setState(() => _loading = false);
+      if (mounted && (_engine is MpvVodEngine || _engine is WebVodEngine)) setState(() => _loading = false);
     } catch (e) {
       if (!mounted || seq != _openSeq) return;
       if (_fallBack()) return;
@@ -861,6 +865,17 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
     return h > 0 ? '$h:$m:$s' : '$m:$s';
   }
 
+  /// Sends the film to a Chromecast; the phone pauses once it plays there.
+  Future<void> _cast() => showIptvCastSheet(
+    context,
+    playUrl: widget.url,
+    title: widget.title,
+    position: _pos,
+    onStarted: () {
+      if (_playing) unawaited(_engine.playOrPause());
+    },
+  );
+
   Widget _button(IconData icon, String label, VoidCallback onTap, {FocusNode? focusNode}) => Padding(
     padding: const EdgeInsets.symmetric(horizontal: 6),
     child: FilledButton.tonalIcon(
@@ -1012,6 +1027,9 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
                                   audioName.isEmpty ? 'Audio' : 'Audio : $audioName', () => unawaited(_audioMenu())),
                               _button(Icons.subtitles_rounded, 'Sous-titres : $subName',
                                   () => unawaited(_subsMenu())),
+                              // Phones only: the TV and the web never show it.
+                              if (iptvCastAvailable)
+                                _button(Icons.cast_rounded, 'Caster', () => unawaited(_cast())),
                             ],
                           ),
                         ),
