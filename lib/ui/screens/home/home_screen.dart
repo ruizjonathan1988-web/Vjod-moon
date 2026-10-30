@@ -22,6 +22,7 @@ import 'package:window_manager/window_manager.dart';
 
 import '../../../data/services/vjod/ma_tv_alerts.dart';
 import '../../../data/services/vjod/provider_catalog_refresher.dart';
+import '../../../data/services/vjod/web_iptv.dart';
 import '../../../data/models/aggregated_item.dart';
 import '../../../data/models/home_row.dart';
 import '../../../data/repositories/mdblist_repository.dart';
@@ -104,7 +105,6 @@ import 'home_view_model.dart';
 import '../../widgets/seerr/seerr_genre_label.dart';
 import '../../widgets/skeleton/skeleton_home_row.dart';
 import '../../widgets/skeleton/skeleton_shimmer.dart';
-import '../../widgets/vjod/provider_play.dart';
 import '../../../data/services/vjod/iptv_progress.dart';
 import '../../../util/startup_timeline.dart';
 import '../../../data/services/vjod/provider_catalog_access.dart' show currentProviderCatalog;
@@ -226,6 +226,10 @@ class _HomeShellState extends State<_HomeShell>
     // The IPTV provider's catalogue loads only once home and its artwork are
     // up, then refreshes daily.
     ProviderCatalogRefresher.start(homeReady: () => !_viewModel.isLoading);
+    // Web only: says once why the IPTV catalogue is missing (Ma TV in http://).
+    if (kIsWeb) {
+      ProviderCatalogRefresher.webMaTvAddress.addListener(_onWebMaTvAddress);
+    }
     // Alertes de Ma TV (nuit ratée, compte qui expire…), pour l'administrateur.
     MaTvAlerts.start();
     WidgetsBinding.instance.addObserver(this);
@@ -299,8 +303,30 @@ class _HomeShellState extends State<_HomeShell>
     routeLifecycleObserver.subscribe(this, route);
   }
 
+  /// Shown once per visit, in a browser only.
+  static bool _webCatalogWarned = false;
+
+  void _onWebMaTvAddress() {
+    final url = ProviderCatalogRefresher.webMaTvAddress.value;
+    if (_webCatalogWarned || !mounted || !webCatalogShouldWarn(url)) return;
+    final getIt = GetIt.instance;
+    if (getIt.isRegistered<UserPreferences>() &&
+        getIt<UserPreferences>().get(UserPreferences.kidsModeEnabled)) {
+      return;
+    }
+    _webCatalogWarned = true;
+    FloatingNotification.show(
+      context,
+      'Catalogue IPTV',
+      webCatalogHttpMessage,
+      null,
+      icon: Icons.lock_open_rounded,
+    );
+  }
+
   @override
   void dispose() {
+    ProviderCatalogRefresher.webMaTvAddress.removeListener(_onWebMaTvAddress);
     if (_observedRoute != null) {
       routeLifecycleObserver.unsubscribe(this);
       _observedRoute = null;
@@ -5524,8 +5550,7 @@ class _ContentRowsState extends State<_ContentRows>
             widget.viewModel.loadMoreForRow(rowIndex);
           }
         },
-        onLongPress: (_, item) =>
-            showContextMenu(context, item, onChanged: () => setState(() {})),
+        onLongPress: (_, item) => _onItemLongPress(item),
         onTap: (_, item) {
           _finishSharedPreview(releaseResources: true);
           if (row.rowType == HomeRowType.libraryTiles) {
@@ -5858,18 +5883,11 @@ class _ContentRowsState extends State<_ContentRows>
                         _stopPreviewFor(item, rowIndex);
                       }
                     },
-                    onLongPress: () => showContextMenu(
-                      context,
-                      item,
-                      onChanged: () => setState(() {}),
-                    ),
+                    onLongPress: () => _onItemLongPress(item),
                     onTap: () {
-                      // A title the library lacks but the provider has: it
-                      // plays from the poster.
-                      if (_iptvTmdb(item) != null &&
-                          playProviderCopy(context, series: item.seerrMediaType == 'tv', tmdbId: _iptvTmdb(item))) {
-                        return;
-                      }
+                      // VJOD: a title the library lacks opens its page (with
+                      // « IPTV · … » first); watching it straight away is in
+                      // the long press.
                       if (isV2MobileTouch) {
                         if (_v2Expansion.tapToOpen(previewKey)) {
                           _finishSharedPreview(releaseResources: true);
@@ -6261,16 +6279,10 @@ class _ContentRowsState extends State<_ContentRows>
     Future<void> Function()? onNotInterested,
     VoidCallback? onEditTaste,
   }) {
+    // VJOD: a press always opens the title's page (« Pour vous » included);
+    // its quick choices moved to the long press, see _seerrLongPress.
     if (item.rawData[HomeViewModel.forYouFlag] == true) {
-      showSeerrForYouSheet(
-        context: context,
-        item: item,
-        because: item.rawData[HomeViewModel.forYouReasonKey] as String?,
-        openDetails: () => _openSeerrMediaPage(context, item),
-        onRequested: onForYouRequested,
-        onNotInterested: onNotInterested,
-        onEditTaste: onEditTaste,
-      );
+      _openSeerrMediaPage(context, item);
       return;
     }
     final shortcut = SeerrShortcut.fromName(
@@ -6457,6 +6469,34 @@ class _ContentRowsState extends State<_ContentRows>
       else if (item.serverId != 'seerr' && isFreshlyAdded(item))
         CardHighlightPill(label: l10n.cardNewBadge),
     ];
+  }
+
+  /// A title the library lacks (not a shortcut or a filter tile).
+  static bool _isSeerrTitle(AggregatedItem item) =>
+      item.serverId == 'seerr' &&
+      item.rawData['SeerrShortcut'] == null &&
+      item.rawData['FilterType'] == null &&
+      item.rawData[HomeViewModel.iptvResumeKey] == null;
+
+  /// Long press on a title the library lacks: « Voir la fiche » first, then
+  /// watching it now at the IPTV provider and asking for it (the « Pour
+  /// vous » choices too on those cards). Library titles keep their menu.
+  void _onItemLongPress(AggregatedItem item) {
+    if (!_isSeerrTitle(item)) {
+      showContextMenu(context, item, onChanged: () => setState(() {}));
+      return;
+    }
+    final forYou = item.rawData[HomeViewModel.forYouFlag] == true;
+    showSeerrForYouSheet(
+      context: context,
+      item: item,
+      because: forYou ? item.rawData[HomeViewModel.forYouReasonKey] as String? : null,
+      openDetails: () => _openSeerrMediaPage(context, item),
+      detailsFirst: true,
+      onRequested: forYou ? () => widget.viewModel.removeFromForYouRow(item) : null,
+      onNotInterested: forYou ? () => widget.viewModel.markNotInterested(item) : null,
+      onEditTaste: forYou ? _openTasteQuestionnaire : null,
+    );
   }
 
   static void _openSeerrMediaPage(BuildContext context, AggregatedItem item) {

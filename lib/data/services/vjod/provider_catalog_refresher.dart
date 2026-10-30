@@ -1,7 +1,11 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+
 import 'jellyfin_vjod_config.dart';
 import 'provider_catalog_access.dart';
+import 'tv_sources.dart';
+import 'web_iptv.dart';
 
 /// Keeps the IPTV provider's catalogue ready, and the device set up from the
 /// settings the seedbox leaves in Jellyfin.
@@ -16,6 +20,11 @@ class ProviderCatalogRefresher {
   ProviderCatalogRefresher._();
 
   static bool _started = false;
+
+  /// In a browser only: Ma TV's address as last read, so the home page can
+  /// say once why there is no IPTV catalogue (address in plain HTTP). Stays
+  /// null in the apps.
+  static final webMaTvAddress = ValueNotifier<String?>(null);
 
   /// How long after home is ready the catalogue starts loading, so posters
   /// and backdrops come first.
@@ -44,6 +53,7 @@ class ProviderCatalogRefresher {
     // The seedbox's settings come first, from Jellyfin, so a device signed in
     // for the first time sets itself up before looking for a catalogue.
     await syncVjodConfigFromServer();
+    if (kIsWeb) webMaTvAddress.value = TvSourcesClient().server?.url ?? '';
     final catalog = currentProviderCatalog();
     if (catalog == null) return;
     unawaited(catalog.ensureFresh());

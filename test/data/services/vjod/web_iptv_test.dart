@@ -42,4 +42,23 @@ void main() {
       expect(extensionOfUrl('https://h/tv/xc/movie/vjod/k/123'), '');
     });
   });
+
+  group('raison affichée quand le catalogue manque sur le web', () {
+    test('Ma TV en HTTPS : rien à dire', () {
+      expect(webCatalogBlockedReason('https://seedbox.example.com/iptv-checker'), isNull);
+      expect(webCatalogShouldWarn('https://seedbox.example.com/iptv-checker'), isFalse);
+    });
+
+    test('Ma TV en HTTP : message clair et avertissement sur l\'accueil', () {
+      expect(webCatalogBlockedReason('http://seedbox.example.com/iptv-checker'), webCatalogHttpMessage);
+      expect(webCatalogHttpMessage, contains('http://'));
+      expect(webCatalogShouldWarn('http://seedbox.example.com/iptv-checker'), isTrue);
+    });
+
+    test('Ma TV inconnue : expliqué dans les réglages, pas d\'avertissement', () {
+      expect(webCatalogBlockedReason(null), contains('VJOD – TV'));
+      expect(webCatalogBlockedReason(''), isNotNull);
+      expect(webCatalogShouldWarn(null), isFalse);
+    });
+  });
 }
