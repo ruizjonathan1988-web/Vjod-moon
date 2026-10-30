@@ -11178,7 +11178,7 @@
     "@screensaverAdditionalComponent": {
         "description": "Setting for screensaver additional component"
     },
-    "screensaverComponentMoonfinLogo": "Logo Moonfin",
+    "screensaverComponentMoonfinLogo": "Logo VJOD",
     "@screensaverComponentMoonfinLogo": {
         "description": "Screensaver component: VJOD Logo"
     },

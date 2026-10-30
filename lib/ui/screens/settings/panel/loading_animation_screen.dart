@@ -10,7 +10,7 @@ class _LoadingAnimationScreen extends StatefulWidget {
 
 class _LoadingAnimationScreenState extends State<_LoadingAnimationScreen> {
   /// Matches the label the player shows while a stream comes up.
-  static const _previewLabel = 'Loading Stream...';
+  static const _previewLabel = 'Chargement...';
 
   final _prefs = GetIt.instance<UserPreferences>();
 
@@ -50,6 +50,7 @@ class _LoadingAnimationScreenState extends State<_LoadingAnimationScreen> {
                     l10n.loadingAnimationImageMoonfinPhases,
                   LoadingAnimationImage.neonfinPhases =>
                     l10n.loadingAnimationImageNeonfinPhases,
+                  LoadingAnimationImage.vjodLogo => 'Logo VJOD',
                 },
               ),
             ],
@@ -197,7 +198,7 @@ class _LoadingAnimationScreenState extends State<_LoadingAnimationScreen> {
                     width: 7,
                     height: 7,
                     decoration: const BoxDecoration(
-                      color: Color(0xFF00A4DC),
+                      color: Color(0xFFE50914),
                       shape: BoxShape.circle,
                     ),
                   ),

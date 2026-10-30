@@ -240,7 +240,114 @@ class LoadingAnimationWidget extends StatelessWidget {
           palette: MoonPhasesPalette.neonfin,
           speed: speed,
         ),
+      LoadingAnimationImage.vjodLogo => VjodLogoAnimation(
+          size: size,
+          speed: speed,
+        ),
     };
+  }
+}
+
+/// The VJOD wordmark turning on itself like a coin, always readable (the back
+/// half of the turn shows the front again), with a light glint crossing it.
+class VjodLogoAnimation extends StatefulWidget {
+  final double size;
+  final LoadingAnimationSpeed speed;
+
+  const VjodLogoAnimation({
+    super.key,
+    required this.size,
+    this.speed = LoadingAnimationSpeed.fast,
+  });
+
+  @override
+  State<VjodLogoAnimation> createState() => _VjodLogoAnimationState();
+}
+
+class _VjodLogoAnimationState extends State<VjodLogoAnimation>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  Duration get _duration =>
+      Duration(milliseconds: (3200 / widget.speed.multiplier).round());
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(duration: _duration, vsync: this)
+      ..repeat();
+  }
+
+  @override
+  void didUpdateWidget(covariant VjodLogoAnimation oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.speed != widget.speed) {
+      _controller.duration = _duration;
+      if (_controller.isAnimating) _controller.repeat();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // The wordmark is about three times wider than tall: keep the same height
+    // as the other animations' size, and let it be wider.
+    final h = widget.size * 0.5;
+    final w = h * 805 / 271;
+    return SizedBox(
+      width: w,
+      height: widget.size,
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          final v = _controller.value;
+          // turn during the first 55 %, then rest facing the viewer
+          final turn = Curves.easeInOutCubic.transform((v / 0.55).clamp(0.0, 1.0));
+          final angle = turn * math.pi;
+          final mirror = math.cos(angle) < 0;
+          final glint = ((v - 0.6) / 0.35).clamp(0.0, 1.0);
+          return Center(
+            child: Transform(
+              alignment: Alignment.center,
+              transform: Matrix4.identity()
+                ..setEntry(3, 2, 0.0015)
+                ..rotateY(angle)
+                ..scaleByDouble(mirror ? -1.0 : 1.0, 1.0, 1.0, 1.0),
+              child: ShaderMask(
+                blendMode: BlendMode.srcATop,
+                shaderCallback: (r) => LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                  colors: const [
+                    Color(0x00FFFFFF),
+                    Color(0x99FFFFFF),
+                    Color(0x00FFFFFF),
+                  ],
+                  stops: [
+                    (glint * 1.4 - 0.3).clamp(0.0, 1.0),
+                    (glint * 1.4 - 0.15).clamp(0.0, 1.0),
+                    (glint * 1.4).clamp(0.0, 1.0),
+                  ],
+                ).createShader(r),
+                child: child,
+              ),
+            ),
+          );
+        },
+        child: Image.asset(
+          'assets/images/vjod_logo.png',
+          width: w,
+          height: h,
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.medium,
+        ),
+      ),
+    );
   }
 }
 

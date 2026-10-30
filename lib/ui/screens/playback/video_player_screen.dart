@@ -159,7 +159,7 @@ class VideoPlayerScreen extends StatefulWidget {
 class _VideoPlayerScreenState extends State<VideoPlayerScreen>
     with WidgetsBindingObserver, WindowListener, ImmersiveSystemUi {
   static final _camelCaseSpaceRe = RegExp(r'(?<=[a-z])(?=[A-Z])');
-  static const _streamLoadingLabel = 'Loading Stream...';
+  static const _streamLoadingLabel = 'Chargement...';
 
   /// How long away counts as having moved on rather than stepped out.
   static const _staleSuspendExit = Duration(minutes: 30);
@@ -4646,13 +4646,13 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
       case PlaybackBringupPhase.preparing:
         return _streamLoadingLabel;
       case PlaybackBringupPhase.stoppingPrevious:
-        return 'Stopping previous playback...';
+        return 'Arrêt de la lecture précédente...';
       case PlaybackBringupPhase.resolving:
       case PlaybackBringupPhase.opening:
       case PlaybackBringupPhase.waitingForReady:
         return _streamLoadingLabel;
       case PlaybackBringupPhase.seekingResume:
-        return 'Restoring position...';
+        return 'Reprise à la bonne position...';
       default:
         return _streamLoadingLabel;
     }

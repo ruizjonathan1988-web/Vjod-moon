@@ -1165,6 +1165,7 @@ enum LoadingAnimationImage {
   moonPhases,
   moonfinPhases,
   neonfinPhases,
+  vjodLogo,
 }
 
 enum LoadingAnimationSize {

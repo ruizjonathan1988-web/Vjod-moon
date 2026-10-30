@@ -498,7 +498,7 @@ class _ScreensaverSettingsScreenState extends State<ScreensaverSettingsScreen> {
         compWidth = 100 * scale;
         compHeight = 44 * scale;
         componentWidget = Image.asset(
-          'assets/images/logo_and_text.png',
+          'assets/images/vjod_logo.png',
           width: compWidth,
           height: compHeight,
           fit: BoxFit.contain,
