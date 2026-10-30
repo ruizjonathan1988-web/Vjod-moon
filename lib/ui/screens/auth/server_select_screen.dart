@@ -25,6 +25,7 @@ import '../../../util/app_beta.dart';
 import '../../../util/focus/dpad_keys.dart';
 import '../../../util/platform_detection.dart';
 import '../../../util/server_url.dart';
+import '../../../util/vjod_home_server.dart';
 import '../../../util/web_diagnostics_failure.dart';
 import '../../navigation/destinations.dart';
 import '../../widgets/adaptive/adaptive_dialog.dart';
@@ -159,10 +160,26 @@ class _ServerSelectScreenState extends State<ServerSelectScreen> {
     await _autoConnectConfiguredServer();
   }
 
+  /// VJOD: on a device with no server yet, the house Jellyfin, once (the
+  /// web's forced address still wins).
+  String? _homeServerToOffer() {
+    final getIt = GetIt.instance;
+    if (!getIt.isRegistered<UserPreferences>()) return null;
+    final prefs = getIt<UserPreferences>();
+    if (!shouldOfferHomeServer(
+      hasServers: _serverRepo.servers.isNotEmpty,
+      alreadyOffered: prefs.get(UserPreferences.vjodHomeServerOffered),
+    )) {
+      return null;
+    }
+    unawaited(prefs.set(UserPreferences.vjodHomeServerOffered, true));
+    return vjodHomeServerUrl;
+  }
+
   Future<void> _autoConnectConfiguredServer() async {
     if (!mounted || _attemptedAutoConnect) return;
 
-    final configuredAddress = _webAutoConnectServerUrl;
+    final configuredAddress = _webAutoConnectServerUrl ?? _homeServerToOffer();
     if (configuredAddress == null) return;
 
     _attemptedAutoConnect = true;

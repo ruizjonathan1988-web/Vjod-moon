@@ -29,6 +29,14 @@ List<SetupStep> visibleSetupSteps(
           step,
     ];
 
+/// VJOD: the look is set as the app was designed (bar, home, pages), so a
+/// first run only asks the language: the app's, then audio and subtitles, on
+/// the last page. The taste questionnaire follows on the home page, in that
+/// language. A user whose language came over from another device is not
+/// asked again. Re-running from the settings still asks everything.
+List<SetupStep> vjodFirstRunSteps({required bool languageChosen}) =>
+    languageChosen ? const [] : const [SetupStep.tour];
+
 /// Decides whether the wizard runs, and for which steps.
 ///
 /// The router asks this on every navigation, so [shouldRun] stays a couple of
@@ -107,28 +115,9 @@ class SetupWizardGate {
       ];
     }
 
-    final askNavbar = !_prefs.containsPreference(
-      UserPreferences.navbarPosition,
+    return vjodFirstRunSteps(
+      languageChosen: _prefs.containsPreference(UserPreferences.languageOverride),
     );
-    final steps = <SetupStep>[
-      if (askNavbar) SetupStep.navbar,
-      // Tied to the navbar question: a user whose other answers came over
-      // from another device would otherwise get a wizard asking only this.
-      if (askNavbar &&
-          offerStyle &&
-          !_prefs.containsPreference(UserPreferences.bottomNavbarStyle))
-        SetupStep.navbarStyle,
-      if (!_prefs.containsPreference(UserPreferences.mediaBarMode))
-        SetupStep.mediaBar,
-      if (!_prefs.containsPreference(UserPreferences.homeRowsStyle))
-        SetupStep.homeRows,
-      if (!_prefs.containsPreference(UserPreferences.detailScreenStyle))
-        SetupStep.detailStyle,
-    ];
-    // The tour only pays for itself alongside something else. On its own it is
-    // a splash screen between the user and the app they came to open.
-    if (steps.isEmpty) return const [];
-    return [...steps, SetupStep.tour];
   }
 
   /// Waits for the server to hand over this user's settings.

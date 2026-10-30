@@ -40,6 +40,7 @@ Future<void> showSeerrForYouSheet({
   VoidCallback? onRequested,
   Future<void> Function()? onNotInterested,
   VoidCallback? onEditTaste,
+  bool detailsFirst = false,
 }) async {
   final l10n = AppLocalizations.of(context);
   final isTv = (item.rawData['SeerrMediaType'] as String?) == 'tv';
@@ -59,13 +60,21 @@ Future<void> showSeerrForYouSheet({
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // VJOD: « Voir la fiche » leads when asked (long press on a poster).
+        if (detailsFirst)
+          FocusableDialogRow(
+            icon: Icons.info_outline_rounded,
+            label: l10n.seerrForYouOpenDetails,
+            autofocus: true,
+            onTap: () => Navigator.pop(dialogContext, _ForYouChoice.details),
+          ),
         if (iptv != null)
           FocusableDialogRow(
             icon: Icons.play_arrow_rounded,
             label: iptvLang.isEmpty
                 ? 'Regarder maintenant (IPTV)'
                 : 'Regarder maintenant (IPTV · $iptvLang)',
-            autofocus: true,
+            autofocus: !detailsFirst,
             onTap: () => Navigator.pop(dialogContext, _ForYouChoice.playIptv),
           ),
         FocusableDialogRow(
@@ -73,7 +82,7 @@ Future<void> showSeerrForYouSheet({
           label: isTv
               ? l10n.seerrForYouRequestFirstSeason
               : l10n.seerrForYouRequestMovie,
-          autofocus: iptv == null,
+          autofocus: iptv == null && !detailsFirst,
           onTap: () => Navigator.pop(dialogContext, _ForYouChoice.request),
         ),
         if (isTv)
@@ -89,11 +98,12 @@ Future<void> showSeerrForYouSheet({
           onTap: () =>
               Navigator.pop(dialogContext, _ForYouChoice.requestRussian),
         ),
-        FocusableDialogRow(
-          icon: Icons.info_outline_rounded,
-          label: l10n.seerrForYouOpenDetails,
-          onTap: () => Navigator.pop(dialogContext, _ForYouChoice.details),
-        ),
+        if (!detailsFirst)
+          FocusableDialogRow(
+            icon: Icons.info_outline_rounded,
+            label: l10n.seerrForYouOpenDetails,
+            onTap: () => Navigator.pop(dialogContext, _ForYouChoice.details),
+          ),
         if (onNotInterested != null)
           FocusableDialogRow(
             icon: Icons.thumb_down_alt_outlined,
