@@ -242,12 +242,12 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
   DateTime? _switchedAt;
   Timer? _freezeTimer;
 
-  static const _stallWindow = Duration(minutes: 2);
-  static const _stallsToSwitch = 3;
-  static const _longFreeze = Duration(seconds: 12);
-  static const _afterSwitch = Duration(seconds: 20);
+  static const _stallWindow = Duration(seconds: 45);
+  static const _stallsToSwitch = 2;
+  static const _longFreeze = Duration(seconds: 5);
+  static const _afterSwitch = Duration(seconds: 8);
 
-  /// The picture stops to fill its buffer. Three stops within two minutes, or
+  /// The picture stops to fill its buffer. Two stops within 45 seconds, or
   /// one that lasts [_longFreeze], move the channel to another source; the
   /// relay changes it under the picture, nothing to reopen.
   void _onBuffering(bool b) {
