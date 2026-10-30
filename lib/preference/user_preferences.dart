@@ -1179,6 +1179,13 @@ class UserPreferences extends ChangeNotifier {
     values: HomeRowsStyle.values,
   );
 
+  /// VJOD: the house server was opened once on this device (see
+  /// vjod_home_server.dart).
+  static final vjodHomeServerOffered = Preference(
+    key: 'vjod_home_server_offered',
+    defaultValue: false,
+  );
+
   static final fullScreenRows = Preference(
     key: 'pref_home_rows_fullscreen',
     defaultValue: false,

@@ -15,7 +15,6 @@ import '../../../util/focus/dpad_keys.dart';
 import '../../../util/language_codes.dart';
 import '../../../util/platform_detection.dart';
 import '../../navigation/destinations.dart';
-import '../../theme/app_theme_controller.dart';
 import '../../widgets/bottom_nav/bottom_nav_destinations.dart';
 import '../../widgets/navigation_layout.dart';
 import '../../widgets/settings/preference_tiles.dart';
@@ -1352,43 +1351,13 @@ class _SetupTourStepState extends State<_SetupTourStep> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final active = widget.prefs.get(UserPreferences.visualTheme);
 
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         spacing: AppSpacing.spaceLg,
         children: [
-          Text(
-            l10n.setupPickALook,
-            style: TextStyle(
-              color: AppColorScheme.onSurface.withValues(alpha: 0.62),
-              fontSize: AppTypography.fontSizeSm,
-            ),
-          ),
-          Wrap(
-            spacing: AppSpacing.spaceMd,
-            runSpacing: AppSpacing.spaceMd,
-            children: [
-              for (var i = 0; i < VisualThemeId.values.length; i++)
-                _ThemeSwatch(
-                  order: i,
-                  theme: VisualThemeId.values[i],
-                  selected: active == VisualThemeId.values[i],
-                  autofocus: active == VisualThemeId.values[i],
-                  // Written straight away rather than held back with the
-                  // rest, because the point is that the wizard restyles
-                  // around you as you move across the row.
-                  onPressed: () async {
-                    await widget.prefs.set(
-                      UserPreferences.visualTheme,
-                      VisualThemeId.values[i],
-                    );
-                    if (mounted) setState(() {});
-                  },
-                ),
-            ],
-          ),
+          // VJOD: no theme to pick here, everyone gets VJOD's own look.
           widget.playback,
           Container(
             padding: const EdgeInsets.all(AppSpacing.spaceMd),
@@ -1425,7 +1394,6 @@ class _SetupTourStepState extends State<_SetupTourStep> {
                   l10n.setupTourBulletRequests,
                   l10n.setupTourBulletSyncPlay,
                   l10n.liveTv,
-                  l10n.setupTourBulletThemes,
                   if (!PlatformDetection.useLeanbackUi)
                     l10n.setupTourBulletDownloads,
                   l10n.setupTourBulletMore,
@@ -1459,113 +1427,6 @@ class _SetupTourStepState extends State<_SetupTourStep> {
                     ],
                   ),
               ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ThemeSwatch extends StatelessWidget {
-  const _ThemeSwatch({
-    required this.order,
-    required this.theme,
-    required this.selected,
-    required this.autofocus,
-    required this.onPressed,
-  });
-
-  final int order;
-  final VisualThemeId theme;
-  final bool selected;
-  final bool autofocus;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final label = switch (theme) {
-      VisualThemeId.moonfin => l10n.themeMoonfin,
-      VisualThemeId.neonPulse => l10n.themeNeonPulse,
-      VisualThemeId.glass => l10n.themeGlass,
-      VisualThemeId.eightbitHero => l10n.theme8BitHero,
-      VisualThemeId.vjod => l10n.themeVjod,
-      VisualThemeId.ecrin => l10n.themeEcrin,
-    };
-    final spec = ThemeRegistry.resolveById(
-      AppThemeController.builtInThemeIdFor(theme),
-    );
-
-    return _Focusable(
-      order: order,
-      autofocus: autofocus,
-      onPressed: onPressed,
-      builder: (focused) => Column(
-        spacing: AppSpacing.spaceXs,
-        children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            width: 72,
-            height: 44,
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [spec.colors.surface, spec.colors.background],
-              ),
-              borderRadius: AppRadius.circular(8),
-              border: Border.all(
-                color: focused
-                    ? AppColorScheme.onSurface
-                    : AppColorScheme.onSurface.withValues(
-                        alpha: selected ? 0.4 : 0.16,
-                      ),
-                width: focused ? 2 : 1,
-              ),
-              boxShadow: focused
-                  ? [
-                      BoxShadow(
-                        color: AppColorScheme.onSurface.withValues(alpha: 0.3),
-                        blurRadius: 18,
-                      ),
-                    ]
-                  : null,
-            ),
-            child: Align(
-              alignment: Alignment.bottomLeft,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                spacing: 4,
-                children: [
-                  Container(
-                    width: 10,
-                    height: 10,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: spec.colors.accent,
-                    ),
-                  ),
-                  Container(
-                    width: 22,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: spec.colors.onSurface.withValues(alpha: 0.7),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          Text(
-            label,
-            style: TextStyle(
-              color: AppColorScheme.onSurface.withValues(
-                alpha: selected ? 1 : 0.62,
-              ),
-              fontSize: AppTypography.fontSizeXs,
             ),
           ),
         ],
