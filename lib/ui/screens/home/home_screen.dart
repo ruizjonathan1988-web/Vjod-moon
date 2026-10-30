@@ -270,6 +270,11 @@ class _HomeShellState extends State<_HomeShell>
     _connectivity?.addListener(_onServerReachabilityChanged);
     _maybeRegisterThemeMusic();
     StartupTimeline.mark('Accueil affiché');
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => StartupTimeline.mark(
+        "Accueil dessiné (${_viewModel.rows.where((r) => r.items.isNotEmpty).length} rangées pleines)",
+      ),
+    );
     if (!_viewModel.consumePrewarm()) {
       _viewModel.load(preserveExisting: _viewModel.rows.isNotEmpty);
     }

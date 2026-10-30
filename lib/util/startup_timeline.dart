@@ -12,33 +12,38 @@ class StartupTimeline {
   StartupTimeline._();
 
   static const _key = 'vjod_startup_timeline';
+  static const _window = Duration(seconds: 60);
+  static const _maxMarks = 60;
   static final _watch = Stopwatch();
   static final _marks = <(String, int)>[];
-  static bool _done = false;
+  static Timer? _save;
 
   static void start() {
     if (_watch.isRunning) return;
     _watch.start();
     _marks.add(("Lancement de l'app", 0));
-    // A launch that never reaches a full home (no server, error…) still
-    // leaves what it got through.
-    Timer(const Duration(seconds: 60), () => finish('Arrêt du chronomètre (60 s)'));
   }
 
-  /// Notes [label] the first time it happens during this launch.
+  /// Notes [label] the first time it happens during the first minute of this
+  /// launch; what was noted is saved a moment later.
   static void mark(String label) {
-    if (!_watch.isRunning || _done) return;
+    if (!_watch.isRunning || _watch.elapsed > _window) return;
+    if (_marks.length >= _maxMarks) return;
     if (_marks.any((m) => m.$1 == label)) return;
     _marks.add((label, _watch.elapsedMilliseconds));
+    _save?.cancel();
+    _save = Timer(const Duration(seconds: 1), _write);
   }
 
-  static Future<void> finish(String label) async {
-    if (!_watch.isRunning || _done) return;
-    mark(label);
-    _done = true;
+  /// Kept for the calls that close a step; the timing goes on after it, so
+  /// what comes later (the end of the opening, rows arriving) is noted too.
+  static Future<void> finish(String label) async => mark(label);
+
+  static Future<void> _write() async {
     try {
       final p = await SharedPreferences.getInstance();
-      await p.setStringList(_key, [for (final m in _marks) '${m.$2}|${m.$1}']);
+      final sorted = [..._marks]..sort((a, b) => a.$2.compareTo(b.$2));
+      await p.setStringList(_key, [for (final m in sorted) '${m.$2}|${m.$1}']);
     } catch (_) {}
   }
 
