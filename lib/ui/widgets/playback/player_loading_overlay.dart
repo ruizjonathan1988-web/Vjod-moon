@@ -38,6 +38,11 @@ class _PlayerLoadingOverlayState extends State<PlayerLoadingOverlay>
     end: Alignment.centerRight,
     colors: [Color(0xFFAA5CC3), Color(0xFF00A4DC)],
   );
+  static const _vjodLabelGradient = LinearGradient(
+    begin: Alignment.centerLeft,
+    end: Alignment.centerRight,
+    colors: [Color(0xFFE50914), Color(0xFFFFE6E6)],
+  );
 
   late final AnimationController _labelController;
   late final Animation<double> _labelOpacity;
@@ -73,7 +78,7 @@ class _PlayerLoadingOverlayState extends State<PlayerLoadingOverlay>
 
     final image = widget.customImage ??
         prefs?.get(UserPreferences.loadingAnimationImage) ??
-        LoadingAnimationImage.moonfinLogo;
+        LoadingAnimationImage.vjodLogo;
 
     final sizePref = prefs?.get(UserPreferences.loadingAnimationSize) ??
         LoadingAnimationSize.medium;
@@ -128,7 +133,7 @@ class _PlayerLoadingOverlayState extends State<PlayerLoadingOverlay>
               child: ShaderMask(
                 blendMode: BlendMode.srcIn,
                 shaderCallback: (bounds) {
-                  return _labelGradient.createShader(bounds);
+                  return (image == LoadingAnimationImage.vjodLogo ? _vjodLabelGradient : _labelGradient).createShader(bounds);
                 },
                 child: Text(
                   uppercaseLabel!,

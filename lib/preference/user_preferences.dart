@@ -3359,7 +3359,7 @@ class UserPreferences extends ChangeNotifier {
 
   static final loadingAnimationImage = EnumPreference(
     key: 'loading_animation_image',
-    defaultValue: LoadingAnimationImage.moonfinLogo,
+    defaultValue: LoadingAnimationImage.vjodLogo,
     values: LoadingAnimationImage.values,
   );
 

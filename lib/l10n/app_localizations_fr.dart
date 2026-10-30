@@ -5217,7 +5217,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get screensaverAdditionalComponent => 'Composant supplémentaire';
 
   @override
-  String get screensaverComponentMoonfinLogo => 'Logo Moonfin';
+  String get screensaverComponentMoonfinLogo => 'Logo VJOD';
 
   @override
   String get screensaverComponentRunner => 'Runner';

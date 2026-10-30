@@ -177,7 +177,7 @@ class _ScreensaverViewState extends State<ScreensaverView> {
           return const SizedBox.shrink();
         case ScreensaverComponent.moonfinLogo:
           return Image.asset(
-            'assets/images/logo_and_text.png',
+            'assets/images/vjod_logo.png',
             fit: BoxFit.contain,
           );
         case ScreensaverComponent.clock:

@@ -52,7 +52,7 @@ void main() {
 
       expect(
         prefs.get(UserPreferences.loadingAnimationImage),
-        LoadingAnimationImage.moonfinLogo,
+        LoadingAnimationImage.vjodLogo,
       );
       expect(
         prefs.get(UserPreferences.loadingAnimationSize),
@@ -188,6 +188,29 @@ void main() {
       final widget = tester.widget<MoonPhasesAnimation>(widgetFinder);
       expect(widget.palette, MoonPhasesPalette.neonfin);
     });
+
+    testWidgets('renders the turning VJOD logo for LoadingAnimationImage.vjodLogo', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: LoadingAnimationWidget(
+                image: LoadingAnimationImage.vjodLogo,
+                size: 110,
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(find.byType(VjodLogoAnimation), findsOneWidget);
+      // through a whole turn and the glint, without error
+      for (var i = 0; i < 16; i++) {
+        await tester.pump(const Duration(milliseconds: 250));
+      }
+      expect(tester.takeException(), isNull);
+    });
   });
 
   group('PlayerLoadingOverlay Customization', () {
@@ -196,7 +219,7 @@ void main() {
         const MaterialApp(
           home: Scaffold(
             body: PlayerLoadingOverlay(
-              label: 'Loading Stream...',
+              label: 'Chargement...',
               customImage: LoadingAnimationImage.spinner,
               customShowText: false,
               customSize: 64,
@@ -214,7 +237,7 @@ void main() {
         const MaterialApp(
           home: Scaffold(
             body: PlayerLoadingOverlay(
-              label: 'Loading Stream...',
+              label: 'Chargement...',
               customImage: LoadingAnimationImage.spinner,
               customShowText: true,
               customSize: 64,
@@ -234,7 +257,7 @@ void main() {
         const MaterialApp(
           home: Scaffold(
             body: PlayerLoadingOverlay(
-              label: 'Loading Stream...',
+              label: 'Chargement...',
               customImage: LoadingAnimationImage.none,
               customShowText: false,
             ),
@@ -253,7 +276,7 @@ void main() {
         const MaterialApp(
           home: Scaffold(
             body: PlayerLoadingOverlay(
-              label: 'Loading Stream...',
+              label: 'Chargement...',
               customImage: LoadingAnimationImage.runner,
               customPosition: LoadingAnimationPosition.middleRight,
               customShowText: false,
@@ -278,7 +301,7 @@ void main() {
         const MaterialApp(
           home: Scaffold(
             body: PlayerLoadingOverlay(
-              label: 'Loading Stream...',
+              label: 'Chargement...',
               customImage: LoadingAnimationImage.spinner,
               customSpeed: LoadingAnimationSpeed.ultra,
               customShowText: false,

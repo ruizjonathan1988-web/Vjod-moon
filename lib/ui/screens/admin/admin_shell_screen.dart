@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:moonfin_design/moonfin_design.dart';
 
@@ -594,14 +593,11 @@ class _ExitMark extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  SvgPicture.asset(
-                    'assets/icons/moonfin_logo.svg',
-                    width: size,
+                  Image.asset(
+                    'assets/images/vjod_logo.png',
+                    width: size * 1.6,
                     height: size,
-                    colorFilter: ColorFilter.mode(
-                      scheme.onSurface,
-                      BlendMode.srcIn,
-                    ),
+                    fit: BoxFit.contain,
                   ),
                   const SizedBox(height: 2),
                   Text(
