@@ -12,6 +12,7 @@ import '../repositories/search_repository.dart';
 import '../repositories/seerr_repository.dart';
 import '../services/seerr/seerr_api_models.dart';
 import '../services/vjod/provider_catalog_access.dart';
+import '../services/vjod/search_dedupe.dart';
 import '../services/vjod/xtream_catalog.dart';
 
 class SearchResultGroup {
@@ -258,15 +259,14 @@ class SearchViewModel extends ChangeNotifier {
       if (query != _query) return;
 
       _results = _withPeople(groups, people ?? const []);
-      _seerrResults = seerr;
       _gameResults = games;
-      _providerResults = provider ?? const [];
+      _setCatalogResults(groups, provider ?? const [], seerr);
       _state = SearchState.ready;
       if (provider == null) {
         unawaited(
           providerFuture.then((found) {
             if (found.isEmpty || run != _searchRun || query != _query) return;
-            _providerResults = found;
+            _setCatalogResults(groups, found, seerr);
             notifyListeners();
           }),
         );
@@ -286,6 +286,27 @@ class SearchViewModel extends ChangeNotifier {
       _state = SearchState.error;
     }
     notifyListeners();
+  }
+
+  /// VJOD: each title once, under its best way to watch it (server, then
+  /// IPTV, then to request); see search_dedupe.dart.
+  void _setCatalogResults(
+    List<SearchResultGroup> groups,
+    List<XtreamTitle> provider,
+    List<SeerrDiscoverItem> seerr,
+  ) {
+    final kept = dedupeCatalogResults(
+      libraryTmdbIds: {
+        for (final group in groups)
+          for (final item in group.items)
+            if ((item.type == 'Movie' || item.type == 'Series') && item.tmdbId != null)
+              item.tmdbId!,
+      },
+      provider: provider,
+      seerr: seerr,
+    );
+    _providerResults = kept.provider;
+    _seerrResults = kept.seerr;
   }
 
   /// Every group in order with the People group left empty, and the people
