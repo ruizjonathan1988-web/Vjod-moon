@@ -750,6 +750,19 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
                   ),
                 ),
               if (_voteVisible && _error == null) _votePrompt(),
+              // Touch and remote: a visible way out, shown with the controls (and on an error).
+              if (_controls || _error != null)
+                Positioned(
+                  left: 16,
+                  top: 12,
+                  child: SafeArea(
+                    child: FilledButton.tonalIcon(
+                      onPressed: () => Navigator.of(context).maybePop(),
+                      icon: const Icon(Icons.arrow_back_rounded),
+                      label: const Text('Retour'),
+                    ),
+                  ),
+                ),
               if (_controls && _error == null)
                 Positioned(
                   left: 0,
