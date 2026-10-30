@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get_it/get_it.dart';
@@ -8,6 +9,8 @@ import 'package:moonfin_design/moonfin_design.dart';
 import '../../../data/services/vjod/catalog_invite.dart';
 import '../../../data/services/vjod/provider_catalog_access.dart';
 import '../../../data/services/vjod/tv_playlists.dart';
+import '../../../data/services/vjod/tv_sources.dart';
+import '../../../data/services/vjod/web_iptv.dart';
 import '../../../data/services/vjod/xtream_catalog.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../preference/seerr_preferences.dart';
@@ -309,21 +312,26 @@ class _VjodTvLaunchScreenState extends State<VjodTvLaunchScreen> {
         // Where the films and series come from and how many, or why they
         // didn't come: the first thing to look at when the IPTV button is
         // missing from the pages.
+        // In a browser, what stops the catalogue (Ma TV in http://, no Ma
+        // TV known) comes first: otherwise nothing at all would say it.
         ValueListenableBuilder<String>(
           valueListenable: XtreamCatalog.status,
-          builder: (context, status, _) => status.isEmpty
+          builder: (context, status, _) {
+            final blocked = kIsWeb ? webCatalogBlockedReason(TvSourcesClient().server?.url) : null;
+            return blocked == null && status.isEmpty
               ? const SizedBox.shrink()
               : Padding(
                   padding: EdgeInsets.only(bottom: 10 * s),
                   child: Text(
-                    'Catalogue : $status',
+                    blocked ?? 'Catalogue : $status',
                     style: TextStyle(
                       color: vjodInk.withValues(alpha: 0.75),
                       fontSize: 15 * s,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                ),
+                );
+          },
         ),
         SizedBox(height: 4 * s),
         if (_languagesLoading && _languageCounts == null)

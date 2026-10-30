@@ -22,6 +22,7 @@ import 'package:window_manager/window_manager.dart';
 
 import '../../../data/services/vjod/ma_tv_alerts.dart';
 import '../../../data/services/vjod/provider_catalog_refresher.dart';
+import '../../../data/services/vjod/web_iptv.dart';
 import '../../../data/models/aggregated_item.dart';
 import '../../../data/models/home_row.dart';
 import '../../../data/repositories/mdblist_repository.dart';
@@ -225,6 +226,10 @@ class _HomeShellState extends State<_HomeShell>
     // The IPTV provider's catalogue loads only once home and its artwork are
     // up, then refreshes daily.
     ProviderCatalogRefresher.start(homeReady: () => !_viewModel.isLoading);
+    // Web only: says once why the IPTV catalogue is missing (Ma TV in http://).
+    if (kIsWeb) {
+      ProviderCatalogRefresher.webMaTvAddress.addListener(_onWebMaTvAddress);
+    }
     // Alertes de Ma TV (nuit ratée, compte qui expire…), pour l'administrateur.
     MaTvAlerts.start();
     WidgetsBinding.instance.addObserver(this);
@@ -298,8 +303,30 @@ class _HomeShellState extends State<_HomeShell>
     routeLifecycleObserver.subscribe(this, route);
   }
 
+  /// Shown once per visit, in a browser only.
+  static bool _webCatalogWarned = false;
+
+  void _onWebMaTvAddress() {
+    final url = ProviderCatalogRefresher.webMaTvAddress.value;
+    if (_webCatalogWarned || !mounted || !webCatalogShouldWarn(url)) return;
+    final getIt = GetIt.instance;
+    if (getIt.isRegistered<UserPreferences>() &&
+        getIt<UserPreferences>().get(UserPreferences.kidsModeEnabled)) {
+      return;
+    }
+    _webCatalogWarned = true;
+    FloatingNotification.show(
+      context,
+      'Catalogue IPTV',
+      webCatalogHttpMessage,
+      null,
+      icon: Icons.lock_open_rounded,
+    );
+  }
+
   @override
   void dispose() {
+    ProviderCatalogRefresher.webMaTvAddress.removeListener(_onWebMaTvAddress);
     if (_observedRoute != null) {
       routeLifecycleObserver.unsubscribe(this);
       _observedRoute = null;
