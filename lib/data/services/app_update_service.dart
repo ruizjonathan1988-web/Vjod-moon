@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:device_info_plus/device_info_plus.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/services.dart';
 import 'package:jellyfin_preference/jellyfin_preference.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -214,6 +216,7 @@ class AppUpdateService {
     _LatestRelease release,
     bool suppressIfAlreadyNotified,
   ) async {
+    await _ensureAbiKnown();
     final asset = _selectAsset(release.assets);
     final published = DateTime.tryParse(asset?.updatedAt ?? '');
     DateTime? installed;
@@ -358,6 +361,10 @@ class AppUpdateService {
         return _firstWhere(assets, '.apk', excludeSubstring: 'tv') ??
             _firstByExtension(assets, const ['.apk']);
       case DistributionChannel.androidTvApk:
+        // A 32-bit box (old Fire TV stick) takes the light APK when there is one.
+        final names = [for (final a in assets) a.name];
+        final pick = selectTvApkName(names, arm32: _arm32 ?? false);
+        if (pick != null) return assets.firstWhere((a) => a.name == pick);
         return _firstWhere(assets, '.apk', requireSubstring: 'tv') ??
             _firstByExtension(assets, const ['.apk']);
       case DistributionChannel.macosDmg:
@@ -373,6 +380,20 @@ class AppUpdateService {
         }
       default:
         return null;
+    }
+  }
+
+  /// Whether this Android device runs 32-bit only, read once before the
+  /// first update check (see [_ensureAbiKnown]).
+  static bool? _arm32;
+
+  static Future<void> _ensureAbiKnown() async {
+    if (_arm32 != null || !Platform.isAndroid) return;
+    try {
+      final info = await DeviceInfoPlugin().androidInfo;
+      _arm32 = info.supported64BitAbis.isEmpty;
+    } catch (_) {
+      _arm32 = false;
     }
   }
 
@@ -483,4 +504,16 @@ class _ReleaseAsset {
     required this.downloadUrl,
     this.updatedAt,
   });
+}
+
+/// The TV APK to install from the release's [names]: the light 32-bit one
+/// (« -arm32 ») on a 32-bit box, the full one anywhere else. Null when
+/// neither is there.
+@visibleForTesting
+String? selectTvApkName(List<String> names, {required bool arm32}) {
+  bool tv(String n) => n.toLowerCase().endsWith('.apk') && n.toLowerCase().contains('tv');
+  final light = names.where((n) => tv(n) && n.toLowerCase().contains('arm32'));
+  final full = names.where((n) => tv(n) && !n.toLowerCase().contains('arm32'));
+  if (arm32 && light.isNotEmpty) return light.first;
+  return full.firstOrNull;
 }
