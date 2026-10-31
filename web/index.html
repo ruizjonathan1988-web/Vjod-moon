@@ -1,22 +1,22 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="description" content="Moonfin web client for self-hosted media servers">
-  <meta name="theme-color" content="#101010">
+  <meta name="description" content="VJOD : films, séries et TV">
+  <meta name="theme-color" content="#000000">
 
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="Moonfin">
-  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  <meta name="apple-mobile-web-app-title" content="VJOD">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="icon" type="image/png" href="favicon.png">
 
-  <title>Moonfin</title>
+  <title>VJOD</title>
   <link rel="manifest" href="manifest.json">
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 
@@ -27,7 +27,7 @@
       padding: 0;
       width: 100%;
       height: 100%;
-      background: #101010;
+      background: #000000;
       color: #ffffff;
       font-family: "Segoe UI", "Helvetica Neue", sans-serif;
     }
@@ -52,8 +52,8 @@
     }
 
     .moonfin-loader__logo-wrap {
-      width: 160px;
-      height: 160px;
+      width: 240px;
+      height: 81px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -63,9 +63,7 @@
     .moonfin-loader__logo {
       width: 100%;
       height: 100%;
-      transform-style: preserve-3d;
-      backface-visibility: visible;
-      animation: moonfin-logo-spin 8s linear infinite;
+      object-fit: contain;
     }
 
     .moonfin-loader__label {
@@ -75,7 +73,7 @@
       letter-spacing: 6px;
       text-transform: uppercase;
       text-align: center;
-      background: linear-gradient(90deg, #aa5cc3, #00a4dc);
+      background: linear-gradient(90deg, #e50914, #ff5a5f);
       -webkit-background-clip: text;
       background-clip: text;
       color: transparent;
@@ -195,12 +193,12 @@
       <div class="moonfin-loader__logo-wrap">
         <img
           class="moonfin-loader__logo"
-          src="assets/assets/icons/moonfin_logo.svg"
-          alt="Moonfin"
-          onerror="this.onerror=null;this.src='assets/icons/moonfin_logo.svg';"
+          src="assets/assets/images/vjod_logo.png"
+          alt="VJOD"
+          onerror="this.onerror=null;this.src='icons/Icon-192.png';"
         >
       </div>
-      <div class="moonfin-loader__label">Loading Moonfin</div>
+      <div class="moonfin-loader__label">Chargement de VJOD</div>
     </div>
   </div>
   <script src="flutter_bootstrap.js" async></script>
