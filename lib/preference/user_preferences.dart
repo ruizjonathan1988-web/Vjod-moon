@@ -578,6 +578,8 @@ class UserPreferences extends ChangeNotifier {
     'pref_glass_quality',
     'pref_oled_mode',
     'pref_kids_mode',
+    // VJOD's simple mode belongs to a profile, read from the server.
+    'vjod_simple_mode',
     // The other half of parental controls, kept beside Kids Mode because the
     // two get set together and have the same reason to be scoped.
     'blocked_ratings',
@@ -1599,6 +1601,14 @@ class UserPreferences extends ChangeNotifier {
   /// doesn't put their phone in Kids Mode too.
   static final kidsModeEnabled = Preference(
     key: 'pref_kids_mode',
+    defaultValue: false,
+  );
+
+  /// VJOD's simple mode for the profile in use: fewer tabs, one button per
+  /// title, bigger text. Set by the administrator in Jellyfin and copied here
+  /// (see `simple_mode.dart`), so the device starts right without network.
+  static final vjodSimpleMode = Preference(
+    key: 'vjod_simple_mode',
     defaultValue: false,
   );
 

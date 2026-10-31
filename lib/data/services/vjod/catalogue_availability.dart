@@ -27,3 +27,22 @@ bool catalogueFilterKeeps(int filter, CatalogueAvailability a) => switch (filter
   3 => a == CatalogueAvailability.toRequest || a == CatalogueAvailability.requested,
   _ => true,
 };
+
+/// The magnifier on Films (or Séries) finds any title, but only of that
+/// kind: a search for « Dune » on Films leaves out the series.
+bool catalogueSearchKeeps({required bool series, String? mediaType}) =>
+    mediaType == (series ? 'tv' : 'movie');
+
+/// What is worth asking for: two letters at least, spaces trimmed.
+String? catalogueSearchQuery(String text) {
+  final q = text.trim();
+  return q.length < 2 ? null : q;
+}
+
+/// The people a search names (actors, directors), the most known first, at
+/// most two: typing « tom hardy » on Films shows his films.
+List<SeerrDiscoverItem> catalogueSearchPeople(Iterable<SeerrDiscoverItem> results) {
+  final people = [for (final r in results) if (r.mediaType == 'person') r];
+  people.sort((a, b) => (b.popularity ?? 0).compareTo(a.popularity ?? 0));
+  return people.take(2).toList();
+}

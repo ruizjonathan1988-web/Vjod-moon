@@ -25,6 +25,7 @@ import 'data/services/download_service.dart';
 import 'data/services/seerr_notification_service.dart';
 import 'data/services/plugin_sync_service.dart';
 import 'data/services/server_messages_service.dart';
+import 'data/services/vjod/simple_mode.dart' show simpleModeTextScale;
 import 'data/services/retro_artwork/retro_artwork_data_source.dart';
 import 'data/services/theme_music_service.dart';
 import 'data/services/deep_link_service.dart';
@@ -387,10 +388,15 @@ class _MoonfinAppState extends State<MoonfinApp> {
                     // face at a given size, so shrink all text to keep dense
                     // layouts from overflowing.
                     final pixelScale = AppColorScheme.isPixel ? 0.6 : 1.0;
+                    // VJOD's simple mode reads a little bigger.
+                    final simpleScale =
+                        _prefs.get(UserPreferences.vjodSimpleMode)
+                        ? simpleModeTextScale
+                        : 1.0;
                     return MediaQuery(
                       data: MediaQuery.of(context).copyWith(
                         textScaler: TextScaler.linear(
-                          scale * systemScale * pixelScale,
+                          scale * systemScale * pixelScale * simpleScale,
                         ),
                       ),
                       child: mainChild,

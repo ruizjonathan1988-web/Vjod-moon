@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,6 +7,8 @@ import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:server_core/server_core.dart';
 
+import '../../../../data/services/vjod/simple_mode.dart';
+import '../../../../util/vjod_text.dart';
 import '../../../navigation/destinations.dart';
 import '../../../widgets/adaptive/adaptive_dialog.dart';
 import '../../detail/modern/widgets/details_tab_bar.dart';
@@ -438,6 +442,7 @@ class _AdminUserEditScreenState extends ConsumerState<AdminUserEditScreen>
           ),
         ],
       ),
+      if (!_emby) _VjodSimpleModeSection(userId: widget.userId),
       if (_emby) _buildConnectSection(l10n),
       const SizedBox(height: 16),
       Align(
@@ -1264,6 +1269,85 @@ class _AdminUserEditScreenState extends ConsumerState<AdminUserEditScreen>
       title: label,
       value: _policy[key] as bool? ?? false,
       onChanged: (v) => _setPolicy(key, v),
+    );
+  }
+}
+
+
+/// VJOD's simple mode for this user, saved in Jellyfin as soon as it is
+/// switched: every device signing in as them follows.
+class _VjodSimpleModeSection extends StatefulWidget {
+  final String userId;
+
+  const _VjodSimpleModeSection({required this.userId});
+
+  @override
+  State<_VjodSimpleModeSection> createState() => _VjodSimpleModeSectionState();
+}
+
+class _VjodSimpleModeSectionState extends State<_VjodSimpleModeSection> {
+  bool? _on;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    readSimpleMode(widget.userId).then((on) {
+      if (mounted) setState(() => _on = on ?? false);
+    });
+  }
+
+  Future<void> _set(bool on) async {
+    setState(() {
+      _busy = true;
+      _on = on;
+    });
+    try {
+      await writeSimpleMode(widget.userId, on);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _on = !on);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(vjodText(context,
+            fr: 'Le serveur a refusé le changement.',
+            en: 'The server refused the change.',
+            ru: 'Сервер отклонил изменение.',
+            zh: '服务器拒绝了更改。')),
+      ));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final on = _on;
+    return adminSection(
+      context,
+      title: 'VJOD',
+      icon: Icons.accessibility_new_rounded,
+      children: [
+        if (on == null)
+          const Padding(
+            padding: EdgeInsets.all(12),
+            child: LinearProgressIndicator(),
+          )
+        else
+          adminSwitchRow(
+            title: vjodText(context,
+                fr: 'Profil simple',
+                en: 'Simple profile',
+                ru: 'Простой профиль',
+                zh: '简易模式'),
+            subtitle: vjodText(context,
+                fr: 'Quatre onglets, un seul bouton Regarder ou Demander, textes plus grands. Pour ceux qui veulent juste regarder.',
+                en: 'Four tabs, one Watch or Request button, bigger text. For those who just want to watch.',
+                ru: 'Четыре вкладки, одна кнопка «Смотреть» или «Запросить», крупный текст.',
+                zh: '四个标签页，一个观看或申请按钮，更大的文字。'),
+            value: on,
+            onChanged: _busy ? (_) {} : (v) => unawaited(_set(v)),
+          ),
+      ],
     );
   }
 }

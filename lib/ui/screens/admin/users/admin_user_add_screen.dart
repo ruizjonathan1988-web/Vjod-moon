@@ -4,6 +4,8 @@ import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:server_core/server_core.dart';
 
+import '../../../../data/services/vjod/simple_mode.dart';
+import '../../../../util/vjod_text.dart';
 import '../../../navigation/destinations.dart';
 import '../providers/admin_user_providers.dart';
 import '../widgets/admin_form_styles.dart';
@@ -28,6 +30,8 @@ class _AdminUserAddScreenState extends ConsumerState<AdminUserAddScreen> {
   // Both start off, so a new user sees nothing until granted.
   bool _allFolders = false;
   bool _allChannels = false;
+  // VJOD's simple mode, set on the new user right after creating them.
+  bool _simple = false;
   final _folders = <String>{};
   final _channels = <String>{};
 
@@ -79,6 +83,17 @@ class _AdminUserAddScreenState extends ConsumerState<AdminUserAddScreen> {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text(l10n.adminUserPolicyUpdateFailed(describeError(e, l10n))),
           ));
+        }
+      }
+      if (_simple) {
+        try {
+          await writeSimpleMode(user.id, true);
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text(describeError(e, l10n)),
+            ));
+          }
         }
       }
       if (mounted) context.pushReplacement(Destinations.adminUser(user.id));
@@ -157,6 +172,20 @@ class _AdminUserAddScreenState extends ConsumerState<AdminUserAddScreen> {
                       decoration: adminInputDecoration(),
                       obscureText: true,
                     ),
+                  ),
+                  adminSwitchRow(
+                    title: vjodText(context,
+                        fr: 'Profil simple',
+                        en: 'Simple profile',
+                        ru: 'Простой профиль',
+                        zh: '简易模式'),
+                    subtitle: vjodText(context,
+                        fr: 'Quatre onglets, un seul bouton Regarder ou Demander, textes plus grands.',
+                        en: 'Four tabs, one Watch or Request button, bigger text.',
+                        ru: 'Четыре вкладки, одна кнопка, крупный текст.',
+                        zh: '四个标签页，一个按钮，更大的文字。'),
+                    value: _simple,
+                    onChanged: (v) => setState(() => _simple = v),
                   ),
                 ],
               ),

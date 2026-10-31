@@ -6,10 +6,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
+import 'package:jellyfin_preference/jellyfin_preference.dart' show PreferenceStore;
 import 'package:moonfin_design/moonfin_design.dart';
 import 'package:server_core/server_core.dart';
 
 import '../../data/services/vjod/ma_tv.dart';
+import '../../data/services/vjod/simple_mode.dart';
+import '../../auth/repositories/session_repository.dart';
+import '../../util/pin_code_util.dart';
+import 'pin_entry_dialog.dart';
 import '../../l10n/app_localizations.dart';
 import '../../auth/repositories/user_repository.dart';
 import '../../data/models/aggregated_library.dart';
@@ -30,6 +35,7 @@ import '../../util/secondary_library.dart';
 import '../../util/live_tv_library.dart';
 import '../../util/overlay_color_palette.dart';
 import '../../util/platform_detection.dart';
+import '../../util/vjod_text.dart';
 import '../navigation/destinations.dart';
 import '../navigation/home_refresh_bus.dart';
 import '../navigation/route_lifecycle_observer.dart';
@@ -215,6 +221,7 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
     _loadUserImage();
     _userSub = _userRepo.currentUserStream.listen((_) => _loadUserImage());
     _prefs.addListener(_onPrefsChanged);
+    unawaited(syncSimpleModeFromServer());
     _viewsRepo.addListener(_onUserViewsChanged);
     GetIt.instance<PluginSyncService>().addListener(_onPrefsChanged);
     if (GetIt.instance.isRegistered<AchievementsService>()) {
@@ -506,6 +513,7 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
       librariesForNav(_libraries, _showLiveTvButton, hideLiveTv: _kidsMode);
 
   bool get _kidsMode => _prefs.get(UserPreferences.kidsModeEnabled);
+  bool get _simple => _prefs.get(UserPreferences.vjodSimpleMode);
 
   void _trackPreviousFocus() {
     final primary = FocusManager.instance.primaryFocus;
@@ -1085,7 +1093,9 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
           context.navigateTopLevel(_tvRoute);
         },
       ),
-      if (seerr) ...[
+      // Simple mode keeps Accueil, Films, Séries and TV; what Explorer,
+      // Bientôt and En route hold is in Films, Séries and the avatar menu.
+      if (seerr && !_simple) ...[
         // Explorer: every collection, what the server holds and what can be
         // asked for. On a phone Bientôt lives inside it, to keep five tabs.
         VjodNavItem(
@@ -1126,7 +1136,7 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
     final published = narrow
         ? [
             for (final t in tabs)
-              if (t.label != l10n.vjodTvTab) t,
+              if (_simple || t.label != l10n.vjodTvTab) t,
           ]
         : const <VjodNavItem>[];
     if (!_sameTabs(TopToolbar.vjodBottomTabs.value, published)) {
@@ -1153,6 +1163,20 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
       },
       onAvatar: _openVjodMenu,
       tabs: narrow ? const [] : tabs,
+      searchHint: vjodText(
+        context,
+        fr: 'Film, série, acteur, chaîne…',
+        en: 'Movie, series, actor, channel…',
+        ru: 'Фильм, сериал, актёр, канал…',
+        zh: '电影、剧集、演员、频道…',
+      ),
+      searchHintShort: vjodText(
+        context,
+        fr: 'Film, acteur, chaîne…',
+        en: 'Movie, actor, channel…',
+        ru: 'Фильм, актёр, канал…',
+        zh: '电影、演员、频道…',
+      ),
     );
   }
 
@@ -1177,6 +1201,7 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
     final name = user?.name ?? '';
     final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
     final kids = _kidsMode;
+    final simple = _simple;
     final seerr = !kids && GetIt.instance<PluginSyncService>().seerrAvailable;
     final french = l10n.localeName.startsWith('fr');
     final host = context;
@@ -1210,7 +1235,20 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
           changeLabel: l10n.vjodMenuChange,
           onChange: () => Navigator.of(dialogContext).pop(() => showUserMenu(host)),
           sectionLabel: l10n.vjodMenuAlso,
-          entries: [
+          entries: simple
+              ? [
+                  // Simple mode: the few things worth having, and what the
+                  // hidden tabs held (the requests on their way, what comes).
+                  entry(Icons.favorite_border_rounded, l10n.favorites,
+                      () => go(Destinations.allFavorites)),
+                  if (seerr)
+                    entry(Icons.downloading_rounded, l10n.enRouteTitle,
+                        () => go(Destinations.enRoute)),
+                  if (seerr)
+                    entry(Icons.calendar_month_outlined, l10n.vjodTabSoon,
+                        () => go(Destinations.bientot)),
+                ]
+              : [
             entry(
               Icons.shuffle_rounded,
               l10n.shuffle,
@@ -1250,7 +1288,9 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
           settings: entry(
             Icons.settings_outlined,
             l10n.settings,
-            () => SettingsPanel.open(host, const SettingsSidePanel()),
+            simple
+                ? () => unawaited(_openSettingsWithPin(host))
+                : () => SettingsPanel.open(host, const SettingsSidePanel()),
           ),
         );
         final media = MediaQuery.of(dialogContext);
@@ -1275,6 +1315,24 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
     } else {
       _settingsFocus.requestFocus();
     }
+  }
+
+  /// In simple mode the settings ask for the profile's code when it has one,
+  /// so nothing gets changed by mistake.
+  Future<void> _openSettingsWithPin(BuildContext host) async {
+    final userId = GetIt.instance<SessionRepository>().activeUserId ?? '';
+    final pin = PinCodeUtil(GetIt.instance<PreferenceStore>(), userId);
+    if (pin.isPinEnabled) {
+      final ok = await PinEntryDialog.show(
+        host,
+        mode: PinEntryMode.verify,
+        onVerify: pin.verifyPin,
+        onFailedAttempt: pin.registerFailedAttempt,
+        lockoutRemaining: () => pin.lockoutRemaining,
+      );
+      if (!ok || !host.mounted) return;
+    }
+    SettingsPanel.open(host, const SettingsSidePanel());
   }
 
   Widget _buildStart() {

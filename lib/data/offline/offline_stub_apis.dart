@@ -15,6 +15,7 @@ class OfflineDisplayPreferencesApi implements DisplayPreferencesApi {
   Future<DisplayPreferences> getDisplayPreferences(
     String id, {
     String? client,
+    String? userId,
   }) async {
     return DisplayPreferences(id: id);
   }
@@ -24,6 +25,7 @@ class OfflineDisplayPreferencesApi implements DisplayPreferencesApi {
     String id,
     DisplayPreferences prefs, {
     String? client,
+    String? userId,
   }) async {
     // Silently dropped while offline. Server prefs win on reconnect.
   }

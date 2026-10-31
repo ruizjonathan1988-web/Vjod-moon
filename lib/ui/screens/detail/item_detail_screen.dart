@@ -7,6 +7,7 @@ import '../../widgets/floating_notification.dart';
 import '../../../data/services/vjod/provider_catalog_access.dart';
 import '../../../data/services/vjod/iptv_progress.dart';
 import '../../../data/services/vjod/web_iptv.dart';
+import '../../../data/services/vjod/simple_mode.dart';
 import '../../../data/services/vjod/xtream_catalog.dart';
 import '../../../data/services/vjod/ma_tv.dart' show MaTvDevice;
 import '../vjod/provider_player_screen.dart' show providerPlayerTitle;
@@ -51,6 +52,7 @@ import '../../navigation/app_router.dart';
 import '../../navigation/playback_launcher.dart';
 import 'detail_buttons.dart';
 import '../../../util/audio_languages.dart';
+import '../../../util/vjod_text.dart';
 import '../../../data/models/upcoming_episode_info.dart';
 import '../../../preference/detail_metadata_layout.dart';
 import '../../../preference/detail_section_layout.dart';
@@ -7648,7 +7650,20 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
         return null;
       }
 
-      primaryAction = requestSlot(false) ?? requestSlot(true) ?? cancelSlot();
+      // Simple mode says « Demandé » once asked for: a press does nothing, so
+      // the request can't be cancelled by mistake (its cancel stays behind
+      // « + »).
+      Widget requestedSlot() => _DetailActionButton(
+        label: vjodText(context, fr: 'Demandé', en: 'Requested', ru: 'Запрошено', zh: '已申请'),
+        icon: Icons.check_rounded,
+        isPrimary: true,
+        onPressed: () {},
+        focusNode: _tvPlayFocusNode,
+        autofocus: autofocusPlay,
+      );
+      primaryAction = requestSlot(false) ??
+          requestSlot(true) ??
+          (vjodSimpleMode() ? requestedSlot() : cancelSlot());
       byButton.removeWhere(
         (button, _) =>
             !button.availableInSeerrOnly || button == DetailButton.seerrRequest,
@@ -7670,14 +7685,20 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
     // Trailer, Not for me, Request) and folds everything else behind More,
     // unless the viewer arranged or capped the row themselves.
     var vjodInline = 0;
+    // Simple mode: one main button (Regarder or Demander), the trailer and
+    // the list beside it, the rest behind « + ».
+    final simple = vjodSimpleMode();
     if (_DetailActionButtonState._vjodButtons &&
         !widget.nouveauStyle &&
-        prefs.get(detailButtonLayout.orderPreference).isEmpty &&
-        prefs.get(UserPreferences.detailButtonsMaxVisible) == 0) {
+        (simple ||
+            (prefs.get(detailButtonLayout.orderPreference).isEmpty &&
+                prefs.get(UserPreferences.detailButtonsMaxVisible) == 0))) {
       // A series page carries Resume, From the start and +, a film page
       // Play, Trailer, +, the thumb and Not for me. French and Russian
       // requests stay beside them, as in the mock-up.
-      final keep = item.type == 'Series' || item.type == 'Season'
+      final keep = simple
+          ? simpleModeFicheButtons
+          : item.type == 'Series' || item.type == 'Season'
           ? const [
               DetailButton.restart,
               DetailButton.trailer,
@@ -7701,7 +7722,7 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
       final front = vjodFrontRow<Widget>(
         primary: primaryAction,
         byButton: byButton,
-        providerExtras: providerExtras,
+        providerExtras: simple ? const [] : providerExtras,
         ordered: _orderedButtons(prefs),
         keep: keep,
       );

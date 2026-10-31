@@ -12,8 +12,9 @@ class EmbyDisplayPreferencesApi implements DisplayPreferencesApi {
   Future<DisplayPreferences> getDisplayPreferences(
     String id, {
     String? client,
+    String? userId,
   }) async {
-    final cacheKey = '$id:${client ?? 'emby'}';
+    final cacheKey = '$id:${client ?? 'emby'}:${userId ?? ''}';
     final entry = _cache[cacheKey];
     if (entry != null &&
         DateTime.now().difference(entry.cachedAt) < _cacheDuration) {
@@ -24,6 +25,7 @@ class EmbyDisplayPreferencesApi implements DisplayPreferencesApi {
       '/DisplayPreferences/$id',
       queryParameters: {
         'client': client ?? 'emby',
+        'userId': ?userId,
       },
     );
     final prefs =
@@ -37,15 +39,17 @@ class EmbyDisplayPreferencesApi implements DisplayPreferencesApi {
     String id,
     DisplayPreferences prefs, {
     String? client,
+    String? userId,
   }) async {
     await _dio.post(
       '/DisplayPreferences/$id',
       data: prefs.toJson(),
       queryParameters: {
         'client': client ?? 'emby',
+        'userId': ?userId,
       },
     );
-    final cacheKey = '$id:${client ?? 'emby'}';
+    final cacheKey = '$id:${client ?? 'emby'}:${userId ?? ''}';
     _cache[cacheKey] = _CacheEntry(prefs, DateTime.now());
   }
 
