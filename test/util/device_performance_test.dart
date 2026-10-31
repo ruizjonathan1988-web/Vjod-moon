@@ -176,4 +176,21 @@ void main() {
       expect(skiaCacheCapFor(1280 * 720), isNull);
     });
   });
+
+  group('VJOD : les vieilles Fire TV', () {
+    const gb = 1024 * 1024 * 1024;
+    test('une Fire TV à 1,5 Go passe en mode léger', () {
+      expect(deviceMemoryLooksLow({'totalMem': (1.45 * gb).round(), 'manufacturer': 'Amazon'}), isTrue);
+    });
+    test('une Fire TV récente à 2 Go reste normale', () {
+      expect(deviceMemoryLooksLow({'totalMem': 2 * gb, 'manufacturer': 'Amazon'}), isFalse);
+    });
+    test('un autre boîtier à 1,5 Go reste normal', () {
+      expect(deviceMemoryLooksLow({'totalMem': (1.45 * gb).round(), 'manufacturer': 'Xiaomi', 'sdk': 30}), isFalse);
+    });
+    test('Android 7 avec moins de 2 Go passe en mode léger', () {
+      expect(deviceMemoryLooksLow({'totalMem': (1.9 * gb).round(), 'sdk': 25}), isTrue);
+      expect(deviceMemoryLooksLow({'totalMem': (1.9 * gb).round(), 'sdk': 28}), isFalse);
+    });
+  });
 }
