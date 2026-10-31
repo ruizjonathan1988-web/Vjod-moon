@@ -108,6 +108,7 @@ import '../../widgets/skeleton/skeleton_shimmer.dart';
 import '../../../data/services/vjod/iptv_progress.dart';
 import '../../../util/startup_timeline.dart';
 import '../../../data/services/vjod/provider_catalog_access.dart' show currentProviderCatalog;
+import '../../widgets/vjod/vjod_whats_new.dart';
 
 Color get _homeBackground => AppColorScheme.background;
 
@@ -232,6 +233,10 @@ class _HomeShellState extends State<_HomeShell>
     }
     // Alertes de Ma TV (nuit ratée, compte qui expire…), pour l'administrateur.
     MaTvAlerts.start();
+    // Once after an update: what the new VJOD version brings.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(maybeShowVjodWhatsNew(context));
+    });
     WidgetsBinding.instance.addObserver(this);
     appRouter.routerDelegate.addListener(_onRouteChanged);
     _lastObservedPath = appRouter.routerDelegate.currentConfiguration.uri.path;
