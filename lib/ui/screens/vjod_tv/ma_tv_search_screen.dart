@@ -8,6 +8,11 @@ import 'package:flutter/material.dart';
 import '../../../data/services/vjod/channel_search.dart';
 import '../../../data/services/vjod/ma_tv.dart';
 import 'ma_tv_widgets.dart';
+import '../../../util/vjod_text.dart';
+
+String _tn(String fr, String en, String ru, String zh) =>
+    vjodTextNow(fr: fr, en: en, ru: ru, zh: zh);
+
 
 /// Returns the channels found and the one picked, or null when left.
 class MaTvSearchScreen extends StatefulWidget {
@@ -74,8 +79,8 @@ class _MaTvSearchScreenState extends State<MaTvSearchScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
-                'Chercher une chaîne',
+              Text(
+                _tn('Chercher une chaîne', 'Find a channel', 'Найти канал', '查找频道'),
                 style: TextStyle(color: MaTvColors.ink, fontSize: 26, fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 14),
@@ -86,7 +91,7 @@ class _MaTvSearchScreenState extends State<MaTvSearchScreen> {
                 cursorColor: MaTvColors.accent,
                 textInputAction: TextInputAction.search,
                 decoration: InputDecoration(
-                  hintText: 'Nom, numéro ou programme (ex. « TF1 », « 12 », « PSG »)',
+                  hintText: _tn('Nom, numéro ou programme (ex. « TF1 », « 12 », « PSG »)', 'Name, number or programme (e.g. “TF1”, “12”, “PSG”)', 'Название, номер или передача (напр. «TF1», «12»)', '名称、编号或节目（如 “TF1”、“12”）'),
                   hintStyle: const TextStyle(color: MaTvColors.mute, fontSize: 20),
                   prefixIcon: const Icon(Icons.search_rounded, color: MaTvColors.ink, size: 30),
                   filled: true,
@@ -111,14 +116,14 @@ class _MaTvSearchScreenState extends State<MaTvSearchScreen> {
                 child: _all == null
                     ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
                     : _failed
-                    ? const Center(
-                        child: Text('Ma TV ne répond pas, réessaie dans un instant.',
+                    ? Center(
+                        child: Text(_tn('Ma TV ne répond pas, réessaie dans un instant.', 'Ma TV isn’t responding, try again in a moment.', 'Ma TV не отвечает, попробуй чуть позже.', 'Ma TV 无响应，请稍后再试。'),
                             style: TextStyle(color: MaTvColors.mute, fontSize: 16)),
                       )
                     : found.isEmpty
                     ? Center(
                         child: Text(
-                          _query.trim().isEmpty ? 'Tape quelques lettres.' : 'Aucune chaîne trouvée.',
+                          _query.trim().isEmpty ? _tn('Tape quelques lettres.', 'Type a few letters.', 'Введи несколько букв.', '输入几个字。') : _tn('Aucune chaîne trouvée.', 'No channel found.', 'Канал не найден.', '未找到频道。'),
                           style: const TextStyle(color: MaTvColors.mute, fontSize: 16),
                         ),
                       )

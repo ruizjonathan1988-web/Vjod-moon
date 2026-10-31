@@ -5445,8 +5445,6 @@ class _ModernDetailContentState extends State<ModernDetailContent> {
     }
   }
 
-  @override
-
   // ---- VJOD: the mock-up's film and request pages ----
 
   final FocusNode _vjodBelowFirst = FocusNode(debugLabel: 'vjodBelowFirst');
@@ -6342,6 +6340,7 @@ class _ModernDetailContentState extends State<ModernDetailContent> {
     );
   }
 
+  @override
   Widget build(BuildContext context) {
     final item = _vm.item;
     if (item == null) return const SizedBox.shrink();

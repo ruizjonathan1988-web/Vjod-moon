@@ -20,13 +20,18 @@ import 'package:moonfin_native_video/moonfin_native_video.dart';
 import '../../../playback/media3_player_backend.dart';
 import '../../../preference/seerr_preferences.dart';
 import '../../../util/platform_detection.dart';
+import '../../../util/vjod_text.dart';
+
+String _tn(String fr, String en, String ru, String zh) =>
+    vjodTextNow(fr: fr, en: en, ru: ru, zh: zh);
+
 
 /// Which engine the viewer asked for: auto, exo or mpv.
 class TvEngineChoice {
-  static const options = [
-    ('auto', 'Auto (ExoPlayer, sinon mpv)'),
+  static List<(String, String)> get options => [
+    ('auto', _tn('Auto (ExoPlayer, sinon mpv)', 'Auto (ExoPlayer, else mpv)', 'Авто (ExoPlayer, иначе mpv)', '自动（ExoPlayer，否则 mpv）')),
     ('exo', 'ExoPlayer'),
-    ('mpv', 'mpv (ancien lecteur)'),
+    ('mpv', _tn('mpv (ancien lecteur)', 'mpv (old player)', 'mpv (старый плеер)', 'mpv（旧播放器）')),
   ];
 
   static SeerrPreferences? get _prefs {
@@ -189,7 +194,7 @@ class ExoTvEngine implements TvEngine {
       }
     }));
     _subs.add(_backend.errorStream.listen((e) {
-      final msg = (e['message'] ?? e['error'] ?? e['code'] ?? 'erreur ExoPlayer').toString();
+      final msg = (e['message'] ?? e['error'] ?? e['code'] ?? _tn('erreur ExoPlayer', 'ExoPlayer error', 'ошибка ExoPlayer', 'ExoPlayer 错误')).toString();
       _errors.add(msg);
     }));
   }

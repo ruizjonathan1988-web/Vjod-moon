@@ -13,6 +13,11 @@ import '../../../data/services/vjod/ma_tv_recordings.dart';
 import '../../../util/focus/dpad_keys.dart';
 import 'ma_tv_recordings_screen.dart';
 import 'ma_tv_widgets.dart';
+import '../../../util/vjod_text.dart';
+
+String _tn(String fr, String en, String ru, String zh) =>
+    vjodTextNow(fr: fr, en: en, ru: ru, zh: zh);
+
 
 const _rowHeight = 62.0;
 const _channelWidth = 230.0;
@@ -212,7 +217,7 @@ class _MaTvGuideScreenState extends State<MaTvGuideScreen> {
       if (ch.replayDays > 0) {
         Navigator.of(context).pop(MaTvGuidePick(_row, replay: p));
       } else {
-        _say('Pas de replay pour ${ch.name}');
+        _say('${_tn('Pas de replay pour', 'No replay for', 'Нет повтора для', '没有回放：')} ${ch.name}');
       }
       return;
     }
@@ -250,7 +255,7 @@ class _MaTvGuideScreenState extends State<MaTvGuideScreen> {
       unawaited(MaTvMemory.toggleFavorite(ch.id).then((on) {
         if (!mounted) return;
         setState(() => _favorites = MaTvMemory.favorites.toSet());
-        _say(on ? '${ch.name} ajoutée aux favoris' : '${ch.name} retirée des favoris');
+        _say(on ? '${ch.name} · ${_tn('ajoutée aux favoris', 'added to favourites', 'добавлен в избранное', '已加入收藏')}' : '${ch.name} · ${_tn('retirée des favoris', 'removed from favourites', 'убран из избранного', '已取消收藏')}');
       }));
     } else if (key == LogicalKeyboardKey.home) {
       setState(() {
@@ -412,7 +417,7 @@ class MaTvGuideView extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    const Text('Grille', style: TextStyle(color: MaTvColors.ink, fontSize: 24, fontWeight: FontWeight.w800)),
+                    Text(_tn('Grille', 'Guide', 'Сетка', '节目表'), style: const TextStyle(color: MaTvColors.ink, fontSize: 24, fontWeight: FontWeight.w800)),
                     const SizedBox(width: 12),
                     if (categoryLabel.isNotEmpty)
                       Text(categoryLabel, style: const TextStyle(color: MaTvColors.mute, fontSize: 15)),
@@ -423,7 +428,7 @@ class MaTvGuideView extends StatelessWidget {
                 const SizedBox(height: 10),
                 if (ch != null)
                   Text(
-                    p?.title ?? '${ch.name} · pas de programme annoncé',
+                    p?.title ?? '${ch.name} · ${_tn('pas de programme annoncé', 'no programme listed', 'программа не указана', '暂无节目信息')}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(color: MaTvColors.ink, fontSize: 20, fontWeight: FontWeight.w700),
@@ -441,7 +446,7 @@ class MaTvGuideView extends StatelessWidget {
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
-                            live ? 'EN DIRECT' : 'REPLAY',
+                            live ? _tn('EN DIRECT', 'LIVE', 'В ЭФИРЕ', '直播中') : _tn('REPLAY', 'REPLAY', 'ПОВТОР', '回放'),
                             style: TextStyle(
                               color: live ? Colors.white : MaTvColors.accent,
                               fontSize: 10.5,
@@ -480,7 +485,7 @@ class MaTvGuideView extends StatelessWidget {
               Text(maTvTime(now), style: const TextStyle(color: MaTvColors.ink, fontSize: 22, fontWeight: FontWeight.w700)),
               const SizedBox(height: 6),
               Text(
-                  p != null && p.start.isAfter(now) ? 'OK enregistrer · MENU favori' : 'OK regarder · MENU favori',
+                  p != null && p.start.isAfter(now) ? _tn('OK enregistrer · MENU favori', 'OK record · MENU favourite', 'OK запись · МЕНЮ избранное', '确定 录制 · 菜单 收藏') : _tn('OK regarder · MENU favori', 'OK watch · MENU favourite', 'OK смотреть · МЕНЮ избранное', '确定 观看 · 菜单 收藏'),
                   style: const TextStyle(color: MaTvColors.faint, fontSize: 12)),
             ],
           ),
@@ -565,7 +570,7 @@ class MaTvGuideView extends StatelessWidget {
                       ),
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       alignment: Alignment.centerLeft,
-                      child: const Text('Pas de programme annoncé', style: TextStyle(color: MaTvColors.faint, fontSize: 13)),
+                      child: Text(_tn('Pas de programme annoncé', 'No programme listed', 'Программа не указана', '暂无节目信息'), style: const TextStyle(color: MaTvColors.faint, fontSize: 13)),
                     ),
                   ),
                 for (final p in list) _cell(i, ch, p, width, ppm, on && sel != null && p.start == sel.start),

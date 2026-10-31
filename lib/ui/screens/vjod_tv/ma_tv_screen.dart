@@ -19,6 +19,11 @@ import 'ma_tv_player_screen.dart';
 import 'ma_tv_recordings_screen.dart';
 import 'ma_tv_search_screen.dart';
 import 'ma_tv_widgets.dart';
+import '../../../util/vjod_text.dart';
+
+String _tn(String fr, String en, String ru, String zh) =>
+    vjodTextNow(fr: fr, en: en, ru: ru, zh: zh);
+
 
 /// Where the TV entries of the app land: Ma TV when the seedbox hands it out,
 /// the Jellyfin guide ([fallback]) otherwise.
@@ -71,11 +76,11 @@ class _MaTvEntryScreenState extends State<MaTvEntryScreen> {
           backgroundColor: Colors.black,
           body: NavigationLayout(
             activeRoute: Destinations.liveTvGuide,
-            child: const Center(
+            child: Center(
               child: Text(
-                "La TV en direct n'est pas ouverte pour ce profil.\nDemande à l'administrateur de Jellyfin de l'autoriser.",
+                _tn('La TV en direct n\'est pas ouverte pour ce profil.\nDemande à l\'administrateur de Jellyfin de l\'autoriser.', 'Live TV isn\'t open for this profile.\nAsk the Jellyfin administrator to allow it.', 'Прямой эфир закрыт для этого профиля.\nПопроси администратора Jellyfin открыть его.', '此账户未开放直播电视。\n请让 Jellyfin 管理员开启。'),
                 textAlign: TextAlign.center,
-                style: TextStyle(color: MaTvColors.mute, fontSize: 17),
+                style: const TextStyle(color: MaTvColors.mute, fontSize: 17),
               ),
             ),
           ),
@@ -157,7 +162,7 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
       return [
         MaTvCategory(
           id: MaTvBrowserScreen.kidsCategory.id,
-          label: MaTvBrowserScreen.kidsCategory.label,
+          label: _tn('Dessins animés et jeunesse', 'Cartoons and kids', 'Мультфильмы и детское', '动画和少儿'),
           kind: 'theme',
           count: n,
         ),
@@ -167,11 +172,11 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
     final recent = MaTvMemory.recent;
     return [
       // First of the list: OK on it opens the search.
-      const MaTvCategory(id: 'search', label: 'Rechercher', kind: 'search', count: 0),
+      MaTvCategory(id: 'search', label: _tn('Rechercher', 'Search', 'Поиск', '搜索'), kind: 'search', count: 0),
       // Opens the recordings Ma TV made on the seedbox, and those to come.
-      const MaTvCategory(id: 'rec', label: 'Enregistrements', kind: 'rec', count: 0),
-      if (fav.isNotEmpty) MaTvCategory(id: 'fav', label: 'Favoris', kind: 'fav', count: fav.length),
-      if (recent.isNotEmpty) MaTvCategory(id: 'recent', label: 'Récentes', kind: 'recent', count: recent.length),
+      MaTvCategory(id: 'rec', label: _tn('Enregistrements', 'Recordings', 'Записи', '录像'), kind: 'rec', count: 0),
+      if (fav.isNotEmpty) MaTvCategory(id: 'fav', label: _tn('Favoris', 'Favourites', 'Избранное', '收藏'), kind: 'fav', count: fav.length),
+      if (recent.isNotEmpty) MaTvCategory(id: 'recent', label: _tn('Récentes', 'Recent', 'Недавние', '最近'), kind: 'recent', count: recent.length),
       ...server,
     ];
   }
@@ -300,7 +305,7 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
       _cats = _localCats(server);
       _cat = _idx(_cats.indexWhere((c) => c.id == current), _cats.length);
     });
-    _say(on ? '${ch.name} ajoutée aux favoris' : '${ch.name} retirée des favoris');
+    _say(on ? '${ch.name} · ${_tn('ajoutée aux favoris', 'added to favourites', 'добавлен в избранное', '已加入收藏')}' : '${ch.name} · ${_tn('retirée des favoris', 'removed from favourites', 'убран из избранного', '已取消收藏')}');
   }
 
   /// Entries of the list that open a page rather than list channels.
@@ -516,7 +521,7 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
       onChannelLongPress: (i) => unawaited(_toggleFavorite(i)),
       onJellyfinGuide: widget.kids ? null : () => context.push('${Destinations.liveTvGuide}?jellyfin=1'),
       onGrid: () => unawaited(_openGrid()),
-      title: widget.kids ? 'TV des enfants' : 'Ma TV',
+      title: widget.kids ? _tn('TV des enfants', 'Kids TV', 'Детское ТВ', '少儿电视') : 'Ma TV',
     );
   }
 
@@ -527,24 +532,24 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              'Ma TV ne répond pas',
-              style: TextStyle(color: MaTvColors.ink, fontSize: 22, fontWeight: FontWeight.w700),
+            Text(
+              _tn('Ma TV ne répond pas', 'Ma TV isn’t responding', 'Ma TV не отвечает', 'Ma TV 无响应'),
+              style: const TextStyle(color: MaTvColors.ink, fontSize: 22, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 8),
-            const Text(
-              "IPTV Checker, sur la seedbox, n'a pas répondu. Il redémarre peut-être, réessaie dans un instant.",
+            Text(
+              _tn('IPTV Checker, sur la seedbox, n\'a pas répondu. Il redémarre peut-être, réessaie dans un instant.', 'IPTV Checker, on the seedbox, didn\'t answer. It may be restarting, try again in a moment.', 'IPTV Checker на сидбоксе не ответил. Возможно, перезапускается — попробуй чуть позже.', '种子盒上的 IPTV Checker 没有响应，可能正在重启，请稍后再试。'),
               textAlign: TextAlign.center,
-              style: TextStyle(color: MaTvColors.mute, fontSize: 15),
+              style: const TextStyle(color: MaTvColors.mute, fontSize: 15),
             ),
             const SizedBox(height: 18),
             Wrap(
               spacing: 12,
               children: [
-                FilledButton(autofocus: true, onPressed: () => _load(fresh: true), child: const Text('Réessayer')),
+                FilledButton(autofocus: true, onPressed: () => _load(fresh: true), child: Text(_tn('Réessayer', 'Try again', 'Повторить', '重试'))),
                 OutlinedButton(
                   onPressed: () => context.push('${Destinations.liveTvGuide}?jellyfin=1'),
-                  child: const Text('Guide Jellyfin'),
+                  child: Text(_tn('Guide Jellyfin', 'Jellyfin guide', 'Гид Jellyfin', 'Jellyfin 指南')),
                 ),
               ],
             ),
@@ -619,7 +624,7 @@ class MaTvBrowserView extends StatelessWidget {
           if (cat != null)
             Flexible(
               child: Text(
-                '${cat.label} · ${channels.length} chaînes',
+                '${cat.label} · ${channels.length} ${_tn('chaînes', 'channels', 'каналов', '个频道')}',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(color: MaTvColors.mute, fontSize: 15),
@@ -627,18 +632,18 @@ class MaTvBrowserView extends StatelessWidget {
             ),
           const Spacer(),
           if (!narrow && !PlatformDetection.isWeb)
-            const Text('OK regarder · DROITE grille · MENU favori', style: TextStyle(color: MaTvColors.faint, fontSize: 12.5)),
+            Text(_tn('OK regarder · DROITE grille · MENU favori', 'OK watch · RIGHT guide · MENU favourite', 'OK смотреть · ВПРАВО сетка · МЕНЮ избранное', '确定 观看 · 右 节目表 · 菜单 收藏'), style: const TextStyle(color: MaTvColors.faint, fontSize: 12.5)),
           const SizedBox(width: 14),
           if (onGrid != null)
             TextButton.icon(
               onPressed: onGrid,
               icon: const Icon(Icons.grid_view_rounded, size: 18, color: MaTvColors.mute),
-              label: const Text('Grille', style: TextStyle(color: MaTvColors.mute)),
+              label: Text(_tn('Grille', 'Guide', 'Сетка', '节目表'), style: const TextStyle(color: MaTvColors.mute)),
             ),
           if (onJellyfinGuide != null)
             TextButton(
               onPressed: onJellyfinGuide,
-              child: const Text('Guide Jellyfin', style: TextStyle(color: MaTvColors.mute)),
+              child: Text(_tn('Guide Jellyfin', 'Jellyfin guide', 'Гид Jellyfin', 'Jellyfin 指南'), style: const TextStyle(color: MaTvColors.mute)),
             ),
           const SizedBox(width: 8),
           Text(maTvTime(now), style: const TextStyle(color: MaTvColors.ink, fontSize: 20, fontWeight: FontWeight.w700)),
@@ -657,14 +662,14 @@ class MaTvBrowserView extends StatelessWidget {
             onTap: onChannel,
             onLongPress: onChannelLongPress,
             emptyText: channelsFailed
-                ? 'Ma TV ne répond pas pour le moment. Reviens sur la catégorie pour réessayer.'
+                ? _tn('Ma TV ne répond pas pour le moment. Reviens sur la catégorie pour réessayer.', 'Ma TV isn’t responding right now. Come back to the category to try again.', 'Ma TV пока не отвечает. Вернись в категорию, чтобы повторить.', 'Ma TV 暂无响应，返回该分类重试。')
                 : cat?.kind == 'search'
-                ? 'OK pour chercher une chaîne par son nom, son numéro ou un programme.'
+                ? _tn('OK pour chercher une chaîne par son nom, son numéro ou un programme.', 'OK to find a channel by name, number or programme.', 'OK — найти канал по названию, номеру или передаче.', '按确定按名称、编号或节目查找频道。')
                 : cat?.kind == 'rec'
-                ? 'OK pour voir les enregistrements et en programmer (la télé peut rester éteinte).'
+                ? _tn('OK pour voir les enregistrements et en programmer (la télé peut rester éteinte).', 'OK to see recordings and plan some (the TV can stay off).', 'OK — записи и планирование (телевизор можно выключить).', '按确定查看和安排录制（电视可以关着）。')
                 : cat?.kind == 'fav'
-                ? 'Pas encore de favori : MENU (ou appui long) sur une chaîne pour l’ajouter.'
-                : 'Aucune chaîne ici.',
+                ? _tn('Pas encore de favori : MENU (ou appui long) sur une chaîne pour l’ajouter.', 'No favourites yet: MENU (or long press) on a channel to add it.', 'Избранного пока нет: МЕНЮ (или долгое нажатие) на канале.', '还没有收藏：在频道上按菜单（或长按）添加。')
+                : null,
           );
     Widget body;
     if (narrow) {
