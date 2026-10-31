@@ -15,6 +15,9 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.9', [
+    'Correctif TV : l\u2019écran des chaînes ne reste plus bloqué sur « Rechercher » à la télécommande ; il s\u2019ouvre sur tes chaînes.',
+  ]),
   VjodRelease('4.8', [
     'Sports : tous les sports proposés, sports de combat compris (boxe, MMA/UFC, judo…).',
     'Sur chaque match, un vrai bouton : « Regarder » sur la chaîne, « Me prévenir » avant le match, ou « Chercher la chaîne ».',
