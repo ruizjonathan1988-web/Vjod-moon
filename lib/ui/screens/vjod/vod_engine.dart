@@ -21,6 +21,7 @@ import '../../../playback/html_video_backend.dart';
 import '../../../playback/media3_player_backend.dart';
 import '../../../playback/subtitle_style.dart';
 import '../../../preference/user_preferences.dart';
+import '../../../util/vjod_log.dart';
 
 /// One audio or subtitle track of the file.
 class VodTrack {
@@ -138,7 +139,9 @@ class MpvVodEngine implements VodEngine {
           await Future<void>.value(native.setProperty(kv.$1, kv.$2));
         } catch (_) {}
       }
-    } catch (_) {}
+    } catch (e) {
+      vjodLogError('Lecteur IPTV : réglages mpv', e);
+    }
     _seen = false;
     await _player.open(Media(url, httpHeaders: headers));
     if (start > Duration.zero) await _player.seek(start);

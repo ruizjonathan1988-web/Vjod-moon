@@ -795,7 +795,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
         }
       default:
         await _toggleFavorite();
-        setState(() {});
+        if (mounted) setState(() {});
     }
   }
 

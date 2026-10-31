@@ -1099,7 +1099,7 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
         // Explorer: every collection, what the server holds and what can be
         // asked for. On a phone Bientôt lives inside it, to keep five tabs.
         VjodNavItem(
-          label: 'Explorer',
+          label: vjodText(context, fr: 'Explorer', en: 'Explore', ru: 'Обзор', zh: '探索'),
           icon: Icons.explore_outlined,
           selected: _isActive(Destinations.explorer),
           onTap: () {
@@ -1203,7 +1203,6 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
     final kids = _kidsMode;
     final simple = _simple;
     final seerr = !kids && GetIt.instance<PluginSyncService>().seerrAvailable;
-    final french = l10n.localeName.startsWith('fr');
     final host = context;
 
     void go(String route) {
@@ -1260,19 +1259,18 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
                   () => go(Destinations.allGenres)),
             entry(Icons.favorite_border_rounded, l10n.favorites,
                 () => go(Destinations.allFavorites)),
-            if (seerr)
-              entry(
-                Icons.explore_outlined,
-                l10n.vjodMenuDiscover,
-                () => go(Destinations.seerrDiscover),
-                subtitle: l10n.vjodMenuDiscoverHint,
-              ),
+            // « Découvrir » is gone: Films, Séries and Explorer show the
+            // whole catalogue now.
             // With live TV on the server, the TV tab opens it; the viewer's
             // own lists for an external player stay one tap away here.
             if (_jellyfinLiveTv)
               entry(
                 Icons.playlist_play_rounded,
-                french ? 'Listes IPTV (TiviMate…)' : 'IPTV lists (TiviMate…)',
+                vjodText(context,
+                    fr: 'Listes IPTV (TiviMate…)',
+                    en: 'IPTV lists (TiviMate…)',
+                    ru: 'Списки IPTV (TiviMate…)',
+                    zh: 'IPTV 列表（TiviMate…）'),
                 () => go(Destinations.tv),
               ),
             if (seerr)

@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 
 import 'ma_tv.dart';
 import 'xtream_catalog.dart';
+import '../../../util/vjod_log.dart';
 
 /// What is playing: enough to save its place and to learn from it.
 class IptvWatch {
@@ -258,6 +259,8 @@ class IptvProgressStore {
           )
           .timeout(_timeout);
       if (r.statusCode == 200) revision.add(null);
-    } catch (_) {}
+    } catch (e) {
+      vjodLogError('IPTV : envoi de la progression', e);
+    }
   }
 }
