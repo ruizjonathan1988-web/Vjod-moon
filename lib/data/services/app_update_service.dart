@@ -9,6 +9,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../preference/user_preferences.dart';
 import '../../util/app_distribution.dart';
+import '../../util/vjod_build.dart';
 import '../../util/vjod_changes.dart';
 
 enum DesktopUpdateCheckStatus {
@@ -71,9 +72,19 @@ class AppUpdateService {
       '/repos/ruizjonathan1988-web/Vjod-moon/releases/tags/perso-latest';
   static const _persoChannel = MethodChannel('org.moonfin.androidtv/perso_update');
 
+  /// VJOD on the Mac looks on its own release (mac-latest), whose notes
+  /// name the commit it was built from.
+  static const _persoMacReleasePath =
+      '/repos/ruizjonathan1988-web/Vjod-moon/releases/tags/mac-latest';
+
+  static bool get _isPersoMac =>
+      AppDistribution.channel == DistributionChannel.macosDmg &&
+      VjodBuild.commit.isNotEmpty;
+
   static bool get isPersoBuild =>
       AppDistribution.channel == DistributionChannel.apk ||
-      AppDistribution.channel == DistributionChannel.androidTvApk;
+      AppDistribution.channel == DistributionChannel.androidTvApk ||
+      _isPersoMac;
   static const _checkCooldown = Duration(hours: 24);
 
   static const _lastCheckMsKey = 'app_update_last_check_ms';
@@ -167,7 +178,11 @@ class AppUpdateService {
     await _store.setInt(_lastCheckMsKey, now.millisecondsSinceEpoch);
 
     final release = await _fetchLatestRelease(
-      isPersoBuild ? _persoReleasePath : _latestReleasePath,
+      _isPersoMac
+          ? _persoMacReleasePath
+          : isPersoBuild
+          ? _persoReleasePath
+          : _latestReleasePath,
     );
     if (release == null) {
       return const DesktopUpdateCheckResult(
@@ -175,6 +190,7 @@ class AppUpdateService {
       );
     }
 
+    if (_isPersoMac) return _persoMacResult(release, suppressIfAlreadyNotified);
     if (isPersoBuild) {
       return _persoResult(release, suppressIfAlreadyNotified);
     }
@@ -205,6 +221,37 @@ class AppUpdateService {
             ? Uri.parse(asset.downloadUrl)
             : Uri.parse(release.releaseNotesUrl),
         releaseNotesUrl: release.releaseNotesUrl,
+      ),
+    );
+  }
+
+  /// VJOD on the Mac is out of date when the release was built from another
+  /// commit than this copy (the DMG has to be opened and the app dragged in,
+  /// so the update is offered, never installed on its own).
+  Future<DesktopUpdateCheckResult> _persoMacResult(
+    _LatestRelease release,
+    bool suppressIfAlreadyNotified,
+  ) async {
+    final asset = _selectAsset(release.assets);
+    final commit = vjodCommitFromNotes(release.notes);
+    if (asset == null || commit == null || commit == VjodBuild.commit) {
+      return const DesktopUpdateCheckResult(status: DesktopUpdateCheckStatus.upToDate);
+    }
+    // Offered once per new build, not at every opening.
+    if (suppressIfAlreadyNotified && _store.getString(_lastNotifiedVersionKey) == commit) {
+      return const DesktopUpdateCheckResult(status: DesktopUpdateCheckStatus.alreadyNotified);
+    }
+    await _store.setString(_lastNotifiedVersionKey, commit);
+    final published = DateTime.tryParse(asset.updatedAt ?? '')?.toLocal();
+    return DesktopUpdateCheckResult(
+      status: DesktopUpdateCheckStatus.updateAvailable,
+      update: DesktopUpdateInfo(
+        version: commit,
+        downloadUri: Uri.parse(asset.downloadUrl),
+        releaseNotesUrl: release.releaseNotesUrl,
+        builtAt: published,
+        vjodVersion: vjodVersionFromTitle(release.title),
+        vjodChanges: vjodChangesFromNotes(release.notes),
       ),
     );
   }

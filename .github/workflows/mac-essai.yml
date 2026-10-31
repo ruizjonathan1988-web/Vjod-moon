@@ -32,8 +32,8 @@ jobs:
           BUILD_DMG_GITHUB: '1'
           FETCH_CORES: '0'
           APP_NAME: VJOD
-          # No in-app updates yet: the Moonfin channel would offer Moonfin's.
-          DMG_CHANNEL: macos_pkg
+          # VJOD's own updates (mac-latest), never Moonfin's.
+          DMG_CHANNEL: macos_dmg
         run: |
           set +e
           export VJOD_DART_DEFINES="--dart-define=VJOD_BUILD=$(TZ=Europe/Paris date +%Y-%m-%dT%H:%M) --dart-define=VJOD_COMMIT=${GITHUB_SHA::7}"

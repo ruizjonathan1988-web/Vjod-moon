@@ -168,3 +168,50 @@ jobs:
           # VJOD's number and what it brings, for the update window (vjod_changes.dart).
           python3 tool/vjod_release_notes.py > notes.txt
           gh release edit perso-latest --repo "$GITHUB_REPOSITORY" --title "VJOD $(head -1 notes.txt)" --notes "$(tail -n +2 notes.txt)" || true
+
+  # VJOD for the Mac: a DMG signed ad hoc (no paid Apple account), on its own
+  # release (mac-latest), whose notes name the commit: the Mac app offers the
+  # update when it was built from another one. A failure here never touches
+  # the APKs.
+  mac:
+    runs-on: macos-26
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.2'
+
+      - name: Xcode 26.3
+        run: sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer
+
+      - name: DMG Mac
+        env:
+          BUILD_APPSTORE_PKG: '0'
+          BUILD_DMG_GITHUB: '1'
+          FETCH_CORES: '0'
+          APP_NAME: VJOD
+          DMG_CHANNEL: macos_dmg
+        run: |
+          set +e
+          export VJOD_DART_DEFINES="--dart-define=VJOD_BUILD=$(TZ=Europe/Paris date +%Y-%m-%dT%H:%M) --dart-define=VJOD_COMMIT=${GITHUB_SHA::7}"
+          chmod +x build-macos.sh
+          ./build-macos.sh > build-mac.txt 2>&1
+          status=$?
+          tail -40 build-mac.txt
+          if [ $status -ne 0 ]; then
+            grep -E "error:|Error|\.dart:[0-9]+|FAILED" build-mac.txt | head -30 | while IFS= read -r line; do echo "::error::$line"; done
+          fi
+          exit $status
+
+      - name: Publier la release Mac
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp "$(ls VJOD_macOS_v*.dmg | head -1)" vjod-mac.dmg
+          python3 tool/vjod_release_notes.py > notes.txt
+          gh release create mac-latest --repo "$GITHUB_REPOSITORY" --title "VJOD Mac" --notes "Dernière version de VJOD pour Mac." --prerelease || true
+          gh release upload mac-latest vjod-mac.dmg --repo "$GITHUB_REPOSITORY" --clobber
+          gh release edit mac-latest --repo "$GITHUB_REPOSITORY" --title "VJOD $(head -1 notes.txt) (Mac)" --notes "commit ${GITHUB_SHA::7}
+          $(tail -n +2 notes.txt)" || true
