@@ -15,6 +15,7 @@ import 'package:moonfin_design/moonfin_design.dart';
 import '../../../data/repositories/seerr_repository.dart';
 import '../../../data/services/seerr/seerr_api_models.dart';
 import '../../../data/services/vjod/catalogue_availability.dart';
+import '../../../data/services/vjod/simple_mode.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../preference/preference_constants.dart';
 import '../../../preference/user_preferences.dart';
@@ -324,6 +325,17 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
     hasIptv: providerCopyNow(series: widget.isTv, tmdbId: '${item.id}') != null,
   );
 
+  /// Simple mode: « Regarder » on an IPTV film plays it at once; anything
+  /// else opens the title's page, where the one big button waits.
+  void _tap(SeerrDiscoverItem item, CatalogueAvailability a) {
+    if (vjodSimpleMode() &&
+        a == CatalogueAvailability.iptv &&
+        playProviderCopy(context, series: widget.isTv, tmdbId: '${item.id}')) {
+      return;
+    }
+    _open(item);
+  }
+
   void _open(SeerrDiscoverItem item) {
     context.push(
       Destinations.seerrMedia(
@@ -380,7 +392,7 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
               width: 165 * s,
               scale: s,
               autofocus: false,
-              onTap: () => _open(item),
+              onTap: () => _tap(item, a),
             ),
         ],
       );
@@ -437,6 +449,8 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
     final onServer = vjodText(context, fr: 'Sur le serveur', en: 'On the server', ru: 'На сервере', zh: '服务器上');
     final iptv = vjodText(context, fr: 'À regarder (IPTV)', en: 'Watch now (IPTV)', ru: 'Смотреть (IPTV)', zh: '立即观看（IPTV）');
     final library = widget.libraryRoute;
+    // Simple mode: no filter, posters say Regarder or Demander.
+    final simple = vjodSimpleMode();
 
     final header = Padding(
       padding: EdgeInsets.fromLTRB(left, top, left, 16 * s),
@@ -464,7 +478,7 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
             ),
           ),
           if (_searching) _searchField(s),
-          VjodSegmented(
+          if (!simple) VjodSegmented(
             scale: s,
             options: [l10n.all, onServer, iptv, l10n.vjodToRequest],
             selected: _filter,
@@ -488,7 +502,7 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
                 onTap: () => context.push(library),
               ),
             ),
-          if (!_searching) Text(
+          if (!_searching && !simple) Text(
             vjodText(
               context,
               fr: 'Tout le catalogue : ce qu\'on a, ce qu\'on regarde tout de suite, ce qu\'on peut demander.',
@@ -525,7 +539,7 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
               width: cardW,
               scale: s,
               autofocus: first && i == 0 && PlatformDetection.isTV,
-              onTap: () => _open(item),
+              onTap: () => _tap(item, a),
             ),
         ],
       );
@@ -535,7 +549,20 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
       );
       // « Tout »: what the server has first, then the rest.
       final children = <Widget>[];
-      if (_filter == 0) {
+      if (simple) {
+        final now = [for (final t in shown) if (simpleActionFor(t.$2) == SimpleAction.watch) t];
+        final later = [for (final t in shown) if (simpleActionFor(t.$2) != SimpleAction.watch) t];
+        if (now.isNotEmpty) {
+          children
+            ..add(section(vjodText(context, fr: 'À regarder tout de suite', en: 'Watch right now', ru: 'Смотреть сейчас', zh: '立即观看')))
+            ..add(grid(now, first: true));
+        }
+        if (later.isNotEmpty) {
+          children
+            ..add(section(l10n.vjodToRequest))
+            ..add(grid(later, first: now.isEmpty));
+        }
+      } else if (_filter == 0) {
         final server = [for (final t in shown) if (t.$2 == CatalogueAvailability.server) t];
         final rest = [for (final t in shown) if (t.$2 != CatalogueAvailability.server) t];
         if (server.isNotEmpty) children..add(section(onServer))..add(grid(server, first: true));
@@ -649,6 +676,9 @@ class _CatalogueCard extends StatelessWidget {
                   : OfflineAwareImage(imageUrl: '$_tmdbPoster$poster', fit: BoxFit.cover),
             ),
             SizedBox(height: 6 * s),
+            if (vjodSimpleMode())
+              _SimpleActionLabel(action: simpleActionFor(availability), scale: s)
+            else
             Row(
               children: [
                 Container(
@@ -679,6 +709,65 @@ class _CatalogueCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Simple mode, under each poster: what pressing it does, and nothing else.
+class _SimpleActionLabel extends StatelessWidget {
+  final SimpleAction action;
+  final double scale;
+
+  const _SimpleActionLabel({required this.action, required this.scale});
+
+  @override
+  Widget build(BuildContext context) {
+    final s = scale;
+    final (label, icon, filled) = switch (action) {
+      SimpleAction.watch => (
+        vjodText(context, fr: 'Regarder', en: 'Watch', ru: 'Смотреть', zh: '观看'),
+        Icons.play_arrow_rounded,
+        true,
+      ),
+      SimpleAction.request => (
+        vjodText(context, fr: 'Demander', en: 'Request', ru: 'Запросить', zh: '申请'),
+        Icons.add_rounded,
+        false,
+      ),
+      SimpleAction.requested => (
+        vjodText(context, fr: 'Demandé', en: 'Requested', ru: 'Запрошено', zh: '已申请'),
+        Icons.check_rounded,
+        false,
+      ),
+    };
+    final ink = filled ? const Color(0xFF141414) : vjodInk;
+    return Container(
+      padding: EdgeInsets.symmetric(vertical: 6 * s),
+      decoration: BoxDecoration(
+        color: filled
+            ? Colors.white
+            : vjodInk.withValues(alpha: action == SimpleAction.requested ? 0.08 : 0.16),
+        borderRadius: BorderRadius.circular(5 * s),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 18 * s, color: ink.withValues(alpha: action == SimpleAction.requested ? 0.6 : 1)),
+          SizedBox(width: 4 * s),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: ink.withValues(alpha: action == SimpleAction.requested ? 0.6 : 1),
+                fontSize: 15 * s,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

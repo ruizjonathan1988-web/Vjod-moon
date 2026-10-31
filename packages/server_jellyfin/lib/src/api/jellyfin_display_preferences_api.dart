@@ -10,10 +10,12 @@ class JellyfinDisplayPreferencesApi implements DisplayPreferencesApi {
   Future<DisplayPreferences> getDisplayPreferences(
     String id, {
     String? client,
+    String? userId,
   }) async {
     final response =
         await _dio.get('/DisplayPreferences/$id', queryParameters: {
       'client': client ?? 'moonfin',
+      'userId': ?userId,
     });
     return DisplayPreferences.fromJson(response.data as Map<String, dynamic>);
   }
@@ -23,12 +25,14 @@ class JellyfinDisplayPreferencesApi implements DisplayPreferencesApi {
     String id,
     DisplayPreferences prefs, {
     String? client,
+    String? userId,
   }) async {
     await _dio.post(
       '/DisplayPreferences/$id',
       data: prefs.toJson(),
       queryParameters: {
         'client': client ?? 'moonfin',
+        'userId': ?userId,
       },
     );
   }
