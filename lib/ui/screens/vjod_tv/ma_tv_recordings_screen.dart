@@ -12,6 +12,11 @@ import '../../../data/services/vjod/ma_tv_recordings.dart';
 import '../../navigation/destinations.dart';
 import 'ma_tv_search_screen.dart';
 import 'ma_tv_widgets.dart';
+import '../../../util/vjod_text.dart';
+
+String _tn(String fr, String en, String ru, String zh) =>
+    vjodTextNow(fr: fr, en: en, ru: ru, zh: zh);
+
 
 String _size(int bytes) {
   if (bytes >= 1 << 30) return '${(bytes / (1 << 30)).toStringAsFixed(1).replaceAll('.', ',')} Go';
@@ -33,12 +38,12 @@ Future<String?> maTvRecordProgram(BuildContext context, MaTvChannel channel, MaT
       title: program.title,
       subtitle: '${channel.name} · ${_when(program.start, program.end, DateTime.now())}',
       choices: [
-        if (known != null) ('cancel', Icons.stop_circle_outlined, "Annuler l'enregistrement")
+        if (known != null) ('cancel', Icons.stop_circle_outlined, _tn('Annuler l\'enregistrement', 'Cancel the recording', 'Отменить запись', '取消录制'))
         else ...[
-          ('one', Icons.fiber_manual_record_rounded, 'Enregistrer cette émission'),
-          ('series', Icons.repeat_rounded, 'Toutes les diffusions sur ${channel.name}'),
+          ('one', Icons.fiber_manual_record_rounded, _tn('Enregistrer cette émission', 'Record this programme', 'Записать эту передачу', '录制此节目')),
+          ('series', Icons.repeat_rounded, '${_tn('Toutes les diffusions sur', 'Every airing on', 'Все показы на', '所有播出：')} ${channel.name}'),
         ],
-        ('none', Icons.close_rounded, 'Retour'),
+        ('none', Icons.close_rounded, _tn('Retour', 'Back', 'Назад', '返回')),
       ],
     ),
   );
@@ -46,7 +51,7 @@ Future<String?> maTvRecordProgram(BuildContext context, MaTvChannel channel, MaT
   if (choice == 'cancel') {
     final ok = await recorder.remove(known!.id);
     unawaited(recorder.list());
-    return ok ? 'Enregistrement annulé' : 'Ma TV ne répond pas';
+    return ok ? _tn('Enregistrement annulé', 'Recording cancelled', 'Запись отменена', '录制已取消') : _tn('Ma TV ne répond pas', 'Ma TV isn’t responding', 'Ma TV не отвечает', 'Ma TV 无响应');
   }
   final err = await recorder.add(
     channelId: channel.id,
@@ -59,8 +64,8 @@ Future<String?> maTvRecordProgram(BuildContext context, MaTvChannel channel, MaT
   unawaited(recorder.list());
   if (err != null) return err;
   final live = program.isOnAt(DateTime.now());
-  if (choice == 'series') return 'Toutes les diffusions de « ${program.title} » seront enregistrées';
-  return live ? 'Enregistrement en cours (même télé éteinte)' : 'Enregistrement programmé à ${maTvTime(program.start)}';
+  if (choice == 'series') return _tn('Toutes les diffusions de « %s » seront enregistrées', 'Every airing of “%s” will be recorded', 'Все показы «%s» будут записаны', '“%s” 的所有播出都将被录制').replaceFirst('%s', program.title);
+  return live ? _tn('Enregistrement en cours (même télé éteinte)', 'Recording now (even with the TV off)', 'Идёт запись (даже при выключенном ТВ)', '正在录制（电视关着也行）') : '${_tn('Enregistrement programmé à', 'Recording planned at', 'Запись запланирована на', '已安排录制：')} ${maTvTime(program.start)}';
 }
 
 /// A short list of choices, easy with the remote: the first one is focused.
@@ -214,15 +219,15 @@ class _MaTvRecordingsScreenState extends State<MaTvRecordingsScreen> {
         title: r.title,
         subtitle: '${r.channelName} · ${_when(r.start, r.end, now)}',
         choices: [
-          if (r.playable) ('play', Icons.play_arrow_rounded, r.recording ? 'Regarder (en cours)' : 'Regarder'),
+          if (r.playable) ('play', Icons.play_arrow_rounded, r.recording ? _tn('Regarder (en cours)', 'Watch (recording)', 'Смотреть (идёт запись)', '观看（录制中）') : _tn('Regarder', 'Watch', 'Смотреть', '观看')),
           if (!r.scheduled && !r.recording)
             (r.keep ? 'unkeep' : 'keep', r.keep ? Icons.bookmark_remove_outlined : Icons.bookmark_add_outlined,
-                r.keep ? 'Ne plus garder (effacé après ${_data?.keepDays ?? 7} jours)' : 'Garder (ne pas effacer)'),
+                r.keep ? _tn('Ne plus garder (effacé après %d jours)', 'Stop keeping (deleted after %d days)', 'Не хранить (удалится через %d дн.)', '不再保留（%d 天后删除）').replaceFirst('%d', '${_data?.keepDays ?? 7}') : _tn('Garder (ne pas effacer)', 'Keep (don’t delete)', 'Хранить (не удалять)', '保留（不删除）')),
           if (r.scheduled || r.recording)
-            ('delete', Icons.stop_circle_outlined, r.recording ? "Arrêter et effacer" : "Annuler l'enregistrement")
+            ('delete', Icons.stop_circle_outlined, r.recording ? _tn('Arrêter et effacer', 'Stop and delete', 'Остановить и удалить', '停止并删除') : _tn('Annuler l\'enregistrement', 'Cancel the recording', 'Отменить запись', '取消录制'))
           else
-            ('delete', Icons.delete_outline_rounded, 'Effacer'),
-          ('none', Icons.close_rounded, 'Retour'),
+            ('delete', Icons.delete_outline_rounded, _tn('Effacer', 'Delete', 'Удалить', '删除')),
+          ('none', Icons.close_rounded, _tn('Retour', 'Back', 'Назад', '返回')),
         ],
       ),
     );
@@ -233,10 +238,10 @@ class _MaTvRecordingsScreenState extends State<MaTvRecordingsScreen> {
         return;
       case 'keep' || 'unkeep':
         final ok = await _recorder.keep(r.id, choice == 'keep');
-        _say(ok ? (choice == 'keep' ? 'Gardé' : 'Sera effacé après ${_data?.keepDays ?? 7} jours') : 'Ma TV ne répond pas');
+        _say(ok ? (choice == 'keep' ? _tn('Gardé', 'Kept', 'Сохранено', '已保留') : _tn('Sera effacé après %d jours', 'Will be deleted after %d days', 'Удалится через %d дн.', '%d 天后删除').replaceFirst('%d', '${_data?.keepDays ?? 7}')) : _tn('Ma TV ne répond pas', 'Ma TV isn’t responding', 'Ma TV не отвечает', 'Ma TV 无响应'));
       case 'delete':
         final ok = await _recorder.remove(r.id);
-        _say(ok ? (r.scheduled ? 'Annulé' : 'Effacé') : 'Ma TV ne répond pas');
+        _say(ok ? (r.scheduled ? _tn('Annulé', 'Cancelled', 'Отменено', '已取消') : _tn('Effacé', 'Deleted', 'Удалено', '已删除')) : _tn('Ma TV ne répond pas', 'Ma TV isn’t responding', 'Ma TV не отвечает', 'Ma TV 无响应'));
     }
     await _load();
   }
@@ -246,16 +251,16 @@ class _MaTvRecordingsScreenState extends State<MaTvRecordingsScreen> {
       context: context,
       builder: (context) => _ChoiceDialog(
         title: rule.title,
-        subtitle: 'Toutes les diffusions sur ${rule.channelName}',
-        choices: const [
-          ('stop', Icons.stop_circle_outlined, 'Ne plus enregistrer'),
-          ('none', Icons.close_rounded, 'Retour'),
+        subtitle: '${_tn('Toutes les diffusions sur', 'Every airing on', 'Все показы на', '所有播出：')} ${rule.channelName}',
+        choices: [
+          ('stop', Icons.stop_circle_outlined, _tn('Ne plus enregistrer', 'Stop recording', 'Больше не записывать', '停止录制')),
+          ('none', Icons.close_rounded, _tn('Retour', 'Back', 'Назад', '返回')),
         ],
       ),
     );
     if (!mounted || choice != 'stop') return;
     final ok = await _recorder.removeRule(rule.id);
-    _say(ok ? 'Plus enregistré (déjà enregistrés gardés)' : 'Ma TV ne répond pas');
+    _say(ok ? _tn('Plus enregistré (déjà enregistrés gardés)', 'No longer recorded (existing ones kept)', 'Больше не записывается (готовые сохранены)', '不再录制（已录的保留）') : _tn('Ma TV ne répond pas', 'Ma TV isn’t responding', 'Ma TV не отвечает', 'Ma TV 无响应'));
     await _load();
   }
 
@@ -285,16 +290,16 @@ class _MaTvRecordingsScreenState extends State<MaTvRecordingsScreen> {
                 children: [
                   Row(
                     children: [
-                      const Text('Enregistrements',
-                          style: TextStyle(color: MaTvColors.ink, fontSize: 26, fontWeight: FontWeight.w700)),
+                      Text(_tn('Enregistrements', 'Recordings', 'Записи', '录像'),
+                          style: const TextStyle(color: MaTvColors.ink, fontSize: 26, fontWeight: FontWeight.w700)),
                       const SizedBox(width: 14),
                       if (d != null)
                         Expanded(
                           child: Text(
                             [
-                              if (d.used > 0) '${_size(d.used)} utilisés',
-                              if (d.free != null) '${_size(d.free!)} libres',
-                              'effacés après ${d.keepDays} jours sauf « gardés »',
+                              if (d.used > 0) '${_size(d.used)} ${_tn('utilisés', 'used', 'занято', '已用')}',
+                              if (d.free != null) '${_size(d.free!)} ${_tn('libres', 'free', 'свободно', '可用')}',
+                              _tn('effacés après %d jours sauf « gardés »', 'deleted after %d days unless “kept”', 'удаляются через %d дн., кроме «сохранённых»', '%d 天后删除（“保留”的除外）').replaceFirst('%d', '${d.keepDays}'),
                             ].join(' · '),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -306,18 +311,17 @@ class _MaTvRecordingsScreenState extends State<MaTvRecordingsScreen> {
                     ],
                   ),
                   const SizedBox(height: 4),
-                  const Text(
-                    "Ma TV enregistre sur la seedbox : la télé peut rester éteinte. Pour enregistrer une émission, "
-                    "MENU sur la chaîne ou OK sur une émission à venir dans la grille.",
-                    style: TextStyle(color: MaTvColors.faint, fontSize: 13),
+                  Text(
+                    _tn('Ma TV enregistre sur la seedbox : la télé peut rester éteinte. Pour enregistrer une émission, MENU sur la chaîne ou OK sur une émission à venir dans la grille.', 'Ma TV records on the seedbox: the TV can stay off. To record a programme, MENU on the channel or OK on an upcoming programme in the guide.', 'Ma TV пишет на сидбокс: телевизор можно выключить. Чтобы записать передачу — МЕНЮ на канале или OK на будущей передаче в сетке.', 'Ma TV 在种子盒上录制：电视可以关着。要录制节目，在频道上按菜单，或在节目表中对即将播出的节目按确定。'),
+                    style: const TextStyle(color: MaTvColors.faint, fontSize: 13),
                   ),
                   const SizedBox(height: 14),
                   Expanded(
                     child: d == null
                         ? Center(
                             child: _failed
-                                ? const Text('Ma TV ne répond pas, réessaie dans un instant.',
-                                    style: TextStyle(color: MaTvColors.mute, fontSize: 16))
+                                ? Text(_tn('Ma TV ne répond pas, réessaie dans un instant.', 'Ma TV isn’t responding, try again in a moment.', 'Ma TV не отвечает, попробуй чуть позже.', 'Ma TV 无响应，请稍后再试。'),
+                                    style: const TextStyle(color: MaTvColors.mute, fontSize: 16))
                                 : const CircularProgressIndicator(strokeWidth: 2),
                           )
                         : ListView(
@@ -325,32 +329,32 @@ class _MaTvRecordingsScreenState extends State<MaTvRecordingsScreen> {
                               _FocusRow(
                                 autofocus: true,
                                 onTap: _manual,
-                                child: const Row(
+                                child: Row(
                                   children: [
-                                    Icon(Icons.more_time_rounded, color: MaTvColors.accent),
-                                    SizedBox(width: 14),
-                                    Text('Programmer une plage horaire',
-                                        style: TextStyle(color: MaTvColors.ink, fontSize: 16, fontWeight: FontWeight.w600)),
+                                    const Icon(Icons.more_time_rounded, color: MaTvColors.accent),
+                                    const SizedBox(width: 14),
+                                    Text(_tn('Programmer une plage horaire', 'Plan a time slot', 'Запланировать интервал', '安排时段录制'),
+                                        style: const TextStyle(color: MaTvColors.ink, fontSize: 16, fontWeight: FontWeight.w600)),
                                   ],
                                 ),
                               ),
                               if (running.isNotEmpty) ...[
-                                _header('En cours'),
+                                _header(_tn('En cours', 'Recording now', 'Идёт запись', '录制中')),
                                 for (final r in running) _row(r, now),
                               ],
                               if (planned.isNotEmpty) ...[
-                                _header('Programmés'),
+                                _header(_tn('Programmés', 'Planned', 'Запланировано', '已安排')),
                                 for (final r in planned) _row(r, now),
                               ],
-                              _header('Enregistrés'),
+                              _header(_tn('Enregistrés', 'Recorded', 'Записано', '已录制')),
                               if (ready.isEmpty)
-                                const Padding(
-                                  padding: EdgeInsets.only(bottom: 8),
-                                  child: Text('Rien pour le moment.', style: TextStyle(color: MaTvColors.mute, fontSize: 15)),
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 8),
+                                  child: Text(_tn('Rien pour le moment.', 'Nothing yet.', 'Пока ничего.', '暂时没有。'), style: const TextStyle(color: MaTvColors.mute, fontSize: 15)),
                                 ),
                               for (final r in ready) _row(r, now),
                               if (d.rules.isNotEmpty) ...[
-                                _header('Séries suivies'),
+                                _header(_tn('Séries suivies', 'Followed series', 'Отслеживаемые', '追踪的节目')),
                                 for (final rule in d.rules)
                                   _FocusRow(
                                     onTap: () => _ruleActions(rule),
@@ -403,11 +407,11 @@ class _MaTvRecordingsScreenState extends State<MaTvRecordingsScreen> {
 
   Widget _row(MaTvRecording r, DateTime now) {
     final (IconData icon, Color color, String state) = switch (r.status) {
-      'recording' => (Icons.fiber_manual_record_rounded, MaTvColors.live, 'en cours · ${_size(r.size)}'),
-      'scheduled' => (Icons.schedule_rounded, MaTvColors.accent, r.rule.isNotEmpty ? 'série' : 'programmé'),
+      'recording' => (Icons.fiber_manual_record_rounded, MaTvColors.live, '${_tn('en cours', 'recording', 'идёт запись', '录制中')} · ${_size(r.size)}'),
+      'scheduled' => (Icons.schedule_rounded, MaTvColors.accent, r.rule.isNotEmpty ? _tn('série', 'series', 'серия', '系列') : _tn('programmé', 'planned', 'запланировано', '已安排')),
       'done' => (Icons.play_circle_outline_rounded, MaTvColors.good, _size(r.size)),
-      'partial' => (Icons.play_circle_outline_rounded, MaTvColors.accent, 'incomplet · ${_size(r.size)}'),
-      _ => (Icons.error_outline_rounded, MaTvColors.mute, r.message.isNotEmpty ? r.message : 'échec'),
+      'partial' => (Icons.play_circle_outline_rounded, MaTvColors.accent, '${_tn('incomplet', 'incomplete', 'неполная', '不完整')} · ${_size(r.size)}'),
+      _ => (Icons.error_outline_rounded, MaTvColors.mute, r.message.isNotEmpty ? r.message : _tn('échec', 'failed', 'ошибка', '失败')),
     };
     return _FocusRow(
       onTap: () => _actions(r),
@@ -512,7 +516,7 @@ class _MaTvManualRecordScreenState extends State<MaTvManualRecordScreen> {
     );
     if (!mounted) return;
     if (err == null) {
-      Navigator.of(context).pop('Plage programmée : ${ch.name}, ${maTvDay(_start, DateTime.now())} ${maTvTime(_start)}');
+      Navigator.of(context).pop('${_tn('Plage programmée', 'Slot planned', 'Интервал запланирован', '时段已安排')} : ${ch.name}, ${maTvDay(_start, DateTime.now())} ${maTvTime(_start)}');
       return;
     }
     setState(() {
@@ -541,22 +545,22 @@ class _MaTvManualRecordScreenState extends State<MaTvManualRecordScreen> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(28, 24, 28, 24),
               children: [
-                const Text('Programmer une plage',
-                    style: TextStyle(color: MaTvColors.ink, fontSize: 26, fontWeight: FontWeight.w700)),
+                Text(_tn('Programmer une plage', 'Plan a slot', 'Запланировать интервал', '安排时段'),
+                    style: const TextStyle(color: MaTvColors.ink, fontSize: 26, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 18),
                 _FocusRow(
                   autofocus: true,
                   onTap: _pickChannel,
                   child: Row(
                     children: [
-                      const SizedBox(width: 90, child: Text('Chaîne', style: TextStyle(color: MaTvColors.mute, fontSize: 15))),
+                      SizedBox(width: 90, child: Text(_tn('Chaîne', 'Channel', 'Канал', '频道'), style: const TextStyle(color: MaTvColors.mute, fontSize: 15))),
                       if (_channel != null) ...[
                         MaTvLogo(url: _channel!.logo, name: _channel!.name, size: 30),
                         const SizedBox(width: 10),
                       ],
                       Expanded(
                         child: Text(
-                          _channel == null ? 'Choisir une chaîne…' : '${_channel!.number} ${_channel!.name}',
+                          _channel == null ? _tn('Choisir une chaîne…', 'Choose a channel…', 'Выбери канал…', '选择频道…') : '${_channel!.number} ${_channel!.name}',
                           style: TextStyle(
                             color: _channel == null ? MaTvColors.accent : MaTvColors.ink,
                             fontSize: 17,
@@ -569,17 +573,17 @@ class _MaTvManualRecordScreenState extends State<MaTvManualRecordScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                _stepper('Jour', maTvDay(_start, now), [
-                  ('− 1 jour', () => _shift(const Duration(days: -1))),
-                  ('+ 1 jour', () => _shift(const Duration(days: 1))),
+                _stepper(_tn('Jour', 'Day', 'День', '日期'), maTvDay(_start, now), [
+                  ('− 1 ${_tn('jour', 'day', 'день', '天')}', () => _shift(const Duration(days: -1))),
+                  ('+ 1 ${_tn('jour', 'day', 'день', '天')}', () => _shift(const Duration(days: 1))),
                 ]),
-                _stepper('Début', maTvTime(_start), [
+                _stepper(_tn('Début', 'Start', 'Начало', '开始'), maTvTime(_start), [
                   ('− 1 h', () => _shift(const Duration(hours: -1))),
                   ('− 5 min', () => _shift(const Duration(minutes: -5))),
                   ('+ 5 min', () => _shift(const Duration(minutes: 5))),
                   ('+ 1 h', () => _shift(const Duration(hours: 1))),
                 ]),
-                _stepper('Durée', '$_lengthLabel  (fin ${maTvTime(end)})', [
+                _stepper(_tn('Durée', 'Length', 'Длительность', '时长'), '$_lengthLabel  (${_tn('fin', 'end', 'конец', '结束')} ${maTvTime(end)})', [
                   ('− 15 min', () => _resize(const Duration(minutes: -15))),
                   ('+ 15 min', () => _resize(const Duration(minutes: 15))),
                 ]),
@@ -594,10 +598,10 @@ class _MaTvManualRecordScreenState extends State<MaTvManualRecordScreen> {
                     FilledButton.icon(
                       onPressed: _busy ? null : _save,
                       icon: const Icon(Icons.fiber_manual_record_rounded, color: MaTvColors.live),
-                      label: Text(_channel == null ? 'Choisir la chaîne' : 'Programmer'),
+                      label: Text(_channel == null ? _tn('Choisir la chaîne', 'Choose the channel', 'Выбрать канал', '选择频道') : _tn('Programmer', 'Plan', 'Запланировать', '安排')),
                     ),
                     const SizedBox(width: 12),
-                    OutlinedButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Annuler')),
+                    OutlinedButton(onPressed: () => Navigator.of(context).pop(), child: Text(_tn('Annuler', 'Cancel', 'Отмена', '取消'))),
                   ],
                 ),
               ],

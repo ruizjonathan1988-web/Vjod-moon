@@ -293,7 +293,7 @@ class MediaBarRepository {
         return const <Map<String, dynamic>>[];
       }
 
-      return _fetchItems(itemTypes, limit, parentId: libraryId);
+      return await _fetchItems(itemTypes, limit, parentId: libraryId);
     } catch (_) {
       return const <Map<String, dynamic>>[];
     }

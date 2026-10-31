@@ -18,6 +18,7 @@ import '../../../data/services/vjod/tv_sources.dart';
 import '../../../util/focus/dpad_keys.dart';
 import '../../../util/platform_detection.dart';
 import '../../../util/system_ui.dart';
+import '../../../util/vjod_text.dart';
 import '../../screensaver/screensaver_controller.dart';
 import '../../widgets/live_tv/tv_sources_panel.dart';
 import 'ma_tv_guide.dart';
@@ -186,23 +187,24 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
       // How long the picture took, shown a moment: the number to compare
       // from one source, channel or box to another.
       final secs = opened == null ? null : DateTime.now().difference(opened).inMilliseconds / 1000;
-      setState(() => _status = secs == null
+      final shown = secs == null
           ? null
-          : 'Image en ${secs.toStringAsFixed(1).replaceAll('.', ',')} s · ${e.name}');
+          : '${_t('Image en', 'Picture in', 'Картинка за', '画面用时')} ${secs.toStringAsFixed(1).replaceAll('.', ',')} s · ${e.name}';
+      setState(() => _status = shown);
       Timer(const Duration(seconds: 4), () {
-        if (mounted && (_status ?? '').startsWith('Image en')) setState(() => _status = null);
+        if (mounted && shown != null && _status == shown) setState(() => _status = null);
       });
     }));
     _subs.add(e.buffering.listen((b) {
       if (!identical(e, _engine) || !mounted || !_picture) return;
-      setState(() => _status = b ? 'Mise en mémoire…' : null);
+      setState(() => _status = b ? _t('Mise en mémoire…', 'Buffering…', 'Буферизация…', '缓冲中…') : null);
       _onBuffering(b);
     }));
     _subs.add(e.errors.listen((_) {
       if (!identical(e, _engine) || !mounted) return;
       final wasPlaying = _picture;
       if (!wasPlaying && e is ExoTvEngine && _fallBackToMpv()) return;
-      setState(() => _status = wasPlaying ? 'Lecture interrompue, reconnexion…' : 'Le flux ne démarre pas, nouvel essai…');
+      setState(() => _status = wasPlaying ? _t('Lecture interrompue, reconnexion…', 'Playback interrupted, reconnecting…', 'Воспроизведение прервано, переподключение…', '播放中断，正在重连…') : _t('Le flux ne démarre pas, nouvel essai…', 'The stream won’t start, trying again…', 'Поток не запускается, новая попытка…', '流无法启动，正在重试…'));
       if (wasPlaying) {
         // Back to no picture: a recovery before the reconnect delay sets it
         // again and cancels the reopen.
@@ -229,7 +231,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     final ch = _openedCh;
     if (ch == null || TvEngineChoice.value != 'auto' || _engine is! ExoTvEngine) return false;
     _mpvChannels.add(ch.id);
-    setState(() => _status = 'Pas d’image avec ExoPlayer : essai avec mpv…');
+    setState(() => _status = _t('Pas d’image avec ExoPlayer : essai avec mpv…', 'No picture with ExoPlayer: trying mpv…', 'Нет картинки с ExoPlayer: пробуем mpv…', 'ExoPlayer 无画面：改用 mpv…'));
     final uri = _replaying == null && _delay == Duration.zero ? _client.liveUri(ch) : null;
     if (uri == null) return false;
     unawaited(_open(ch, uri));
@@ -259,12 +261,12 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
       ..removeWhere((t) => now.difference(t) > _stallWindow)
       ..add(now);
     if (_stalls.length >= _stallsToSwitch) {
-      unawaited(_switchForStalls('saccades répétées'));
+      unawaited(_switchForStalls(_t('saccades répétées', 'repeated stutters', 'частые подтормаживания', '反复卡顿')));
       return;
     }
     _freezeTimer = Timer(_longFreeze, () {
       _freezeTimer = null;
-      if (mounted) unawaited(_switchForStalls('image bloquée'));
+      if (mounted) unawaited(_switchForStalls(_t('image bloquée', 'frozen picture', 'картинка застыла', '画面冻结')));
     });
   }
 
@@ -289,7 +291,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
         .where((x) => x.key != cur?.key && x.ok != false && !x.duplicate && !x.takenElsewhere && !_stalledSources.contains('${ch.id}|${x.key}'))
         .toList();
     if (rest.isEmpty) {
-      setState(() => _status = 'Ça saccade ($why) et aucune autre source à essayer');
+      setState(() => _status = '${_t('Ça saccade', 'Stuttering', 'Подтормаживает', '卡顿')} ($why) ${_t('et aucune autre source à essayer', 'and no other source to try', 'и других источников нет', '且没有其他片源可试')}');
       _showBanner(time: const Duration(seconds: 6));
       return;
     }
@@ -297,7 +299,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     // in the relay's own order; heavier ones after.
     final lighter = rest.where((x) => weight(x) <= curWeight).toList();
     final pick = lighter.isNotEmpty ? lighter.first : rest.first;
-    setState(() => _status = 'Ça saccade ($why) : source ${pick.rank}/${data.sources.length} '
+    setState(() => _status = '${_t('Ça saccade', 'Stuttering', 'Подтормаживает', '卡顿')} ($why) : ${_t('source', 'source', 'источник', '片源')} ${pick.rank}/${data.sources.length} '
         '${pick.resolutionLabel.isEmpty ? pick.quality : pick.resolutionLabel}…');
     _showBanner(time: const Duration(seconds: 6));
     await _sources.prefer(data.id, pick.key);
@@ -348,7 +350,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     _stalls.clear();
     _switchedAt = null;
     setState(() {
-      _status = 'Ouverture…';
+      _status = _t('Ouverture…', 'Opening…', 'Открытие…', '正在打开…');
       _sourceLine = null;
       _now = DateTime.now();
       _failed = false;
@@ -361,7 +363,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
 
   Future<void> _open(MaTvChannel ch, Uri? uri, {bool retry = false}) async {
     if (uri == null) {
-      setState(() => _status = 'Ma TV n’est pas configurée');
+      setState(() => _status = _t('Ma TV n’est pas configurée', 'Ma TV is not set up', 'Ma TV не настроена', 'Ma TV 尚未配置'));
       return;
     }
     final seq = ++_tuneSeq;
@@ -406,7 +408,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     final waited = DateTime.now().difference(_openedAt ?? DateTime.now());
     if (_engine is ExoTvEngine && waited > _exoGiveUp && _fallBackToMpv()) return;
     if (!_retried && waited > _noPictureRetry) {
-      setState(() => _status = 'Pas d’image, nouvel essai…');
+      setState(() => _status = _t('Pas d’image, nouvel essai…', 'No picture, trying again…', 'Нет картинки, новая попытка…', '无画面，正在重试…'));
       unawaited(_open(ch, uri, retry: true));
     } else if (_retried && waited > _noPictureGiveUp - _noPictureRetry) {
       // Source failover only exists for the live channel; a replay or a
@@ -414,7 +416,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
       if (_replaying != null || _delay > Duration.zero) {
         _watchdog?.cancel();
         setState(() {
-          _status = 'Pas d’image pour cette lecture · Retour pour revenir au direct';
+          _status = _t('Pas d’image pour cette lecture · Retour pour revenir au direct', 'No picture for this playback · Back to return to live', 'Нет картинки · Назад — вернуться в эфир', '此次播放无画面 · 按返回回到直播');
           _failed = true;
         });
         _showBanner(time: const Duration(seconds: 12));
@@ -454,7 +456,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
           if (!mounted || _picture || _tuneSeq != seq) return;
           _watchdog?.cancel();
           setState(() {
-            _status = 'Pas d’image pour cette lecture · Retour pour revenir au direct';
+            _status = _t('Pas d’image pour cette lecture · Retour pour revenir au direct', 'No picture for this playback · Back to return to live', 'Нет картинки · Назад — вернуться в эфир', '此次播放无画面 · 按返回回到直播');
             _failed = true;
           });
           _showBanner(time: const Duration(seconds: 12));
@@ -474,7 +476,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
       if (!mounted || data == null || data.sources.isEmpty) {
         _watchdog?.cancel();
         setState(() {
-          _status = 'La chaîne ne répond pas';
+          _status = _t('La chaîne ne répond pas', 'The channel isn’t responding', 'Канал не отвечает', '频道无响应');
           _failed = true;
         });
         _showBanner(time: const Duration(seconds: 12));
@@ -490,14 +492,14 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
       if (rest.isEmpty) {
         _watchdog?.cancel();
         setState(() {
-          _status = 'Aucune source ne répond · MENU puis Sources pour en choisir une';
+          _status = _t('Aucune source ne répond · MENU puis Sources pour en choisir une', 'No source responds · MENU then Sources to pick one', 'Ни один источник не отвечает · МЕНЮ, затем Источники', '所有片源均无响应 · 按菜单再选片源');
           _failed = true;
         });
         _showBanner(time: const Duration(seconds: 12));
         return;
       }
       final pick = rest.first;
-      setState(() => _status = 'Source ${pick.rank}/${data.sources.length} : ${pick.resolutionLabel.isEmpty ? pick.quality : pick.resolutionLabel}…');
+      setState(() => _status = '${_t('Source', 'Source', 'Источник', '片源')} ${pick.rank}/${data.sources.length} : ${pick.resolutionLabel.isEmpty ? pick.quality : pick.resolutionLabel}…');
       await _sources.prefer(data.id, pick.key);
       if (!mounted) return;
       _retried = false;
@@ -524,7 +526,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     if (cur == null) return;
     final details = cur.details(french: true);
     setState(() {
-      _sourceLine = 'Source ${cur.rank}/${data.sources.length}${details.isEmpty ? '' : ' · $details'}';
+      _sourceLine = '${_t('Source', 'Source', 'Источник', '片源')} ${cur.rank}/${data.sources.length}${details.isEmpty ? '' : ' · $details'}';
     });
   }
 
@@ -567,7 +569,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
       return;
     }
     if (widget.kids) {
-      setState(() => _status = 'Pas de chaîne $n ici');
+      setState(() => _status = '${_t('Pas de chaîne', 'No channel', 'Нет канала', '没有频道')} $n ${_t('ici', 'here', 'здесь', '在此')}');
       _showBanner();
       return;
     }
@@ -575,7 +577,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     if (!mounted || all == null) return;
     final i = all.indexWhere((c) => c.number == n);
     if (i < 0) {
-      setState(() => _status = 'Pas de chaîne $n');
+      setState(() => _status = '${_t('Pas de chaîne', 'No channel', 'Нет канала', '没有频道')} $n');
       _showBanner();
       return;
     }
@@ -583,7 +585,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
       _list = all;
       _index = i;
       _catId = 'all';
-      _catLabel = 'Toutes les chaînes';
+      _catLabel = _t('Toutes les chaînes', 'All channels', 'Все каналы', '全部频道');
     });
     _tune(immediate: true);
   }
@@ -611,7 +613,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     final next = base - Duration(seconds: seconds);
     _pendingDelay = next < Duration.zero ? Duration.zero : next;
     _seekPending = true;
-    setState(() => _status = _pendingDelay == Duration.zero ? 'Direct' : 'Différé ${fmtDelay(_pendingDelay)}');
+    setState(() => _status = _pendingDelay == Duration.zero ? _t('Direct', 'Live', 'Эфир', '直播') : '${_t('Différé', 'Delayed', 'Задержка', '延时')} ${fmtDelay(_pendingDelay)}');
     _showBanner();
     _seekTimer?.cancel();
     _seekTimer = Timer(const Duration(milliseconds: 600), () {
@@ -631,7 +633,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     final info = await _client.shiftInfo(ch);
     if (!mounted || _channel.id != ch.id) return;
     if (info == null || !info.available) {
-      setState(() => _status = 'Retour en arrière indisponible');
+      setState(() => _status = _t('Retour en arrière indisponible', 'Rewind unavailable', 'Перемотка назад недоступна', '无法回退'));
       _showBanner();
       if (resume) unawaited(_engine.play());
       return;
@@ -639,7 +641,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     final now = DateTime.now();
     final delay = info.clamp(wanted, now);
     if (delay <= Duration.zero) {
-      setState(() => _status = 'Pas encore assez d’images gardées pour reculer');
+      setState(() => _status = _t('Pas encore assez d’images gardées pour reculer', 'Not enough kept yet to go back', 'Пока недостаточно записи для перемотки', '尚未缓存足够内容以回退'));
       _showBanner();
       if (resume) unawaited(_engine.play());
       return;
@@ -647,7 +649,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     setState(() {
       _delay = delay;
       _pausedAt = null;
-      _status = 'Différé ${fmtDelay(delay)}';
+      _status = '${_t('Différé', 'Delayed', 'Задержка', '延时')} ${fmtDelay(delay)}';
     });
     _showBanner(time: const Duration(seconds: 4));
     unawaited(_open(ch, _client.shiftUri(ch, now.subtract(delay))));
@@ -655,7 +657,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
 
   void _goLive() {
     _tune(immediate: true);
-    setState(() => _status = 'Retour au direct');
+    setState(() => _status = _t('Retour au direct', 'Back to live', 'Возврат в эфир', '回到直播'));
   }
 
   /// PLAY/PAUSE: the picture stops; it starts again where it stopped, out of
@@ -672,7 +674,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
       _bannerTimer?.cancel();
       setState(() {
         _banner = true;
-        _status = 'Pause · ▶ pour reprendre';
+        _status = _t('Pause · ▶ pour reprendre', 'Paused · ▶ to resume', 'Пауза · ▶ чтобы продолжить', '已暂停 · 按 ▶ 继续');
       });
       return;
     }
@@ -695,7 +697,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
       _playReplay(cur);
       return;
     }
-    setState(() => _status = 'Le début n’est plus gardé');
+    setState(() => _status = _t('Le début n’est plus gardé', 'The start is no longer kept', 'Начало больше не хранится', '开头已不再保留'));
     _close();
   }
 
@@ -706,27 +708,53 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     _focus.requestFocus();
   }
 
-  List<({IconData icon, String label})> get _guideActions {
+  String _t(String fr, String en, String ru, String zh) =>
+      vjodText(context, fr: fr, en: en, ru: ru, zh: zh);
+
+  // What each entry does is its [_GuideAction]; its words are only shown,
+  // so they can be translated without touching what the entry does.
+  List<({IconData icon, String label, _GuideAction action})> get _guideActions {
     final ch = _channel;
     final fav = _favorites.contains(ch.id);
+    final recorded = !widget.kids &&
+        ch.programAt(_now) != null &&
+        MaTvRecorder.last?.of(ch.id, ch.programAt(_now)!.start) != null;
     return [
-      if (_replaying != null || _delay > Duration.zero) (icon: Icons.live_tv_rounded, label: 'Revenir au direct'),
+      if (_replaying != null || _delay > Duration.zero)
+        (icon: Icons.live_tv_rounded, label: _t('Revenir au direct', 'Back to live', 'Вернуться в эфир', '回到直播'), action: _GuideAction.live),
       if (ch.programAt(_now) != null && _replaying == null)
-        (icon: Icons.restart_alt_rounded, label: 'Revoir depuis le début'),
+        (icon: Icons.restart_alt_rounded, label: _t('Revoir depuis le début', 'Watch from the start', 'Смотреть с начала', '从头观看'), action: _GuideAction.fromStart),
       if (!widget.kids && ch.programAt(_now) != null)
         (
-          icon: MaTvRecorder.last?.of(ch.id, ch.programAt(_now)!.start) != null
-              ? Icons.stop_circle_outlined
-              : Icons.fiber_manual_record_rounded,
-          label: MaTvRecorder.last?.of(ch.id, ch.programAt(_now)!.start) != null ? 'Enregistrement prévu' : 'Enregistrer',
+          icon: recorded ? Icons.stop_circle_outlined : Icons.fiber_manual_record_rounded,
+          label: recorded
+              ? _t('Enregistrement prévu', 'Recording planned', 'Запись запланирована', '已安排录制')
+              : _t('Enregistrer', 'Record', 'Записать', '录制'),
+          action: _GuideAction.record,
         ),
-      if (ch.replayDays > 0) (icon: Icons.history_rounded, label: 'Replay de la chaîne'),
-      (icon: fav ? Icons.star_rounded : Icons.star_border_rounded, label: fav ? 'Retirer des favoris' : 'Ajouter aux favoris'),
-      (icon: Icons.grid_view_rounded, label: 'Grille des programmes'),
-      (icon: Icons.high_quality_rounded, label: 'Qualité : ${MaTvDevice.qualityLabel}'),
-      if (TvEngineChoice.exoAvailable) (icon: Icons.play_circle_outline_rounded, label: 'Lecteur : ${TvEngineChoice.label}'),
-      if (!widget.kids) (icon: Icons.tune_rounded, label: 'Sources'),
-      (icon: Icons.list_rounded, label: 'Liste des chaînes'),
+      if (ch.replayDays > 0)
+        (icon: Icons.history_rounded, label: _t('Replay de la chaîne', 'Channel replay', 'Повтор канала', '频道回放'), action: _GuideAction.replay),
+      (
+        icon: fav ? Icons.star_rounded : Icons.star_border_rounded,
+        label: fav
+            ? _t('Retirer des favoris', 'Remove from favourites', 'Убрать из избранного', '取消收藏')
+            : _t('Ajouter aux favoris', 'Add to favourites', 'В избранное', '加入收藏'),
+        action: _GuideAction.favorite,
+      ),
+      (icon: Icons.grid_view_rounded, label: _t('Grille des programmes', 'TV guide', 'Телепрограмма', '节目表'), action: _GuideAction.grid),
+      (
+        icon: Icons.high_quality_rounded,
+        label: '${_t('Qualité', 'Quality', 'Качество', '画质')} : ${MaTvDevice.qualityLabel}',
+        action: _GuideAction.quality,
+      ),
+      if (TvEngineChoice.exoAvailable)
+        (
+          icon: Icons.play_circle_outline_rounded,
+          label: '${_t('Lecteur', 'Player', 'Плеер', '播放器')} : ${TvEngineChoice.label}',
+          action: _GuideAction.engine,
+        ),
+      if (!widget.kids) (icon: Icons.tune_rounded, label: _t('Sources', 'Sources', 'Источники', '片源'), action: _GuideAction.sources),
+      (icon: Icons.list_rounded, label: _t('Liste des chaînes', 'Channel list', 'Список каналов', '频道列表'), action: _GuideAction.list),
     ];
   }
 
@@ -746,17 +774,16 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
   Future<void> _guideDo(int i) async {
     final actions = _guideActions;
     if (i < 0 || i >= actions.length) return;
-    final label = actions[i].label;
-    switch (label) {
-      case 'Revenir au direct':
+    switch (actions[i].action) {
+      case _GuideAction.live:
         _close();
         _tune(immediate: true);
-      case 'Revoir depuis le début':
+      case _GuideAction.fromStart:
         final cur = _guidePrograms.where((p) => p.isOnAt(DateTime.now())).firstOrNull ?? _channel.programAt(DateTime.now());
         if (cur != null) await _fromStart(cur);
-      case 'Replay de la chaîne':
+      case _GuideAction.replay:
         await _openReplay();
-      case 'Enregistrer' || 'Enregistrement prévu':
+      case _GuideAction.record:
         final cur = _guidePrograms.where((p) => p.isOnAt(DateTime.now())).firstOrNull ?? _channel.programAt(DateTime.now());
         if (cur == null) return;
         final ch = _channel;
@@ -765,13 +792,13 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
         if (!mounted) return;
         if (msg != null) setState(() => _status = msg);
         _close();
-      case 'Sources':
+      case _GuideAction.sources:
         setState(() => _overlay = _Overlay.sources);
-      case 'Liste des chaînes':
+      case _GuideAction.list:
         _openList();
-      case 'Grille des programmes':
+      case _GuideAction.grid:
         await _openGrid();
-      case final String l when l.startsWith('Lecteur'):
+      case _GuideAction.engine:
         {
           await TvEngineChoice.next();
           _mpvChannels.clear();
@@ -782,7 +809,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
             if (mounted && _replaying == null) _open(_channel, _client.liveUri(_channel));
           });
         }
-      case final String q when q.startsWith('Qualité'):
+      case _GuideAction.quality:
         {
           await MaTvDevice.nextQuality();
           if (!mounted) return;
@@ -793,7 +820,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
             if (mounted && _replaying == null) _open(_channel, _client.liveUri(_channel));
           });
         }
-      default:
+      case _GuideAction.favorite:
         await _toggleFavorite();
         if (mounted) setState(() {});
     }
@@ -820,13 +847,16 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     final ch = _channel;
     final on = await MaTvMemory.toggleFavorite(ch.id);
     if (!mounted) return;
+    final favMsg = on
+        ? _t('Ajoutée aux favoris', 'Added to favourites', 'Добавлено в избранное', '已加入收藏')
+        : _t('Retirée des favoris', 'Removed from favourites', 'Убрано из избранного', '已取消收藏');
     setState(() {
       _favorites = MaTvMemory.favorites.toSet();
-      _status = on ? 'Ajoutée aux favoris' : 'Retirée des favoris';
+      _status = favMsg;
     });
     _showBanner(time: const Duration(seconds: 3));
     Timer(const Duration(seconds: 3), () {
-      if (mounted && (_status == 'Ajoutée aux favoris' || _status == 'Retirée des favoris')) {
+      if (mounted && _status == favMsg) {
         setState(() => _status = null);
       }
     });
@@ -839,8 +869,8 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     final fav = MaTvMemory.favorites;
     final server = widget.categories.where((c) => c.kind != 'fav' && c.kind != 'recent');
     return [
-      if (fav.isNotEmpty) MaTvCategory(id: 'fav', label: 'Favoris', kind: 'fav', count: fav.length),
-      MaTvCategory(id: 'recent', label: 'Récentes', kind: 'recent', count: MaTvMemory.recent.length),
+      if (fav.isNotEmpty) MaTvCategory(id: 'fav', label: _t('Favoris', 'Favourites', 'Избранное', '收藏'), kind: 'fav', count: fav.length),
+      MaTvCategory(id: 'recent', label: _t('Récentes', 'Recent', 'Недавние', '最近'), kind: 'recent', count: MaTvMemory.recent.length),
       ...server,
     ];
   }
@@ -916,7 +946,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     setState(() {
       _overlay = _Overlay.none;
       _replaying = p;
-      _status = 'Ouverture du replay…';
+      _status = _t('Ouverture du replay…', 'Opening the replay…', 'Открытие повтора…', '正在打开回放…');
       _sourceLine = null;
     });
     _showBanner(time: const Duration(seconds: 6));
@@ -1233,9 +1263,9 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
                       categoryLabel: _catLabel,
                       favorite: _favorites.contains(ch.id),
                       replayLabel: _replaying != null
-                          ? 'Replay · ${_replaying!.title} · ${maTvDay(_replaying!.start, _now)} ${maTvRange(_replaying!)}'
+                          ? '${_t('Replay', 'Replay', 'Повтор', '回放')} · ${_replaying!.title} · ${maTvDay(_replaying!.start, _now)} ${maTvRange(_replaying!)}'
                           : (_delay > Duration.zero
-                                ? 'Différé ${fmtDelay(_delay)} · Retour pour revenir au direct'
+                                ? '${_t('Différé', 'Delayed', 'Задержка', '延时')} ${fmtDelay(_delay)} · ${_t('Retour pour revenir au direct', 'Back to return to live', 'Назад — вернуться в эфир', '按返回回到直播')}'
                                 : null),
                     ),
                   ),
@@ -1257,7 +1287,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(color: MaTvColors.panel, borderRadius: BorderRadius.circular(10)),
                       child: Text(
-                        'Différé ${fmtDelay(_delay)}',
+                        '${_t('Différé', 'Delayed', 'Задержка', '延时')} ${fmtDelay(_delay)}',
                         style: const TextStyle(color: MaTvColors.ink, fontSize: 16, fontWeight: FontWeight.w700),
                       ),
                     ),
@@ -1272,7 +1302,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
                       channel: ch,
                       programs: _guidePrograms,
                       now: DateTime.now(),
-                      actions: _guideActions,
+                      actions: [for (final a in _guideActions) (icon: a.icon, label: a.label)],
                       selectedAction: _guideAction,
                       actionKeys: _guideKeysFor(_guideActions.length),
                       onAction: (i) => unawaited(_guideDo(i)),
@@ -1315,16 +1345,16 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            b(Icons.arrow_back_rounded, 'Fermer', () => Navigator.of(context).maybePop()),
-            b(Icons.keyboard_arrow_up_rounded, 'Chaîne précédente', () => _zap(-1)),
-            b(Icons.keyboard_arrow_down_rounded, 'Chaîne suivante', () => _zap(1)),
-            b(Icons.replay_30_rounded, 'Reculer de 30 s', () => _seekBy(-30)),
-            b(Icons.forward_30_rounded, 'Avancer de 30 s', () => _seekBy(30)),
-            if (_delay > Duration.zero || _replaying != null) b(Icons.live_tv_rounded, 'Direct', _goLive),
-            b(Icons.list_rounded, 'Liste', _openList),
-            b(Icons.info_outline_rounded, 'Guide', () => unawaited(_openGuide())),
-            b(Icons.grid_view_rounded, 'Grille', () => unawaited(_openGrid())),
-            if (!widget.kids) b(Icons.tune_rounded, 'Sources', () => setState(() => _overlay = _Overlay.sources)),
+            b(Icons.arrow_back_rounded, _t('Fermer', 'Close', 'Закрыть', '关闭'), () => Navigator.of(context).maybePop()),
+            b(Icons.keyboard_arrow_up_rounded, _t('Chaîne précédente', 'Previous channel', 'Предыдущий канал', '上一个频道'), () => _zap(-1)),
+            b(Icons.keyboard_arrow_down_rounded, _t('Chaîne suivante', 'Next channel', 'Следующий канал', '下一个频道'), () => _zap(1)),
+            b(Icons.replay_30_rounded, _t('Reculer de 30 s', 'Back 30 s', 'Назад на 30 с', '后退 30 秒'), () => _seekBy(-30)),
+            b(Icons.forward_30_rounded, _t('Avancer de 30 s', 'Forward 30 s', 'Вперёд на 30 с', '前进 30 秒'), () => _seekBy(30)),
+            if (_delay > Duration.zero || _replaying != null) b(Icons.live_tv_rounded, _t('Direct', 'Live', 'Эфир', '直播'), _goLive),
+            b(Icons.list_rounded, _t('Liste', 'List', 'Список', '列表'), _openList),
+            b(Icons.info_outline_rounded, _t('Guide', 'Guide', 'Гид', '指南'), () => unawaited(_openGuide())),
+            b(Icons.grid_view_rounded, _t('Grille', 'Guide', 'Сетка', '节目表'), () => unawaited(_openGrid())),
+            if (!widget.kids) b(Icons.tune_rounded, _t('Sources', 'Sources', 'Источники', '片源'), () => setState(() => _overlay = _Overlay.sources)),
           ],
         ),
       ),
@@ -1394,10 +1424,10 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('REPLAY', style: TextStyle(color: MaTvColors.mute, fontSize: 13, letterSpacing: 1.2, fontWeight: FontWeight.w700)),
+            Text(_t('Replay', 'Replay', 'Повтор', '回放').toUpperCase(), style: const TextStyle(color: MaTvColors.mute, fontSize: 13, letterSpacing: 1.2, fontWeight: FontWeight.w700)),
             const SizedBox(height: 4),
             Text('${ch.number}  ${ch.name}', style: const TextStyle(color: MaTvColors.ink, fontSize: 22, fontWeight: FontWeight.w700)),
-            Text('Jusqu’à ${ch.replayDays} jours en arrière', style: const TextStyle(color: MaTvColors.faint, fontSize: 13)),
+            Text(_t('Jusqu’à %d jours en arrière', 'Up to %d days back', 'До %d дней назад', '最多回看 %d 天').replaceFirst('%d', '${ch.replayDays}'), style: const TextStyle(color: MaTvColors.faint, fontSize: 13)),
             const SizedBox(height: 14),
             Expanded(
               child: MaTvReplayList(
@@ -1415,3 +1445,6 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     );
   }
 }
+
+/// What an entry of the player's menu does.
+enum _GuideAction { live, fromStart, record, replay, favorite, grid, quality, engine, sources, list }
