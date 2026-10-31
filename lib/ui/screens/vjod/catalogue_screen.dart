@@ -16,6 +16,7 @@ import '../../../data/repositories/seerr_repository.dart';
 import '../../../data/services/seerr/seerr_api_models.dart';
 import '../../../data/services/vjod/catalogue_availability.dart';
 import '../../../data/services/vjod/simple_mode.dart';
+import '../../../data/services/vjod/xtream_catalog.dart' show XtreamCatalog;
 import '../../../l10n/app_localizations.dart';
 import '../../../preference/preference_constants.dart';
 import '../../../preference/user_preferences.dart';
@@ -72,15 +73,30 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
   // « Avec Tom Hardy »: what the people the search names played in or made.
   final _peopleResults = <(String, List<SeerrDiscoverItem>)>[];
 
+  // Ma TV answers « also in IPTV » a row of posters at a time. Redrawing the
+  // whole page for each answer made weak devices stutter while it loaded, so
+  // the answers are gathered and the page redrawn once a second at most.
+  Timer? _iptvRedraw;
+
+  void _onIptvAnswers() {
+    _iptvRedraw ??= Timer(const Duration(milliseconds: 900), () {
+      _iptvRedraw = null;
+      if (mounted) setState(() {});
+    });
+  }
+
   @override
   void initState() {
     super.initState();
+    XtreamCatalog.loaded.addListener(_onIptvAnswers);
     _searchCtl.addListener(_onSearchText);
     unawaited(_load(_firstPages));
   }
 
   @override
   void dispose() {
+    XtreamCatalog.loaded.removeListener(_onIptvAnswers);
+    _iptvRedraw?.cancel();
     _searchDebounce?.cancel();
     _searchCtl.dispose();
     _searchFocus.dispose();
@@ -357,7 +373,7 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
       backgroundColor: AppColorScheme.background,
       body: NavigationLayout(
         activeRoute: Destinations.catalogue,
-        child: ProviderCatalogListener(builder: _buildBody),
+        child: Builder(builder: _buildBody),
       ),
     );
   }

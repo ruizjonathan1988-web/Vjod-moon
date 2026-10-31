@@ -24,6 +24,7 @@ import '../../../util/platform_detection.dart';
 import 'jellyfin_vjod_config.dart';
 import 'ma_tv_alerts.dart';
 import 'tv_sources.dart';
+import '../../../util/vjod_log.dart';
 
 class MaTvCategory {
   final String id;
@@ -476,7 +477,9 @@ Future<bool> ensureMaTvConfigured() async {
   if (MaTvClient().isConfigured) return true;
   try {
     await syncVjodConfigFromServer();
-  } catch (_) {}
+  } catch (e) {
+    vjodLogError('Ma TV : lecture des réglages Jellyfin', e);
+  }
   return MaTvClient().isConfigured;
 }
 

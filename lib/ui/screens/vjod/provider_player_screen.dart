@@ -30,6 +30,7 @@ import '../../screensaver/screensaver_controller.dart';
 import '../../widgets/vjod/iptv_cast_sheet.dart';
 import '../vjod_tv/tv_engine.dart' show TvEngineChoice;
 import 'vod_engine.dart';
+import '../../../util/vjod_log.dart';
 
 /// Where each film was left, for this run of the app, so leaving by mistake
 /// and coming back picks up there.
@@ -186,7 +187,9 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
       final info = await catalog.seriesInfo(w.id).timeout(const Duration(seconds: 30));
       final next = episodeAfter(info, season: w.season, number: w.episode, id: w.ep);
       if (mounted) _nextEp = next;
-    } catch (_) {}
+    } catch (e) {
+      vjodLogError('IPTV : épisode suivant', e);
+    }
   }
 
   /// In the last 40 seconds of an episode: « Épisode suivant » with a
