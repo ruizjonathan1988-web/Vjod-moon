@@ -1273,7 +1273,9 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
                     zh: 'IPTV 列表（TiviMate…）'),
                 () => go(Destinations.tv),
               ),
-            if (seerr)
+            // Requests to approve: the administrator's. A housemate follows
+            // their own in En route.
+            if (seerr && (user?.isAdministrator ?? false))
               entry(Icons.rule_rounded, l10n.vjodMenuRequests,
                   () => go(Destinations.seerrRequests)),
             // The TV tab sits here on a phone, where it is kept out of the

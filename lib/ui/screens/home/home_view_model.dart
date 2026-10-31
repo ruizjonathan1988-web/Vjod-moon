@@ -439,6 +439,8 @@ class HomeViewModel extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposedVjod = true;
+    _emptyRetry?.cancel();
     ForYouService.instance.requestedChanges.removeListener(notifyListeners);
     _ageGate?.removeListener(notifyListeners);
     TonightService.instance.answersChanged.removeListener(_onTonightAnswers);
@@ -462,6 +464,58 @@ class HomeViewModel extends ChangeNotifier {
     required bool hydratedFromCache,
     required bool hasVisibleRow,
   }) => (preserveExisting || hydratedFromCache) && hasVisibleRow;
+
+  /// VJOD: the rows where coming back empty means what it says (the viewer
+  /// finished a series, emptied a list). Every other row (discovery, charts,
+  /// Seerr, Trakt, IPTV) answers « nothing » when its source didn't answer in
+  /// time, and must not vanish for that.
+  static const _emptyIsMeaningful = {
+    HomeSectionType.resume,
+    HomeSectionType.resumeAudio,
+    HomeSectionType.resumeBook,
+    HomeSectionType.activeRecordings,
+    HomeSectionType.nextUp,
+    HomeSectionType.liveTv,
+    HomeSectionType.onNow,
+    HomeSectionType.seerrMyRequests,
+    HomeSectionType.seerrRecentRequests,
+    HomeSectionType.seerrWatchlist,
+    HomeSectionType.favoriteMovies,
+    HomeSectionType.favoriteSeries,
+    HomeSectionType.favoriteEpisodes,
+    HomeSectionType.favoritePeople,
+    HomeSectionType.favoriteArtists,
+    HomeSectionType.favoriteMusicVideos,
+    HomeSectionType.favoriteAlbums,
+    HomeSectionType.favoriteSongs,
+  };
+
+  /// Whether a row on screen stays when its section comes back empty: yes
+  /// for the rows whose emptiness is most likely a source that didn't answer.
+  @visibleForTesting
+  static bool keepsRowsOnEmpty({
+    required HomeSectionType type,
+    required bool hasVisibleRow,
+  }) => hasVisibleRow && !_emptyIsMeaningful.contains(type);
+
+  /// One quiet second try, half a minute after a row came back empty, at most
+  /// every two minutes so the seedbox isn't hammered.
+  Timer? _emptyRetry;
+  DateTime? _lastEmptyRetry;
+  bool _disposedVjod = false;
+
+  void _retryEmptySectionsSoon() {
+    final last = _lastEmptyRetry;
+    if (_emptyRetry != null ||
+        (last != null && DateTime.now().difference(last) < const Duration(minutes: 2))) {
+      return;
+    }
+    _emptyRetry = Timer(const Duration(seconds: 30), () {
+      _emptyRetry = null;
+      _lastEmptyRetry = DateTime.now();
+      if (!_disposedVjod) unawaited(load(preserveExisting: true));
+    });
+  }
 
   /// Whether a freshly fetched row gives way to the one already on screen.
   ///
@@ -760,6 +814,19 @@ class HomeViewModel extends ChangeNotifier {
             return;
           }
           sectionRows = const <HomeRow>[];
+        }
+        // An empty answer from a discovery row that was showing titles is
+        // most likely a source that didn't answer: the row stays, and the
+        // section is asked again shortly.
+        if (!failed &&
+            sectionRows.every((r) => r.items.isEmpty) &&
+            keepsRowsOnEmpty(
+              type: cfg.type,
+              hasVisibleRow: _rowsForConfig(_rows, cfg)
+                  .any((r) => !r.isLoading && r.items.isNotEmpty),
+            )) {
+          _retryEmptySectionsSoon();
+          return;
         }
         final currentConfigs = _prefs.activeHomeSectionConfigs;
         final isStillActive = currentConfigs.any((c) => c.stableId == cfg.stableId);
