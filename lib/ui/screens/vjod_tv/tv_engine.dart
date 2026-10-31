@@ -11,15 +11,20 @@
 // picture ExoPlayer doesn't bring, and remembers it for the session.
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:moonfin_native_video/moonfin_native_video.dart';
 
+import '../../../data/services/vjod/iptv_cast.dart';
+import '../../../data/services/vjod/web_iptv.dart';
 import '../../../playback/aether_backend.dart';
+import '../../../playback/html_video_backend.dart';
 import '../../../playback/media3_player_backend.dart';
 import '../../../preference/seerr_preferences.dart';
+import '../../../preference/user_preferences.dart';
 import '../../../util/platform_detection.dart';
 import '../../../util/vjod_text.dart';
 import '../../widgets/aether_video_view.dart';
@@ -398,5 +403,116 @@ class AppleTvEngine implements TvEngine {
     try {
       await _backend.stop();
     } catch (_) {}
+  }
+}
+
+// ---------------------------------------------------------------- browser
+/// The web version's live player: a browser can't play the raw IPTV stream
+/// (MPEG-TS), so Ma TV's relay (Ma TV 3.54 and up) turns the channel into HLS,
+/// which Safari on the iPad and iPhone, and the other browsers, play. Each
+/// channel change stops the previous preparation at once on Ma TV.
+class WebTvEngine implements TvEngine {
+  WebTvEngine() : _backend = HtmlVideoBackend(GetIt.instance<UserPreferences>()) {
+    _subs.add(_backend.errorStream.listen((_) => _fail(webPlaybackFailedMessage)));
+    // The browser has no "first frame" event: the picture size tells.
+    _watch = Timer.periodic(const Duration(milliseconds: 500), (_) {
+      if (_seen || _first.isClosed || _relay == null) return;
+      if (_backend.videoWidth > 0) {
+        _seen = true;
+        _first.add(null);
+      }
+    });
+  }
+
+  final HtmlVideoBackend _backend;
+  final _first = StreamController<void>.broadcast();
+  final _errors = StreamController<String>.broadcast();
+  final _subs = <StreamSubscription<Object?>>[];
+  Timer? _watch;
+  String? _relay;
+  bool _seen = false;
+  int _seq = 0;
+
+  /// Whether live TV plays through it: in a browser only.
+  static bool get wanted => kIsWeb;
+
+  void _fail(String message) {
+    if (_seen || _errors.isClosed) return;
+    _errors.add(message);
+  }
+
+  @override
+  String get name => _tn('Navigateur', 'Browser', 'Браузер', '浏览器');
+  @override
+  Stream<void> get firstFrame => _first.stream;
+  @override
+  Stream<bool> get buffering => _backend.bufferingStream;
+  @override
+  Stream<String> get errors => _errors.stream;
+  @override
+  Stream<bool> get completed => _backend.completedStream;
+  @override
+  Duration get position => _backend.position;
+
+  @override
+  Future<void> open(String url, {bool live = true}) async {
+    final seq = ++_seq;
+    _seen = false;
+    await _release();
+    if (!live) {
+      _fail(webTvLiveOnlyMessage);
+      return;
+    }
+    final source = await resolveWebLive(url);
+    if (seq != _seq || _errors.isClosed) {
+      if (source.ok) unawaited(stopMaTvRelay(source.url));
+      return;
+    }
+    if (!source.ok) {
+      _fail(source.problem ?? webPlaybackFailedMessage);
+      return;
+    }
+    _relay = source.url;
+    await _backend.play({'url': source.url, 'container': 'hls', 'isLive': true, 'autoPlay': true});
+  }
+
+  /// Stops the picture and tells Ma TV to stop preparing it.
+  Future<void> _release() async {
+    final old = _relay;
+    _relay = null;
+    unawaited(stopMaTvRelay(old));
+    try {
+      await _backend.stop();
+    } catch (_) {}
+  }
+
+  @override
+  Future<void> play() => _backend.resume();
+  @override
+  Future<void> pause() => _backend.pause();
+  @override
+  Future<void> playOrPause() => _backend.isPlaying ? _backend.pause() : _backend.resume();
+  @override
+  Future<void> seek(Duration position) => _backend.seekTo(position);
+  @override
+  Future<void> stop() async {
+    ++_seq;
+    await _release();
+  }
+
+  @override
+  Widget view() => ColoredBox(color: Colors.black, child: _backend.buildView());
+
+  @override
+  Future<void> dispose() async {
+    _watch?.cancel();
+    ++_seq;
+    await _release();
+    for (final s in _subs) {
+      await s.cancel();
+    }
+    await _first.close();
+    await _errors.close();
+    _backend.dispose();
   }
 }
