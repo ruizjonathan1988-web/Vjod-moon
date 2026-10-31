@@ -1,0 +1,45 @@
+name: Essai iPad
+
+# VJOD for the iPad, trial build: an unsigned .ipa that AltStore signs with the
+# user's free Apple account. Runs on the claude/ipad-* branches only and
+# publishes on its own release (ipad-essai), never over the real one.
+on:
+  push:
+    branches: ['claude/ipad-*']
+
+permissions:
+  contents: write
+
+jobs:
+  ipa:
+    runs-on: macos-26
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.2'
+
+      - name: Xcode 26.3
+        run: sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer
+
+      - name: Construire le fichier iPad
+        run: |
+          set +e
+          export VERSION=$(python3 tool/vjod_release_notes.py | head -1) BUILD_NUM=$GITHUB_RUN_NUMBER
+          ./tool/build_ipad.sh > build.txt 2>&1
+          status=$?
+          tail -60 build.txt
+          if [ $status -ne 0 ]; then
+            grep -E "error:|Error|\.dart:[0-9]+|FAILED|failed" build.txt | head -40 | while IFS= read -r line; do echo "::error::$line"; done
+          fi
+          exit $status
+
+      - name: Publier l'essai
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 tool/vjod_altstore_source.py vjod-ipad.ipa vjod-ipad-Info.plist ipad-essai > altstore.json
+          gh release create ipad-essai --repo "$GITHUB_REPOSITORY" --title "VJOD iPad (essai)" --notes "Essai de VJOD pour iPad, à installer avec AltStore." --prerelease || true
+          gh release upload ipad-essai vjod-ipad.ipa altstore.json --repo "$GITHUB_REPOSITORY" --clobber

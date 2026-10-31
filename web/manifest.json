@@ -1,15 +1,22 @@
 {
-    "name": "Moonfin",
-    "short_name": "Moonfin",
+    "name": "VJOD",
+    "short_name": "VJOD",
     "start_url": ".",
     "display": "standalone",
-    "display_override": ["standalone", "window-controls-overlay"],
-    "background_color": "#101010",
-    "theme_color": "#00A4DC",
-    "description": "Moonfin web client for self-hosted media servers",
-    "orientation": "portrait-primary",
+    "display_override": [
+        "standalone",
+        "window-controls-overlay"
+    ],
+    "background_color": "#000000",
+    "theme_color": "#000000",
+    "description": "VJOD : films, séries et TV",
+    "orientation": "any",
     "prefer_related_applications": false,
-    "categories": ["entertainment", "video", "music"],
+    "categories": [
+        "entertainment",
+        "video",
+        "music"
+    ],
     "icons": [
         {
             "src": "icons/Icon-192.png",
@@ -34,18 +41,5 @@
             "purpose": "maskable"
         }
     ],
-    "screenshots": [
-        {
-            "src": "screenshots/moonfin-home.png",
-            "sizes": "512x512",
-            "type": "image/png",
-            "label": "Moonfin home"
-        },
-        {
-            "src": "screenshots/moonfin-library.png",
-            "sizes": "512x512",
-            "type": "image/png",
-            "label": "Moonfin library"
-        }
-    ]
+    "lang": "fr"
 }

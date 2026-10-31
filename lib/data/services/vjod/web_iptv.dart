@@ -29,6 +29,23 @@ String? webUnplayableReason(String extension) {
       'ou regarde-le sur l\'appli Android ou la TV.';
 }
 
+/// Whether the web version asks Ma TV's relay for a version the browser
+/// plays (HLS) rather than opening the file: always for a type no browser
+/// plays, and on Safari (iPad, iPhone, Mac) for anything but MP4, since it
+/// plays no MKV at all. Other browsers try the file first and fall back to
+/// the relay when it doesn't play.
+bool webUsesRelayFirst({required bool safari, required String extension}) {
+  final ext = extension.trim().toLowerCase().replaceAll('.', '');
+  if (_neverInBrowser.contains(ext)) return true;
+  return safari && !const {'mp4', 'm4v', 'mov'}.contains(ext);
+}
+
+/// Shown when the web version's live player is asked for a replay or a
+/// look back in the live stream, which only the apps do.
+const webTvLiveOnlyMessage =
+    'Dans le navigateur, seule la TV en direct est disponible. '
+    'Le replay et le retour en arrière se regardent sur l\'appli.';
+
 /// The extension in a play address (`…/123.mkv?q=1080`), empty when none.
 String extensionOfUrl(String url) {
   final path = Uri.tryParse(url)?.path ?? url;
