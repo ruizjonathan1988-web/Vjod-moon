@@ -29,7 +29,10 @@ ASC_KEY_ID="${ASC_KEY_ID:-}"
 ASC_ISSUER_ID="${ASC_ISSUER_ID:-}"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-APP_NAME="Moonfin"
+APP_NAME="${APP_NAME:-Moonfin}"
+# VJOD: the DMG's update channel and extra --dart-define flags (essai Mac).
+DMG_CHANNEL="${DMG_CHANNEL:-macos_dmg}"
+read -r -a EXTRA_DART_DEFINES <<< "${VJOD_DART_DEFINES:-}"
 PKG_OUTPUT=""
 
 if [ "$#" -gt 0 ]; then
@@ -139,7 +142,7 @@ echo "Preparing Flutter macOS generated files..."
 if [ "$BUILD_APPSTORE_PKG" = "1" ]; then
   flutter build macos --release --dart-define=DISTRIBUTION_CHANNEL=macos_pkg
 else
-  flutter build macos --release --dart-define=DISTRIBUTION_CHANNEL=macos_dmg
+  flutter build macos --release --dart-define=DISTRIBUTION_CHANNEL="$DMG_CHANNEL" ${EXTRA_DART_DEFINES[@]+"${EXTRA_DART_DEFINES[@]}"}
 fi
 
 echo "Cleaning previous App Store outputs..."
@@ -264,7 +267,7 @@ if [ "$BUILD_DMG_GITHUB" = "1" ]; then
     DMG_ARCHIVE_PATH="$REPO_ROOT/build/macos/dmg/${APP_NAME}.xcarchive"
     rm -rf "$DMG_ARCHIVE_PATH"
     mkdir -p "$(dirname "$DMG_ARCHIVE_PATH")"
-    flutter build macos --release --dart-define=DISTRIBUTION_CHANNEL=macos_dmg
+    flutter build macos --release --dart-define=DISTRIBUTION_CHANNEL="$DMG_CHANNEL" ${EXTRA_DART_DEFINES[@]+"${EXTRA_DART_DEFINES[@]}"}
     DMG_ARCHIVE_CMD=(
       xcodebuild
       -workspace "$WORKSPACE"
