@@ -106,6 +106,7 @@ import 'osd_buttons.dart';
 import 'trickplay_housing_inset.dart';
 import 'tabletop_layout.dart';
 import '../../layout/screen_form.dart';
+import '../../../playback/tizen_backend_hook.dart';
 
 class _SubtitleLoadingSpinner extends StatefulWidget {
   const _SubtitleLoadingSpinner();
@@ -4530,6 +4531,14 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
       _prefs.get(UserPreferences.keepVideoClearOfDynamicIsland);
 
   Widget _buildVideoSurface() {
+    // Samsung TVs: the TV player's picture.
+    if (PlatformDetection.isTizen) {
+      return Positioned.fill(
+        child: tizenVideoView(_activeBackend) ??
+            const ColoredBox(color: Colors.black),
+      );
+    }
+
     if (PlatformDetection.isIOS || PlatformDetection.isMacOS) {
       return Positioned.fill(
         child: AetherVideoView(

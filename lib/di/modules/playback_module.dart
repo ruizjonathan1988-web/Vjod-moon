@@ -51,6 +51,7 @@ import '../../util/season_queue_context.dart';
 import '../../util/audio_track_logic.dart';
 import '../../util/subtitle_track_logic.dart';
 import '../../util/secondary_subtitle_track_selection.dart';
+import '../../playback/tizen_backend_hook.dart';
 
 final _getIt = GetIt.instance;
 
@@ -331,7 +332,13 @@ void registerPlaybackModule() {
   AppleTvBackend? appleTvBackend;
   AetherBackend? iosBackend;
 
-  if (PlatformDetection.isAppleTV) {
+  // Samsung TVs: the TV's own player (see tizen_backend_hook.dart).
+  final PlayerBackend? tizenBackend =
+      PlatformDetection.isTizen ? createTizenBackend(prefs) : null;
+
+  if (PlatformDetection.isTizen && tizenBackend != null) {
+    // Nothing else plays there: no libmpv, no ExoPlayer.
+  } else if (PlatformDetection.isAppleTV) {
     appleTvBackend = AppleTvBackend(prefs);
     _getIt.registerSingleton<AppleTvBackend>(appleTvBackend);
   } else if (PlatformDetection.isIOS || PlatformDetection.isMacOS) {
@@ -361,7 +368,9 @@ void registerPlaybackModule() {
       PlatformDetection.isAndroid &&
       prefs.get(UserPreferences.playbackEnginePreference) ==
           PlaybackEnginePreference.media3;
-  final PlayerBackend initialBackend = PlatformDetection.isAppleTV
+  final PlayerBackend initialBackend = tizenBackend != null
+      ? tizenBackend
+      : PlatformDetection.isAppleTV
       ? appleTvBackend!
       : (PlatformDetection.isIOS || PlatformDetection.isMacOS)
       ? iosBackend!
@@ -478,6 +487,8 @@ void registerPlaybackModule() {
 
   manager.setBackend(initialBackend);
   manager.setBackendSelector((resolution, currentBackend) {
+    if (tizenBackend != null) return tizenBackend;
+
     if (PlatformDetection.isAppleTV) {
       if (currentBackend is AppleTvBackend) return currentBackend;
       return _getIt<AppleTvBackend>();

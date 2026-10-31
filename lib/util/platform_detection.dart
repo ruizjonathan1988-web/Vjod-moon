@@ -19,8 +19,14 @@ class PlatformDetection {
   /// enabled only in that package.
   static const bool isForcedTv = bool.fromEnvironment('MOONFIN_FORCE_TV');
 
+  /// True when built for Samsung TVs (Tizen), with
+  /// `--dart-define=MOONFIN_TIZEN=true`. Tizen reports itself as Linux, so
+  /// this flag wins over the OS getters below. It folds to false everywhere
+  /// else, so the `!isTizen` guards cost nothing on the other builds.
+  static const bool isTizen = bool.fromEnvironment('MOONFIN_TIZEN');
+
   static bool get isAndroid =>
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+      !kIsWeb && !isTizen && defaultTargetPlatform == TargetPlatform.android;
   static bool get isIOS =>
       !kIsWeb &&
       !isAppleTV &&
@@ -29,11 +35,11 @@ class PlatformDetection {
   static int? _osMajorCache;
   static int get osMajor => _osMajorCache ??= osMajorVersion();
   static bool get isMacOS =>
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.macOS;
+      !kIsWeb && !isTizen && defaultTargetPlatform == TargetPlatform.macOS;
   static bool get isWindows =>
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
+      !kIsWeb && !isTizen && defaultTargetPlatform == TargetPlatform.windows;
   static bool get isLinux =>
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.linux;
+      !kIsWeb && !isTizen && defaultTargetPlatform == TargetPlatform.linux;
   static bool get isWeb => kIsWeb;
 
   /// The ID this Flatpak was installed under, or null outside a Flatpak.
@@ -57,7 +63,7 @@ class PlatformDetection {
   static bool get isApple => isIOS || isMacOS;
 
   static bool get isTV {
-    if (isAppleTV || isForcedTv) {
+    if (isAppleTV || isForcedTv || isTizen) {
       return true;
     }
     return switch (_interfaceLayout) {

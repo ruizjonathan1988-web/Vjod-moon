@@ -16,6 +16,13 @@ QueryExecutor openConnection() {
       return NativeDatabase(file);
     }
 
+    if (PlatformDetection.isTizen) {
+      // Samsung TVs: no bundled sqlite, the system one is used, on this
+      // isolate (the override doesn't reach background isolates).
+      open.overrideForAll(_openSystemSqlite);
+      return NativeDatabase(file);
+    }
+
     if (PlatformDetection.isLinux) {
       // Desktop libraries (KDE/GNOME) load the system libsqlite3 at startup,
       // which collides with the bundled sqlite and crashes sqlite3_initialize.

@@ -914,9 +914,12 @@ void main() async {
 
   // Apple runs entirely on AetherEngine, so media_kit isn't initialized there
   // and its native libs are out of those builds.
+  // Nor on Samsung TVs (Tizen): no libmpv there, video goes through the TV's
+  // own player (TizenPlayerBackend).
   if (!PlatformDetection.isAppleTV &&
       !PlatformDetection.isIOS &&
-      !PlatformDetection.isMacOS) {
+      !PlatformDetection.isMacOS &&
+      !PlatformDetection.isTizen) {
     MediaKit.ensureInitialized();
   }
 
