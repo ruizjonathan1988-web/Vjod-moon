@@ -14,6 +14,7 @@ import 'package:get_it/get_it.dart';
 
 import '../../../data/services/vjod/ma_tv.dart';
 import '../../../data/services/vjod/ma_tv_recordings.dart';
+import '../../../data/services/vjod/ma_tv_sports.dart';
 import '../../../data/services/vjod/tv_sources.dart';
 import '../../../util/focus/dpad_keys.dart';
 import '../../../util/platform_detection.dart';
@@ -95,6 +96,17 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
   Timer? _summaryTimer;
   Timer? _numberTimer;
   Timer? _refreshTimer;
+
+  // Sports (Ma TV 3.55): the match on this channel, a word on a goal, and
+  // kick-off of a match asked about. Read every minute, never in Kids Mode.
+  Timer? _sportsTimer;
+  Timer? _flashTimer;
+  Timer? _sportSoon;
+  SportEvent? _sport;
+  String? _sportFlash;
+  DateTime? _momentSeen;
+  final Map<String, String> _sportStates = {};
+  SportsChoices _sportsChoices = const SportsChoices(banner: false);
   bool _banner = true;
   String? _status;
 
@@ -163,6 +175,14 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
       if (mounted) setState(() => _now = DateTime.now());
     });
     _refreshTimer = Timer.periodic(const Duration(minutes: 5), (_) => _refreshList());
+    if (!widget.kids) {
+      _sportsChoices = SportsChoices.read();
+      final c = _sportsChoices;
+      if (c.banner || c.teams.isNotEmpty || c.reminders.isNotEmpty) {
+        unawaited(_readSports());
+        _sportsTimer = Timer.periodic(const Duration(seconds: 60), (_) => unawaited(_readSports()));
+      }
+    }
     if (_list.isNotEmpty) {
       final replay = widget.startReplay;
       if (replay != null) {
@@ -325,7 +345,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
   @override
   void dispose() {
     _screensaver(false);
-    for (final t in [_clock, _zapTimer, _bannerTimer, _watchdog, _summaryTimer, _numberTimer, _refreshTimer, _seekTimer, _freezeTimer]) {
+    for (final t in [_clock, _zapTimer, _bannerTimer, _watchdog, _summaryTimer, _numberTimer, _refreshTimer, _seekTimer, _freezeTimer, _sportsTimer, _flashTimer, _sportSoon]) {
       t?.cancel();
     }
     for (final s in _subs) {
@@ -372,6 +392,11 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     final ch = _channel;
     // Zapping several channels in a row only opens the one stopped on.
     _zapTimer = Timer(immediate ? Duration.zero : _zapDelay, () => _open(ch, _client.liveUri(ch)));
+    // The score of the match on the channel stopped on, without waiting a minute.
+    if (_sportsTimer != null) {
+      _sportSoon?.cancel();
+      _sportSoon = Timer(const Duration(seconds: 4), () => unawaited(_readSports()));
+    }
   }
 
   Future<void> _open(MaTvChannel ch, Uri? uri, {bool retry = false}) async {
@@ -1222,9 +1247,84 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
   }
 
   // ---------------------------------------------------------------- layout
+  Future<void> _readSports() async {
+    final c = _sportsChoices;
+    final data = await _client.sports(kinds: c.kinds, teams: c.teams, limit: 60);
+    if (!mounted || data == null || _list.isEmpty) return;
+    final here = _channel.id;
+    SportEvent? match;
+    for (final e in data.events) {
+      if (e.live && e.channels.any((ch) => ch.id == here)) {
+        match = e;
+        break;
+      }
+    }
+    final started = kickOffs(Map.of(_sportStates), data.events, reminders: c.reminders, teams: c.teams);
+    for (final e in data.events) {
+      _sportStates[e.id] = e.state;
+    }
+    String? flash;
+    final moment = match?.last;
+    if (c.banner && moment != null && DateTime.now().difference(moment.at) < const Duration(minutes: 3) &&
+        (_momentSeen == null || moment.at.isAfter(_momentSeen!))) {
+      _momentSeen = moment.at;
+      flash = moment.label;
+    }
+    if (started.isNotEmpty) {
+      final e = started.first;
+      final where = e.channels.isEmpty ? '' : ' · ${e.channels.first.name}';
+      flash = 'Coup d\u2019envoi : ${e.home} \u2013 ${e.away}$where';
+    }
+    setState(() {
+      _sport = c.banner ? match : null;
+      if (flash != null) _sportFlash = flash;
+    });
+    if (flash != null) {
+      _flashTimer?.cancel();
+      _flashTimer = Timer(const Duration(seconds: 8), () {
+        if (mounted) setState(() => _sportFlash = null);
+      });
+    }
+  }
+
+  Widget _sportChip(SportEvent e) {
+    final odds = _sportsChoices.odds && e.odds.isNotEmpty
+        ? [for (final k in const ['1', 'N', '2']) if (e.odds[k] != null) '$k ${e.odds[k]!.toStringAsFixed(2).replaceAll('.', ',')}'].join('  ')
+        : '';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(color: MaTvColors.panel, borderRadius: BorderRadius.circular(10)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                decoration: BoxDecoration(color: MaTvColors.live, borderRadius: BorderRadius.circular(5)),
+                child: Text(e.clockText, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
+              ),
+              const SizedBox(width: 8),
+              Text('${e.home}  ${e.scoreText.isEmpty ? '\u2013' : e.scoreText}  ${e.away}',
+                  style: const TextStyle(color: MaTvColors.ink, fontSize: 16, fontWeight: FontWeight.w700)),
+            ],
+          ),
+          if (odds.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 3),
+              child: Text(odds, style: const TextStyle(color: MaTvColors.mute, fontSize: 12.5)),
+            ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ch = _list.isEmpty ? null : _channel;
+    final sport = _sport;
     return PopScope(
       canPop: _overlay == _Overlay.none && _replaying == null,
       onPopInvokedWithResult: (didPop, _) {
@@ -1280,6 +1380,19 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
                           : (_delay > Duration.zero
                                 ? '${_t('Différé', 'Delayed', 'Задержка', '延时')} ${fmtDelay(_delay)} · ${_t('Retour pour revenir au direct', 'Back to return to live', 'Назад — вернуться в эфир', '按返回回到直播')}'
                                 : null),
+                    ),
+                  ),
+                if (sport != null && ch != null && sport.channels.any((c) => c.id == ch.id) && _overlay == _Overlay.none)
+                  Positioned(top: 24, left: 28, child: _sportChip(sport)),
+                if (_sportFlash != null && _overlay == _Overlay.none)
+                  Positioned(
+                    top: sport != null ? 92 : 24,
+                    left: 28,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(color: MaTvColors.panel, borderRadius: BorderRadius.circular(10)),
+                      child: Text(_sportFlash!,
+                          style: const TextStyle(color: MaTvColors.accent, fontSize: 16, fontWeight: FontWeight.w700)),
                     ),
                   ),
                 if (_number.isNotEmpty)

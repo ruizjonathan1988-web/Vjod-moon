@@ -15,6 +15,11 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.6', [
+    'Nouveau : Sports dans la TV. Les matchs du jour pour tous les sports, le score en direct, les cotes et la chaîne qui diffuse le match.',
+    'Pendant un match, le score s\u2019affiche en haut de l\u2019image, avec un mot à chaque but.',
+    'Chaque profil choisit ses sports, suit ses équipes, demande à être prévenu au coup d\u2019envoi, et peut masquer les cotes (jamais affichées en mode enfants).',
+  ]),
   VjodRelease('4.5', [
     'VJOD sur iPad : une vraie appli, installée avec AltStore (guide fourni), qui se met à jour dans AltStore.',
     'Dans Safari (iPad, iPhone) : les films et séries IPTV et la TV en direct se lisent, Ma TV prépare une version lisible.',
