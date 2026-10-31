@@ -31,6 +31,7 @@ import '../../widgets/vjod/iptv_cast_sheet.dart';
 import '../vjod_tv/tv_engine.dart' show TvEngineChoice;
 import 'vod_engine.dart';
 import '../../../util/vjod_log.dart';
+import '../../../util/platform_detection.dart';
 
 /// Where each film was left, for this run of the app, so leaving by mistake
 /// and coming back picks up there.
@@ -166,7 +167,12 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
     setImmersive(true);
     GetIt.instance<ScreensaverController>().setPlaybackActive(true);
     // In a browser, its own player; the apps keep ExoPlayer / mpv as before.
-    _engine = kIsWeb ? WebVodEngine() : (_exoWanted ? ExoVodEngine() : MpvVodEngine());
+    _engine = kIsWeb
+        ? WebVodEngine()
+        // Mac and iPhone: Moonfin's Apple player, mpv isn't there.
+        : (PlatformDetection.isMacOS || PlatformDetection.isIOS)
+        ? AetherVodEngine()
+        : (_exoWanted ? ExoVodEngine() : MpvVodEngine());
     _listen();
     unawaited(_open());
     if (widget.watch != null) {

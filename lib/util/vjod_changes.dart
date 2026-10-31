@@ -15,8 +15,12 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.3', [
+    'VJOD sur Mac : une vraie appli, avec les films du serveur, les films et séries IPTV et la TV en direct.',
+    'Sur Mac, VJOD propose lui-même ses mises à jour.',
+  ]),
   VjodRelease('4.2', [
-    'Vieilles Fire TV : une version allégée de l\u2019appli (deux à trois fois plus petite), installée toute seule à la prochaine mise à jour.',
+    'Vieilles Fire TV : une version allégée de l\u2019appli (environ 40 % plus légère), installée toute seule à la prochaine mise à jour.',
     'Moins de place prise par les affiches gardées en mémoire sur les appareils faibles.',
   ]),
   VjodRelease('4.1', [
@@ -39,3 +43,8 @@ List<String> vjodChangesFromNotes(String? notes) => [
   for (final line in (notes ?? '').split('\n'))
     if (line.trimLeft().startsWith('- ')) line.trimLeft().substring(2).trim(),
 ];
+
+/// The commit a release was built from, as its notes say it (« commit
+/// abc1234 », the Mac release), or null.
+String? vjodCommitFromNotes(String? notes) =>
+    RegExp(r'commit ([0-9a-f]{7,40})').firstMatch(notes ?? '')?.group(1);

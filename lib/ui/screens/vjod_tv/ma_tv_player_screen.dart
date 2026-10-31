@@ -75,6 +75,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
   // ExoPlayer doesn't bring a picture for. See tv_engine.dart.
   TvEngine? _exo;
   TvEngine? _mpv;
+  TvEngine? _apple;
   late TvEngine _engine;
   final Set<String> _mpvChannels = {};
   static const _exoGiveUp = Duration(seconds: 9);
@@ -150,7 +151,11 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     if (!widget.kids) unawaited(MaTvRecorder().list());
     setImmersive(true);
     _screensaver(true);
-    _engine = _useExo ? (_exo = _attach(ExoTvEngine())) : (_mpv = _attach(MpvTvEngine()));
+    _engine = AppleTvEngine.wanted
+        ? (_apple = _attach(AppleTvEngine()))
+        : _useExo
+        ? (_exo = _attach(ExoTvEngine()))
+        : (_mpv = _attach(MpvTvEngine()));
     _clock = Timer.periodic(const Duration(seconds: 20), (_) {
       if (mounted) setState(() => _now = DateTime.now());
     });
@@ -172,6 +177,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
   /// The engine for [ch]: mpv when chosen, or when ExoPlayer brought no
   /// picture for this channel earlier in the session.
   TvEngine _engineFor(MaTvChannel ch) {
+    if (AppleTvEngine.wanted) return _apple ??= _attach(AppleTvEngine());
     final mpv = !_useExo || (TvEngineChoice.value == 'auto' && _mpvChannels.contains(ch.id));
     if (mpv) return _mpv ??= _attach(MpvTvEngine());
     return _exo ??= _attach(ExoTvEngine());
@@ -319,9 +325,10 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     for (final s in _subs) {
       s.cancel();
     }
-    final exo = _exo, mpv = _mpv;
+    final exo = _exo, mpv = _mpv, apple = _apple;
     if (exo != null) unawaited(exo.dispose());
     if (mpv != null) unawaited(mpv.dispose());
+    if (apple != null) unawaited(apple.dispose());
     _focus.dispose();
     _listCatScroll.dispose();
     _listChanScroll.dispose();
