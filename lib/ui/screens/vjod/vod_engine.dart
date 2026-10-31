@@ -241,9 +241,9 @@ class ExoVodEngine implements VodEngine {
   @override
   String get name => 'ExoPlayer';
   @override
-  Stream<Duration> get position => _backend.positionStream.map((p) => p + _offset);
+  Stream<Duration> get position => _backend.positionStream;
   @override
-  Stream<Duration> get duration => _backend.durationStream.map((d) => d + _offset);
+  Stream<Duration> get duration => _backend.durationStream;
   @override
   Stream<bool> get playing => _backend.playingStream;
   @override
@@ -537,9 +537,9 @@ class WebVodEngine implements VodEngine {
   @override
   String get name => 'Navigateur';
   @override
-  Stream<Duration> get position => _backend.positionStream;
+  Stream<Duration> get position => _backend.positionStream.map((p) => p + _offset);
   @override
-  Stream<Duration> get duration => _backend.durationStream;
+  Stream<Duration> get duration => _backend.durationStream.map((d) => d + _offset);
   @override
   Stream<bool> get playing => _backend.playingStream;
   @override
