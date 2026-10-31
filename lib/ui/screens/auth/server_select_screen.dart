@@ -172,7 +172,8 @@ class _ServerSelectScreenState extends State<ServerSelectScreen> {
     )) {
       return null;
     }
-    unawaited(prefs.set(UserPreferences.vjodHomeServerOffered, true));
+    // Marked as offered only once it has been added (see below): a first try
+    // that failed (no network, a browser that refused) offers it again.
     return vjodHomeServerUrl;
   }
 
@@ -205,6 +206,11 @@ class _ServerSelectScreenState extends State<ServerSelectScreen> {
 
     try {
       await _addServerWithoutAutoNavigation(configuredAddress);
+      if (configuredAddress == vjodHomeServerUrl &&
+          GetIt.instance.isRegistered<UserPreferences>()) {
+        unawaited(GetIt.instance<UserPreferences>()
+            .set(UserPreferences.vjodHomeServerOffered, true));
+      }
     } catch (_) {
       if (!mounted) return;
       _maybeOpenWebDiagnosticsForFailure(targetUrl: configuredAddress);
