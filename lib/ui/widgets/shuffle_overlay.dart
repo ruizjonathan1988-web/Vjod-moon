@@ -150,11 +150,7 @@ class _ShuffleOverlayState extends State<_ShuffleOverlay> {
     Object? error,
     StackTrace? stackTrace,
   }) {
-    final _ = message;
-    final __ = level;
-    final ___ = context;
-    final ____ = error;
-    final _____ = stackTrace;
+    // Deliberately silent: the overlay has nowhere to show these.
   }
 
   String _describeError(Object error) {

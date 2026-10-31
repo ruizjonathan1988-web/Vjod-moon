@@ -13,6 +13,28 @@ String vjodText(
   String? zh,
 }) {
   final lang = Localizations.maybeLocaleOf(context)?.languageCode ?? 'fr';
+  _lastLang = lang;
+  return switch (lang) {
+    'fr' => fr,
+    'ru' => ru ?? en,
+    'zh' => zh ?? en,
+    _ => en,
+  };
+}
+
+String? _lastLang;
+
+/// The same, for code with no [BuildContext] at hand (a message built in a
+/// service, a date helper): in the language the screens were last drawn in,
+/// else the device's.
+String vjodTextNow({
+  required String fr,
+  required String en,
+  String? ru,
+  String? zh,
+}) {
+  final lang = _lastLang ??
+      WidgetsBinding.instance.platformDispatcher.locale.languageCode;
   return switch (lang) {
     'fr' => fr,
     'ru' => ru ?? en,

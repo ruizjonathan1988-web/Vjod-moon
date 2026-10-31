@@ -7,6 +7,11 @@ import 'dart:ui' show FontFeature;
 import 'package:flutter/material.dart';
 
 import '../../../data/services/vjod/ma_tv.dart';
+import '../../../util/vjod_text.dart';
+
+String _tn(String fr, String en, String ru, String zh) =>
+    vjodTextNow(fr: fr, en: en, ru: ru, zh: zh);
+
 
 class MaTvColors {
   static const ink = Color(0xFFEDEBE6);
@@ -36,19 +41,27 @@ String maTvRange(MaTvProgram p) => '${maTvTime(p.start)} – ${maTvTime(p.end)}'
 /// "dans 12 min", "reste 34 min".
 String maTvLeft(MaTvProgram p, DateTime now) {
   final m = p.end.difference(now).inMinutes;
-  return m <= 0 ? 'se termine' : 'reste $m min';
+  return m <= 0 ? _tn('se termine', 'ending', 'заканчивается', '即将结束') : '${_tn('reste', 'left:', 'осталось', '剩余')} $m min';
 }
 
-const _days = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
+List<String> get _days => [
+  _tn('lundi', 'Monday', 'понедельник', '周一'),
+  _tn('mardi', 'Tuesday', 'вторник', '周二'),
+  _tn('mercredi', 'Wednesday', 'среда', '周三'),
+  _tn('jeudi', 'Thursday', 'четверг', '周四'),
+  _tn('vendredi', 'Friday', 'пятница', '周五'),
+  _tn('samedi', 'Saturday', 'суббота', '周六'),
+  _tn('dimanche', 'Sunday', 'воскресенье', '周日'),
+];
 
 /// "aujourd'hui", "hier", "mardi 27".
 String maTvDay(DateTime t, DateTime now) {
   final d = DateTime(t.year, t.month, t.day);
   final today = DateTime(now.year, now.month, now.day);
   final diff = today.difference(d).inDays;
-  if (diff == 0) return "aujourd'hui";
-  if (diff == 1) return 'hier';
-  if (diff == -1) return 'demain';
+  if (diff == 0) return _tn('aujourd\'hui', 'today', 'сегодня', '今天');
+  if (diff == 1) return _tn('hier', 'yesterday', 'вчера', '昨天');
+  if (diff == -1) return _tn('demain', 'tomorrow', 'завтра', '明天');
   return '${_days[t.weekday - 1]} ${t.day}';
 }
 
@@ -299,7 +312,7 @@ class MaTvChannelRow extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    cur == null ? 'Pas de programme annoncé' : '${maTvTime(cur.start)}  ${cur.title}',
+                    cur == null ? _tn('Pas de programme annoncé', 'No programme listed', 'Программа не указана', '暂无节目信息') : '${maTvTime(cur.start)}  ${cur.title}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(color: cur == null ? MaTvColors.faint : MaTvColors.mute, fontSize: 13.5),
@@ -315,7 +328,7 @@ class MaTvChannelRow extends StatelessWidget {
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              'puis ${maTvTime(next.start)} ${next.title}',
+                              '${_tn('puis', 'then', 'затем', '随后')} ${maTvTime(next.start)} ${next.title}',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(color: MaTvColors.faint, fontSize: 12, height: 1.2),
@@ -352,7 +365,7 @@ class MaTvChannelList extends StatelessWidget {
   final ScrollController? controller;
   final ValueChanged<int>? onTap;
   final ValueChanged<int>? onLongPress;
-  final String emptyText;
+  final String? emptyText;
 
   const MaTvChannelList({
     super.key,
@@ -366,13 +379,13 @@ class MaTvChannelList extends StatelessWidget {
     this.controller,
     this.onTap,
     this.onLongPress,
-    this.emptyText = 'Aucune chaîne ici.',
+    this.emptyText,
   });
 
   @override
   Widget build(BuildContext context) {
     if (channels.isEmpty) {
-      return Center(child: Text(emptyText, style: const TextStyle(color: MaTvColors.mute, fontSize: 15)));
+      return Center(child: Text(emptyText ?? _tn('Aucune chaîne ici.', 'No channels here.', 'Здесь нет каналов.', '这里没有频道。'), style: const TextStyle(color: MaTvColors.mute, fontSize: 15)));
     }
     return ListView.builder(
       controller: controller,
@@ -453,7 +466,7 @@ class MaTvDetailsPane extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(color: MaTvColors.live, borderRadius: BorderRadius.circular(4)),
-                  child: const Text('EN DIRECT', style: TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.w800)),
+                  child: Text(_tn('EN DIRECT', 'LIVE', 'В ЭФИРЕ', '直播中'), style: const TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.w800)),
                 ),
                 const SizedBox(width: 8),
                 Text('${maTvRange(cur)} · ${maTvLeft(cur, now)}', style: const TextStyle(color: MaTvColors.mute, fontSize: 13)),
@@ -480,10 +493,10 @@ class MaTvDetailsPane extends StatelessWidget {
               ),
             ],
           ] else
-            const Text('Pas de programme annoncé pour cette chaîne.', style: TextStyle(color: MaTvColors.faint, fontSize: 14)),
+            Text(_tn('Pas de programme annoncé pour cette chaîne.', 'No programme listed for this channel.', 'Для этого канала программа не указана.', '此频道暂无节目信息。'), style: const TextStyle(color: MaTvColors.faint, fontSize: 14)),
           if (later.isNotEmpty) ...[
             const SizedBox(height: 16),
-            const Text('ENSUITE', style: TextStyle(color: MaTvColors.faint, fontSize: 11.5, letterSpacing: 1.2, fontWeight: FontWeight.w700)),
+            Text(_tn('ENSUITE', 'NEXT', 'ДАЛЕЕ', '接下来'), style: const TextStyle(color: MaTvColors.faint, fontSize: 11.5, letterSpacing: 1.2, fontWeight: FontWeight.w700)),
             const SizedBox(height: 6),
             for (final p in later)
               Padding(
@@ -600,14 +613,14 @@ class MaTvBanner extends StatelessWidget {
                   if (next != null) ...[
                     const SizedBox(height: 6),
                     Text(
-                      'Ensuite  ${maTvTime(next.start)}  ${next.title}',
+                      '${_tn('Ensuite', 'Next', 'Далее', '接下来')}  ${maTvTime(next.start)}  ${next.title}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(color: MaTvColors.mute, fontSize: 14),
                     ),
                   ],
                 ] else
-                  const Text('Pas de programme annoncé', style: TextStyle(color: MaTvColors.faint, fontSize: 15)),
+                  Text(_tn('Pas de programme annoncé', 'No programme listed', 'Программа не указана', '暂无节目信息'), style: const TextStyle(color: MaTvColors.faint, fontSize: 15)),
                 if (sourceLine != null || status != null) ...[
                   const SizedBox(height: 8),
                   Text(
@@ -698,7 +711,7 @@ class MaTvMiniGuide extends StatelessWidget {
                 Text('${channel.number}  ${channel.name}', style: const TextStyle(color: MaTvColors.mute, fontSize: 14)),
                 const SizedBox(height: 4),
                 Text(
-                  cur?.title ?? 'Pas de programme annoncé',
+                  cur?.title ?? _tn('Pas de programme annoncé', 'No programme listed', 'Программа не указана', '暂无节目信息'),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(color: MaTvColors.ink, fontSize: 22, fontWeight: FontWeight.w800),
@@ -769,7 +782,7 @@ class MaTvMiniGuide extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('ENSUITE', style: TextStyle(color: MaTvColors.faint, fontSize: 11.5, letterSpacing: 1.2, fontWeight: FontWeight.w700)),
+                  Text(_tn('ENSUITE', 'NEXT', 'ДАЛЕЕ', '接下来'), style: const TextStyle(color: MaTvColors.faint, fontSize: 11.5, letterSpacing: 1.2, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 8),
                   for (final p in later)
                     Padding(
@@ -822,8 +835,8 @@ class MaTvReplayList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (programs.isEmpty) {
-      return const Center(
-        child: Text('Aucun programme passé dans le guide pour cette chaîne.', style: TextStyle(color: MaTvColors.mute, fontSize: 15)),
+      return Center(
+        child: Text(_tn('Aucun programme passé dans le guide pour cette chaîne.', 'No past programme in the guide for this channel.', 'В гиде нет прошедших передач этого канала.', '指南中没有此频道的往期节目。'), style: const TextStyle(color: MaTvColors.mute, fontSize: 15)),
       );
     }
     return ListView.builder(
@@ -898,11 +911,11 @@ class _KeyHints extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        hint(Icons.unfold_more_rounded, 'chaînes'),
-        hint(Icons.radio_button_checked_rounded, 'liste'),
+        hint(Icons.unfold_more_rounded, _tn('chaînes', 'channels', 'каналы', '频道')),
+        hint(Icons.radio_button_checked_rounded, _tn('liste', 'list', 'список', '列表')),
         hint(Icons.replay_30_rounded, '−30 s'),
         hint(Icons.forward_30_rounded, '+30 s'),
-        hint(Icons.menu_rounded, 'options'),
+        hint(Icons.menu_rounded, _tn('options', 'options', 'опции', '选项')),
       ],
     );
   }
