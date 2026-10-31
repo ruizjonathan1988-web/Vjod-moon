@@ -93,7 +93,10 @@ android {
         // installs alongside instead and touches nothing.
         val testIdSuffix = System.getenv("MOONFIN_TEST_ID_SUFFIX").orEmpty()
         val mobileAbis = listOf("arm64-v8a", "armeabi-v7a", "x86_64")
-        val tvAbis = listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+        // VJOD: VJOD_TV_ABIS=armeabi-v7a builds the light APK for old Fire TV
+        // sticks (32-bit only, two to three times smaller). Unset: unchanged.
+        val tvAbis = System.getenv("VJOD_TV_ABIS")?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() }
+            ?: listOf("arm64-v8a", "armeabi-v7a", "x86_64")
         create("mobile") {
             dimension = "device"
             applicationId = baseAppId

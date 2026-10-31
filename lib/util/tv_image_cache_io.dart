@@ -32,7 +32,9 @@ ImageCacheIndex? _imageCacheIndex;
 /// backdrops a few hundred) these counts sit above every budget below one
 /// gigabyte. The index costs about half a kilobyte of memory per row.
 const imageCacheMaxObjects = 8000;
-const reducedImageCacheMaxObjects = 4000;
+// VJOD: 1000 on weak devices (was 4000): an old Fire TV stick has a few
+// hundred MB free, and four thousand posters filled it.
+const reducedImageCacheMaxObjects = 1000;
 
 int imageCacheMaxObjectsFor(DevicePerformanceTier tier) => switch (tier) {
   DevicePerformanceTier.standard => imageCacheMaxObjects,

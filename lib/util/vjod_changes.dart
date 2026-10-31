@@ -15,6 +15,10 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.2', [
+    'Vieilles Fire TV : une version allégée de l\u2019appli (deux à trois fois plus petite), installée toute seule à la prochaine mise à jour.',
+    'Moins de place prise par les affiches gardées en mémoire sur les appareils faibles.',
+  ]),
   VjodRelease('4.1', [
     'Recherche plus visible : un champ « Film, série, acteur, chaîne… » en haut, et une loupe dans Films et Séries (même par acteur ou réalisateur).',
     'Clavier TV plus lisible et mots de recherche écrits en grand.',
