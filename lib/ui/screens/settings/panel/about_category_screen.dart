@@ -46,6 +46,32 @@ class _AboutCategoryScreen extends StatelessWidget {
               style: Theme.of(context).textTheme.bodyMedium,
             ),
           ),
+          // What this version brought, from vjod_changes.dart.
+          if (vjodReleases.firstOrNull case final release?
+              when release.version == VjodBuild.version) ...[
+            const SizedBox(height: 16),
+            const Divider(),
+            _SectionHeader(vjodText(
+              context,
+              fr: 'Nouveautés de la ${release.version}',
+              en: 'New in ${release.version}',
+              ru: 'Новое в ${release.version}',
+              zh: '${release.version} 新功能',
+            )),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (final change in release.changes)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Text('• $change', style: Theme.of(context).textTheme.bodyMedium),
+                    ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 16),
           const Divider(),
           _SectionHeader(l10n.settingsAppInfo),

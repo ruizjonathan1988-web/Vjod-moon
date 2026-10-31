@@ -8,7 +8,7 @@ class VjodBuild {
   /// VJOD's own version number, shown in « À propos ». The Android version
   /// (pubspec) stays the Moonfin one it is based on: Jellyfin and the
   /// updates go by it.
-  static const version = '4.0';
+  static const version = '4.1'; // the first entry of vjodReleases (vjod_changes.dart)
 
   static const _built = String.fromEnvironment('VJOD_BUILD');
   static const commit = String.fromEnvironment('VJOD_COMMIT');
