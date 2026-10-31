@@ -82,16 +82,17 @@ class _MaTvSearchScreenState extends State<MaTvSearchScreen> {
               TextField(
                 controller: _field,
                 autofocus: true,
-                style: const TextStyle(color: MaTvColors.ink, fontSize: 20),
+                style: const TextStyle(color: MaTvColors.ink, fontSize: 28, fontWeight: FontWeight.w600),
                 cursorColor: MaTvColors.accent,
                 textInputAction: TextInputAction.search,
                 decoration: InputDecoration(
                   hintText: 'Nom, numéro ou programme (ex. « TF1 », « 12 », « PSG »)',
-                  hintStyle: const TextStyle(color: MaTvColors.mute),
-                  prefixIcon: const Icon(Icons.search_rounded, color: MaTvColors.mute),
+                  hintStyle: const TextStyle(color: MaTvColors.mute, fontSize: 20),
+                  prefixIcon: const Icon(Icons.search_rounded, color: MaTvColors.ink, size: 30),
                   filled: true,
                   fillColor: MaTvColors.row,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
                 ),
                 onChanged: (text) {
                   _debounce?.cancel();

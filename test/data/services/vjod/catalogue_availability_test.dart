@@ -55,4 +55,14 @@ void main() {
       expect(catalogueSearchQuery(' Dune '), 'Dune');
     });
   });
+
+  test('la loupe trouve les acteurs, les plus connus d\'abord, deux au plus', () {
+    const film = SeerrDiscoverItem(id: 1, mediaType: 'movie', title: 'Venom');
+    const a = SeerrDiscoverItem(id: 2, mediaType: 'person', name: 'Tom Hardy', popularity: 50);
+    const b = SeerrDiscoverItem(id: 3, mediaType: 'person', name: 'Tom Hanks', popularity: 80);
+    const c = SeerrDiscoverItem(id: 4, mediaType: 'person', name: 'Tom Holland', popularity: 10);
+    final people = catalogueSearchPeople([film, a, b, c]);
+    expect(people.map((p) => p.name), ['Tom Hanks', 'Tom Hardy']);
+    expect(catalogueSearchPeople([film]), isEmpty);
+  });
 }

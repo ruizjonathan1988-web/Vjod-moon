@@ -902,8 +902,9 @@ class _SearchScreenState extends State<SearchScreen>
     final searchIconColor = searchHasFocus
         ? AppColorScheme.accent
         : AppColorScheme.onSurface.withValues(alpha: 0.7);
-    final searchFontSize = PlatformDetection.isTV ? 22.0 : 16.0;
-    final searchHeight = PlatformDetection.isTV ? 64.0 : 52.0;
+    // Big enough to read from the sofa: what is typed is the main thing here.
+    final searchFontSize = PlatformDetection.isTV ? 30.0 : 20.0;
+    final searchHeight = PlatformDetection.isTV ? 76.0 : 58.0;
     final searchIcon = Icon(
       Icons.search,
       color: searchIconColor,
@@ -912,7 +913,13 @@ class _SearchScreenState extends State<SearchScreen>
     final searchHint =
         widget.scopedLibraryId != null && widget.scopedLibraryId!.isNotEmpty
         ? l10n.searchThisLibrary
-        : l10n.searchEllipsis;
+        : vjodText(
+            context,
+            fr: 'Film, série, acteur, chaîne…',
+            en: 'Movie, series, actor, channel…',
+            ru: 'Фильм, сериал, актёр, канал…',
+            zh: '电影、剧集、演员、频道…',
+          );
     OutlineInputBorder searchBorder(BorderSide side) => OutlineInputBorder(
       borderRadius: BorderRadius.circular(searchHeight / 2),
       borderSide: side,

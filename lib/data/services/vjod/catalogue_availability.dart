@@ -38,3 +38,11 @@ String? catalogueSearchQuery(String text) {
   final q = text.trim();
   return q.length < 2 ? null : q;
 }
+
+/// The people a search names (actors, directors), the most known first, at
+/// most two: typing « tom hardy » on Films shows his films.
+List<SeerrDiscoverItem> catalogueSearchPeople(Iterable<SeerrDiscoverItem> results) {
+  final people = [for (final r in results) if (r.mediaType == 'person') r];
+  people.sort((a, b) => (b.popularity ?? 0).compareTo(a.popularity ?? 0));
+  return people.take(2).toList();
+}

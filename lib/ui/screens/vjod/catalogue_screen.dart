@@ -63,6 +63,8 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
   bool _searchLoading = false;
   bool _searchFailed = false;
   final _searchResults = <SeerrDiscoverItem>[];
+  // « Avec Tom Hardy »: what the people the search names played in or made.
+  final _peopleResults = <(String, List<SeerrDiscoverItem>)>[];
 
   @override
   void initState() {
@@ -102,6 +104,7 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
       _searchLoading = false;
       _searchFailed = false;
       _searchResults.clear();
+      _peopleResults.clear();
     });
   }
 
@@ -116,6 +119,7 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
           _searchLoading = false;
           _searchFailed = false;
           _searchResults.clear();
+          _peopleResults.clear();
         });
       }
       return;
@@ -141,20 +145,42 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
         repo.search(q, mediaType: _mediaType, offset: 20),
       ]);
       if (!mounted || run != _searchRun) return;
+      bool keep(SeerrDiscoverItem item) =>
+          !item.adult &&
+          !item.isBlacklisted &&
+          catalogueSearchKeeps(series: widget.isTv, mediaType: item.mediaType);
+      // An actor or a director: their films (or series), the best known first.
+      final people = catalogueSearchPeople([for (final page in pages) ...page.results]);
+      final credits = await Future.wait([
+        for (final person in people)
+          repo.getPersonCombinedCredits(person.id).then<SeerrPersonCombinedCredits?>((c) => c).catchError((_) => null),
+      ]);
+      if (!mounted || run != _searchRun) return;
+      final byPerson = <(String, List<SeerrDiscoverItem>)>[];
+      for (final (i, person) in people.indexed) {
+        final c = credits[i];
+        if (c == null) continue;
+        final ids = <int>{};
+        final works = [
+          for (final w in [...c.cast, ...c.crew])
+            if (keep(w) && ids.add(w.id)) w,
+        ]..sort((a, b) => (b.popularity ?? 0).compareTo(a.popularity ?? 0));
+        if (works.isNotEmpty) byPerson.add((person.name ?? '', works.take(30).toList()));
+      }
       final seen = <int>{};
       final found = <SeerrDiscoverItem>[
         for (final page in pages)
           for (final item in page.results)
-            if (!item.adult &&
-                !item.isBlacklisted &&
-                catalogueSearchKeeps(series: widget.isTv, mediaType: item.mediaType) &&
-                seen.add(item.id))
+            if (keep(item) && seen.add(item.id))
               item,
       ];
       setState(() {
         _searchResults
           ..clear()
           ..addAll(found);
+        _peopleResults
+          ..clear()
+          ..addAll(byPerson);
         _searchLoading = false;
       });
     } catch (e) {
@@ -186,14 +212,24 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
 
   Widget _searchField(double s) {
     final hint = widget.isTv
-        ? vjodText(context, fr: 'Chercher une série…', en: 'Search a series…', ru: 'Найти сериал…', zh: '搜索剧集…')
-        : vjodText(context, fr: 'Chercher un film…', en: 'Search a movie…', ru: 'Найти фильм…', zh: '搜索电影…');
-    final style = TextStyle(color: vjodInk, fontSize: 18 * s);
-    final hintStyle = TextStyle(color: vjodInk.withValues(alpha: 0.5), fontSize: 18 * s);
-    final icon = Icon(Icons.search_rounded, color: vjodInk.withValues(alpha: 0.7));
-    final height = 52 * s.clamp(0.8, 1.2);
+        ? vjodText(context,
+            fr: 'Une série, un acteur, un réalisateur…',
+            en: 'A series, an actor, a director…',
+            ru: 'Сериал, актёр, режиссёр…',
+            zh: '剧集、演员、导演…')
+        : vjodText(context,
+            fr: 'Un film, un acteur, un réalisateur…',
+            en: 'A movie, an actor, a director…',
+            ru: 'Фильм, актёр, режиссёр…',
+            zh: '电影、演员、导演…');
+    // Big letters: what is typed must read from the sofa.
+    final big = (PlatformDetection.isTV ? 28.0 : 22.0) * s.clamp(0.85, 1.2);
+    final style = TextStyle(color: vjodInk, fontSize: big, fontWeight: FontWeight.w600);
+    final hintStyle = TextStyle(color: vjodInk.withValues(alpha: 0.55), fontSize: big * 0.75);
+    final icon = Icon(Icons.search_rounded, color: vjodInk, size: big);
+    final height = big * 2.4;
     return SizedBox(
-      width: (420 * s).clamp(240.0, 520.0),
+      width: (480 * s).clamp(260.0, 600.0),
       height: height,
       child: PlatformDetection.isTV
           ? Focus(
@@ -329,11 +365,45 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
         zh: '搜索失败，请稍后再试。',
       )));
     } else {
-      final tagged = [
-        for (final item in _searchResults)
+      List<(SeerrDiscoverItem, CatalogueAvailability)> tag(List<SeerrDiscoverItem> list) => [
+        for (final item in list)
           if (catalogueFilterKeeps(_filter, _availabilityOf(item))) (item, _availabilityOf(item)),
       ];
-      if (tagged.isEmpty) {
+      Widget grid(List<(SeerrDiscoverItem, CatalogueAvailability)> list) => Wrap(
+        spacing: 15 * s,
+        runSpacing: 18 * s,
+        children: [
+          for (final (item, a) in list)
+            _CatalogueCard(
+              item: item,
+              availability: a,
+              width: 165 * s,
+              scale: s,
+              autofocus: false,
+              onTap: () => _open(item),
+            ),
+        ],
+      );
+      Widget section(String title) => Padding(
+        padding: EdgeInsets.only(top: 20 * s, bottom: 10 * s),
+        child: Text(title, style: TextStyle(color: vjodInk, fontSize: 22 * s, fontWeight: FontWeight.w700)),
+      );
+      final tagged = tag(_searchResults);
+      final withPeople = [
+        for (final (name, works) in _peopleResults)
+          if (tag(works).isNotEmpty) (name, tag(works)),
+      ];
+      for (final (name, works) in withPeople) {
+        children
+          ..add(section(vjodText(context, fr: 'Avec $name', en: 'With $name', ru: 'С участием: $name', zh: '$name 参与')))
+          ..add(grid(works));
+      }
+      if (withPeople.isNotEmpty && tagged.isNotEmpty) {
+        children.add(section(vjodText(context, fr: 'Titres', en: 'Titles', ru: 'Названия', zh: '作品')));
+      }
+      if (tagged.isEmpty && withPeople.isNotEmpty) {
+        // The people's works already answer the search.
+      } else if (tagged.isEmpty) {
         children.add(note(vjodText(
           context,
           fr: 'Rien trouvé pour « $query ».',
@@ -342,21 +412,7 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
           zh: '没有找到「$query」。',
         )));
       } else {
-        children.add(Wrap(
-          spacing: 15 * s,
-          runSpacing: 18 * s,
-          children: [
-            for (final (item, a) in tagged)
-              _CatalogueCard(
-                item: item,
-                availability: a,
-                width: 165 * s,
-                scale: s,
-                autofocus: false,
-                onTap: () => _open(item),
-              ),
-          ],
-        ));
+        children.add(grid(tagged));
       }
     }
     return ListView(
@@ -396,14 +452,14 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
           VjodRoundButton(
             size: 48 * s.clamp(0.8, 1.2),
             scale: s,
-            background: _searching ? vjodInk.withValues(alpha: 0.18) : AppColorScheme.surfaceVariant,
+            background: _searching ? vjodInk.withValues(alpha: 0.18) : Colors.white,
             semanticLabel: _searching
                 ? vjodText(context, fr: 'Fermer la recherche', en: 'Close search', ru: 'Закрыть поиск', zh: '关闭搜索')
                 : vjodText(context, fr: 'Rechercher', en: 'Search', ru: 'Поиск', zh: '搜索'),
             onTap: _openSearch,
             child: Icon(
               _searching ? Icons.close_rounded : Icons.search_rounded,
-              color: vjodInk,
+              color: _searching ? vjodInk : const Color(0xFF141414),
               size: 26 * s.clamp(0.8, 1.2),
             ),
           ),
