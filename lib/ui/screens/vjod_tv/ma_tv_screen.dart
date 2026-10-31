@@ -18,6 +18,7 @@ import 'ma_tv_guide.dart';
 import 'ma_tv_player_screen.dart';
 import 'ma_tv_recordings_screen.dart';
 import 'ma_tv_search_screen.dart';
+import 'ma_tv_sports_screen.dart';
 import 'ma_tv_widgets.dart';
 import '../../../util/vjod_text.dart';
 
@@ -173,6 +174,8 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
     return [
       // First of the list: OK on it opens the search.
       MaTvCategory(id: 'search', label: _tn('Rechercher', 'Search', 'Поиск', '搜索'), kind: 'search', count: 0),
+      // The day's matches with the score, the odds and the channel (Ma TV 3.55).
+      MaTvCategory(id: 'sports', label: _tn('Sports', 'Sports', 'Спорт', '体育'), kind: 'sports', count: 0),
       // Opens the recordings Ma TV made on the seedbox, and those to come.
       MaTvCategory(id: 'rec', label: _tn('Enregistrements', 'Recordings', 'Записи', '录像'), kind: 'rec', count: 0),
       if (fav.isNotEmpty) MaTvCategory(id: 'fav', label: _tn('Favoris', 'Favourites', 'Избранное', '收藏'), kind: 'fav', count: fav.length),
@@ -309,13 +312,15 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
   }
 
   /// Entries of the list that open a page rather than list channels.
-  static bool _isAction(MaTvCategory c) => c.kind == 'search' || c.kind == 'rec';
+  static bool _isAction(MaTvCategory c) => c.kind == 'search' || c.kind == 'rec' || c.kind == 'sports';
 
   bool get _onAction => _cats.isNotEmpty && _isAction(_cats[_cat]);
 
   void _openAction(MaTvCategory c) {
     if (c.kind == 'rec') {
       unawaited(_openRecordings());
+    } else if (c.kind == 'sports') {
+      unawaited(_openSports());
     } else {
       unawaited(_openSearch());
     }
@@ -324,6 +329,22 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
   Future<void> _openRecordings() async {
     await Navigator.of(context, rootNavigator: true).push<void>(maTvRoute((_) => const MaTvRecordingsScreen()));
     if (mounted) _focus.requestFocus();
+  }
+
+  /// The day's matches; « Regarder » on one plays its channel, with the
+  /// other channels of the match to zap through.
+  Future<void> _openSports() async {
+    final pick = await Navigator.of(context, rootNavigator: true).push<MaTvSportsPick>(
+      maTvRoute((_) => const MaTvSportsScreen()),
+    );
+    if (!mounted) return;
+    _focus.requestFocus();
+    if (pick == null) return;
+    setState(() {
+      _chans = pick.channels;
+      _chan = pick.index;
+    });
+    await _play(pick.index);
   }
 
   /// Types a channel's name, number or programme; the one picked plays, with
@@ -665,6 +686,8 @@ class MaTvBrowserView extends StatelessWidget {
                 ? _tn('Ma TV ne répond pas pour le moment. Reviens sur la catégorie pour réessayer.', 'Ma TV isn’t responding right now. Come back to the category to try again.', 'Ma TV пока не отвечает. Вернись в категорию, чтобы повторить.', 'Ma TV 暂无响应，返回该分类重试。')
                 : cat?.kind == 'search'
                 ? _tn('OK pour chercher une chaîne par son nom, son numéro ou un programme.', 'OK to find a channel by name, number or programme.', 'OK — найти канал по названию, номеру или передаче.', '按确定按名称、编号或节目查找频道。')
+                : cat?.kind == 'sports'
+                ? _tn('OK pour voir les matchs du jour : score en direct, cotes et chaîne qui le diffuse.', 'OK to see today’s matches: live score, odds and the channel showing it.', 'OK — матчи дня: счёт, коэффициенты и канал трансляции.', '按确定查看今日比赛：实时比分、赔率和直播频道。')
                 : cat?.kind == 'rec'
                 ? _tn('OK pour voir les enregistrements et en programmer (la télé peut rester éteinte).', 'OK to see recordings and plan some (the TV can stay off).', 'OK — записи и планирование (телевизор можно выключить).', '按确定查看和安排录制（电视可以关着）。')
                 : cat?.kind == 'fav'
