@@ -134,14 +134,37 @@ jobs:
           name: moonfin-tv
           path: build/app/outputs/flutter-apk/*-release.apk
 
+      - run: cp build/app/outputs/flutter-apk/*-release.apk moonfin-tv.apk
+
+      # The light APK for old Fire TV sticks: 32-bit only, two to three times
+      # smaller. A failure here never holds back the full one.
+      - name: APK TV allégé (vieilles Fire TV, 32 bits)
+        continue-on-error: true
+        env:
+          MOONFIN_TEST_ID_SUFFIX: .perso
+          VJOD_TV_ABIS: armeabi-v7a
+        run: |
+          set +e
+          rm -f build/app/outputs/flutter-apk/*-release.apk
+          flutter build apk --release --flavor androidTv --target-platform android-arm --dart-define=MOONFIN_FORCE_TV=true --dart-define=DISTRIBUTION_CHANNEL=android_tv_apk --dart-define=VJOD_BUILD=$(TZ=Europe/Paris date +%Y-%m-%dT%H:%M) --dart-define=VJOD_COMMIT=${GITHUB_SHA::7} > build-tv32.txt 2>&1
+          status=$?
+          if [ $status -ne 0 ]; then
+            grep -E "Error|error:|FAILURE|What went wrong" -A2 build-tv32.txt | head -20 | while IFS= read -r line; do echo "::warning::$line"; done
+            exit $status
+          fi
+          cp build/app/outputs/flutter-apk/*-release.apk moonfin-tv-arm32.apk
+          ls -la moonfin-tv.apk moonfin-tv-arm32.apk
+
       # Direct download link, no GitHub sign-in: the release keeps the latest build.
       - name: Publier la release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp build/app/outputs/flutter-apk/*-release.apk moonfin-tv.apk
           gh release create perso-latest --repo "$GITHUB_REPOSITORY" --title "Dernière version perso" --notes "APK de la dernière compilation de la branche perso." --prerelease || true
           gh release upload perso-latest moonfin-tv.apk --repo "$GITHUB_REPOSITORY" --clobber
+          if [ -f moonfin-tv-arm32.apk ]; then
+            gh release upload perso-latest moonfin-tv-arm32.apk --repo "$GITHUB_REPOSITORY" --clobber
+          fi
           # VJOD's number and what it brings, for the update window (vjod_changes.dart).
           python3 tool/vjod_release_notes.py > notes.txt
           gh release edit perso-latest --repo "$GITHUB_REPOSITORY" --title "VJOD $(head -1 notes.txt)" --notes "$(tail -n +2 notes.txt)" || true
