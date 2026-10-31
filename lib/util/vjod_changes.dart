@@ -15,6 +15,12 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.8', [
+    'Sports : tous les sports proposés, sports de combat compris (boxe, MMA/UFC, judo…).',
+    'Sur chaque match, un vrai bouton : « Regarder » sur la chaîne, « Me prévenir » avant le match, ou « Chercher la chaîne ».',
+    'Réglages Sports : « Ajouter une équipe ou un sportif », à choisir dans la liste ou à taper.',
+    'La chaîne du match est trouvée plus souvent dans le guide.',
+  ]),
   VjodRelease('4.7', [
     'Nouveau : Multiview. Deux chaînes côte à côte (quatre sur ordinateur), depuis le menu du lecteur ; le son suit la case choisie.',
     'Multiview n\u2019apparaît que sur les appareils assez puissants : jamais sur Fire TV, en mode léger, sur Mac ou sur iPad.',
