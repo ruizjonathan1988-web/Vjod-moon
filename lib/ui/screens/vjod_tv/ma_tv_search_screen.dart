@@ -16,7 +16,10 @@ String _tn(String fr, String en, String ru, String zh) =>
 
 /// Returns the channels found and the one picked, or null when left.
 class MaTvSearchScreen extends StatefulWidget {
-  const MaTvSearchScreen({super.key});
+  /// Typed in already (Sports: a team's name, to find the channel showing it).
+  final String initialQuery;
+
+  const MaTvSearchScreen({super.key, this.initialQuery = ''});
 
   @override
   State<MaTvSearchScreen> createState() => _MaTvSearchScreenState();
@@ -33,6 +36,10 @@ class _MaTvSearchScreenState extends State<MaTvSearchScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialQuery.isNotEmpty) {
+      _field.text = widget.initialQuery;
+      _query = widget.initialQuery;
+    }
     unawaited(_load());
   }
 
