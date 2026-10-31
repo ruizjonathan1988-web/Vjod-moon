@@ -19,6 +19,7 @@ import '../../../data/services/vjod/simple_mode.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../preference/preference_constants.dart';
 import '../../../preference/user_preferences.dart';
+import '../../../util/device_performance.dart';
 import '../../../util/platform_detection.dart';
 import '../../../util/vjod_text.dart';
 import '../../navigation/destinations.dart';
@@ -50,8 +51,12 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
   bool _end = false;
   int _filter = 0;
 
-  static const _firstPages = 3;
-  static const _morePages = 2;
+  // A weak device (old Fire TV) loads one page at a time: fewer posters to
+  // fetch and decode at once.
+  static bool get _light =>
+      GetIt.instance<UserPreferences>().resolveDevicePerformanceTier() == DevicePerformanceTier.reduced;
+  static int get _firstPages => _light ? 1 : 3;
+  static int get _morePages => _light ? 1 : 2;
 
   // The magnifier: any title of this kind, not only the popular ones.
   bool _searching = false;
@@ -143,7 +148,7 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
       // Two pages: people and the other kind take part of each.
       final pages = await Future.wait([
         repo.search(q, mediaType: _mediaType, offset: 0),
-        repo.search(q, mediaType: _mediaType, offset: 20),
+        if (!_light) repo.search(q, mediaType: _mediaType, offset: 20),
       ]);
       if (!mounted || run != _searchRun) return;
       bool keep(SeerrDiscoverItem item) =>

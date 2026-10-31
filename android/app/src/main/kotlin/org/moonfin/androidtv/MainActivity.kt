@@ -257,6 +257,9 @@ class MainActivity : AudioServiceActivity(), GamepadsCompatibleActivity {
         return mapOf(
             "totalMem" to info.totalMem,
             "lowRam" to activityManager.isLowRamDevice,
+            // Fixed too, and what tells the old Fire TV sticks apart (VJOD).
+            "manufacturer" to android.os.Build.MANUFACTURER,
+            "sdk" to android.os.Build.VERSION.SDK_INT,
         )
     }
 

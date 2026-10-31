@@ -24,8 +24,24 @@ bool deviceMemoryLooksLow(Map<String, dynamic> memory) {
   final totalMem = memory['totalMem'];
   if (totalMem is! num) return false;
   final bytes = totalMem.toInt();
-  return bytes > 0 && bytes < lowMemoryCeilingBytes;
+  if (bytes <= 0) return false;
+  if (bytes < lowMemoryCeilingBytes) return true;
+  // VJOD: the Fire TV sticks before the current ones (1 to 1.5 GB, slow
+  // chips) choke on the full app even above the ceiling, and so does any
+  // box still on Android 7 or older with less than 2 GB.
+  final maker = memory['manufacturer'];
+  if (maker is String && maker.toLowerCase() == 'amazon' && bytes < amazonLowMemoryCeilingBytes) {
+    return true;
+  }
+  final sdk = memory['sdk'];
+  return sdk is num && sdk <= 25 && bytes < oldAndroidLowMemoryCeilingBytes;
 }
+
+/// Under this an Amazon device (Fire TV stick) gets the reduced tier.
+const amazonLowMemoryCeilingBytes = 1717986918; // 1.6 GiB
+
+/// Under this a device on Android 7.1 or older gets the reduced tier.
+const oldAndroidLowMemoryCeilingBytes = 2147483648; // 2 GiB
 
 DevicePerformanceTier resolveDevicePerformanceTierFor(
   DevicePerformanceMode mode,
