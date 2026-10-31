@@ -38,4 +38,21 @@ void main() {
       expect(catalogueFilterKeeps(3, CatalogueAvailability.server), isFalse);
     });
   });
+
+  group('la loupe', () {
+    test('Films ne garde que les films, Séries que les séries', () {
+      expect(catalogueSearchKeeps(series: false, mediaType: 'movie'), isTrue);
+      expect(catalogueSearchKeeps(series: false, mediaType: 'tv'), isFalse);
+      expect(catalogueSearchKeeps(series: true, mediaType: 'tv'), isTrue);
+      expect(catalogueSearchKeeps(series: true, mediaType: 'movie'), isFalse);
+      expect(catalogueSearchKeeps(series: true, mediaType: 'person'), isFalse);
+      expect(catalogueSearchKeeps(series: false, mediaType: null), isFalse);
+    });
+
+    test('il faut deux lettres au moins', () {
+      expect(catalogueSearchQuery(''), isNull);
+      expect(catalogueSearchQuery('  d '), isNull);
+      expect(catalogueSearchQuery(' Dune '), 'Dune');
+    });
+  });
 }

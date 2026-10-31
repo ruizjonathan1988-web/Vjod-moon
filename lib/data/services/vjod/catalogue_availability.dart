@@ -27,3 +27,14 @@ bool catalogueFilterKeeps(int filter, CatalogueAvailability a) => switch (filter
   3 => a == CatalogueAvailability.toRequest || a == CatalogueAvailability.requested,
   _ => true,
 };
+
+/// The magnifier on Films (or Séries) finds any title, but only of that
+/// kind: a search for « Dune » on Films leaves out the series.
+bool catalogueSearchKeeps({required bool series, String? mediaType}) =>
+    mediaType == (series ? 'tv' : 'movie');
+
+/// What is worth asking for: two letters at least, spaces trimmed.
+String? catalogueSearchQuery(String text) {
+  final q = text.trim();
+  return q.length < 2 ? null : q;
+}

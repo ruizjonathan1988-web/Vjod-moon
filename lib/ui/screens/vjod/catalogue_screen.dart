@@ -5,7 +5,9 @@
 // top. The server's full library, with its sorting, stays one press away.
 import 'dart:async';
 
+import 'package:custom_tv_text_field/custom_tv_text_field.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:moonfin_design/moonfin_design.dart';
@@ -50,10 +52,196 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
   static const _firstPages = 3;
   static const _morePages = 2;
 
+  // The magnifier: any title of this kind, not only the popular ones.
+  bool _searching = false;
+  final _searchCtl = TextEditingController();
+  final _searchFocus = FocusNode();
+  final _searchTvKey = GlobalKey<CustomTVTextFieldState>();
+  Timer? _searchDebounce;
+  String? _searchedFor;
+  int _searchRun = 0;
+  bool _searchLoading = false;
+  bool _searchFailed = false;
+  final _searchResults = <SeerrDiscoverItem>[];
+
   @override
   void initState() {
     super.initState();
+    _searchCtl.addListener(_onSearchText);
     unawaited(_load(_firstPages));
+  }
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    _searchCtl.dispose();
+    _searchFocus.dispose();
+    super.dispose();
+  }
+
+  void _openSearch() {
+    if (_searching) {
+      _closeSearch();
+      return;
+    }
+    setState(() => _searching = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _searchFocus.requestFocus();
+      if (PlatformDetection.isTV) _searchTvKey.currentState?.openKeyboard();
+    });
+  }
+
+  void _closeSearch() {
+    _searchDebounce?.cancel();
+    _searchRun++;
+    _searchCtl.clear();
+    setState(() {
+      _searching = false;
+      _searchedFor = null;
+      _searchLoading = false;
+      _searchFailed = false;
+      _searchResults.clear();
+    });
+  }
+
+  void _onSearchText() {
+    _searchDebounce?.cancel();
+    final q = catalogueSearchQuery(_searchCtl.text);
+    if (q == null) {
+      if (_searchedFor != null) {
+        _searchRun++;
+        setState(() {
+          _searchedFor = null;
+          _searchLoading = false;
+          _searchFailed = false;
+          _searchResults.clear();
+        });
+      }
+      return;
+    }
+    if (q == _searchedFor) return;
+    _searchDebounce = Timer(const Duration(milliseconds: 400), () => unawaited(_search(q)));
+  }
+
+  Future<void> _search(String q) async {
+    final run = ++_searchRun;
+    setState(() {
+      _searchedFor = q;
+      _searchLoading = true;
+      _searchFailed = false;
+    });
+    try {
+      final repo = await GetIt.instance.getAsync<SeerrRepository>();
+      await repo.ensureInitialized();
+      if (!repo.isAvailable) throw StateError('Seerr unavailable');
+      // Two pages: people and the other kind take part of each.
+      final pages = await Future.wait([
+        repo.search(q, mediaType: _mediaType, offset: 0),
+        repo.search(q, mediaType: _mediaType, offset: 20),
+      ]);
+      if (!mounted || run != _searchRun) return;
+      final seen = <int>{};
+      final found = <SeerrDiscoverItem>[
+        for (final page in pages)
+          for (final item in page.results)
+            if (!item.adult &&
+                !item.isBlacklisted &&
+                catalogueSearchKeeps(series: widget.isTv, mediaType: item.mediaType) &&
+                seen.add(item.id))
+              item,
+      ];
+      setState(() {
+        _searchResults
+          ..clear()
+          ..addAll(found);
+        _searchLoading = false;
+      });
+    } catch (e) {
+      debugPrint('[Catalogue] Search failed: $e');
+      if (mounted && run == _searchRun) {
+        setState(() {
+          _searchLoading = false;
+          _searchFailed = true;
+        });
+      }
+    }
+  }
+
+  void _onSearchSubmitted(String text) {
+    final q = catalogueSearchQuery(text);
+    if (q == null || q == _searchedFor) return;
+    _searchDebounce?.cancel();
+    unawaited(_search(q));
+  }
+
+  KeyEventResult _onSearchKey(FocusNode node, KeyEvent event) {
+    if (!PlatformDetection.isTV || event is! KeyDownEvent) return KeyEventResult.ignored;
+    if (event.logicalKey == LogicalKeyboardKey.enter || event.logicalKey == LogicalKeyboardKey.select) {
+      _searchTvKey.currentState?.openKeyboard();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  Widget _searchField(double s) {
+    final hint = widget.isTv
+        ? vjodText(context, fr: 'Chercher une série…', en: 'Search a series…', ru: 'Найти сериал…', zh: '搜索剧集…')
+        : vjodText(context, fr: 'Chercher un film…', en: 'Search a movie…', ru: 'Найти фильм…', zh: '搜索电影…');
+    final style = TextStyle(color: vjodInk, fontSize: 18 * s);
+    final hintStyle = TextStyle(color: vjodInk.withValues(alpha: 0.5), fontSize: 18 * s);
+    final icon = Icon(Icons.search_rounded, color: vjodInk.withValues(alpha: 0.7));
+    final height = 52 * s.clamp(0.8, 1.2);
+    return SizedBox(
+      width: (420 * s).clamp(240.0, 520.0),
+      height: height,
+      child: PlatformDetection.isTV
+          ? Focus(
+              focusNode: _searchFocus,
+              onKeyEvent: _onSearchKey,
+              child: ListenableBuilder(
+                listenable: _searchFocus,
+                builder: (context, _) => CustomTVTextField(
+                  key: _searchTvKey,
+                  controller: _searchCtl,
+                  isFocused: _searchFocus.hasFocus,
+                  inputPurpose: InputPurpose.search,
+                  preferSystemIme: GetIt.instance<UserPreferences>().get(UserPreferences.preferSystemImeKeyboard),
+                  hint: hint,
+                  textStyle: style,
+                  hintStyle: hintStyle,
+                  prefixIcon: icon,
+                  filled: true,
+                  fillColor: AppColorScheme.surfaceVariant,
+                  borderRadius: height / 2,
+                  focusedBorderColor: vjodInk,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
+                  popParentOnKeyboardClose: false,
+                  onFieldSubmitted: _onSearchSubmitted,
+                ),
+              ),
+            )
+          : TextField(
+              controller: _searchCtl,
+              focusNode: _searchFocus,
+              autofocus: true,
+              textInputAction: TextInputAction.search,
+              onSubmitted: _onSearchSubmitted,
+              style: style,
+              decoration: InputDecoration(
+                hintText: hint,
+                hintStyle: hintStyle,
+                prefixIcon: icon,
+                filled: true,
+                fillColor: AppColorScheme.surfaceVariant,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(height / 2),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+    );
   }
 
   Future<void> _load(int pages) async {
@@ -121,6 +309,62 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
     );
   }
 
+  Widget _buildSearchResults(String query, double s, double left) {
+    Widget note(String text) => Padding(
+      padding: EdgeInsets.only(top: 24 * s),
+      child: Text(text, style: TextStyle(color: vjodInk.withValues(alpha: 0.6), fontSize: 16 * s)),
+    );
+    final children = <Widget>[];
+    if (_searchLoading && _searchResults.isEmpty) {
+      children.add(Padding(
+        padding: EdgeInsets.only(top: 24 * s),
+        child: const Align(alignment: Alignment.centerLeft, child: CircularProgressIndicator()),
+      ));
+    } else if (_searchFailed) {
+      children.add(note(vjodText(
+        context,
+        fr: 'La recherche n\'a pas marché. Réessaie dans un instant.',
+        en: 'The search didn\'t work. Try again in a moment.',
+        ru: 'Поиск не сработал. Попробуй чуть позже.',
+        zh: '搜索失败，请稍后再试。',
+      )));
+    } else {
+      final tagged = [
+        for (final item in _searchResults)
+          if (catalogueFilterKeeps(_filter, _availabilityOf(item))) (item, _availabilityOf(item)),
+      ];
+      if (tagged.isEmpty) {
+        children.add(note(vjodText(
+          context,
+          fr: 'Rien trouvé pour « $query ».',
+          en: 'Nothing found for « $query ».',
+          ru: 'Ничего не найдено по «$query».',
+          zh: '没有找到「$query」。',
+        )));
+      } else {
+        children.add(Wrap(
+          spacing: 15 * s,
+          runSpacing: 18 * s,
+          children: [
+            for (final (item, a) in tagged)
+              _CatalogueCard(
+                item: item,
+                availability: a,
+                width: 165 * s,
+                scale: s,
+                autofocus: false,
+                onTap: () => _open(item),
+              ),
+          ],
+        ));
+      }
+    }
+    return ListView(
+      padding: EdgeInsets.fromLTRB(left, 0, left, 40),
+      children: children,
+    );
+  }
+
   Widget _buildBody(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final prefs = GetIt.instance<UserPreferences>();
@@ -149,6 +393,21 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
             (widget.isTv ? l10n.vjodTabSeries : l10n.vjodTabMovies).toUpperCase(),
             style: vjodDisplay(48 * s),
           ),
+          VjodRoundButton(
+            size: 48 * s.clamp(0.8, 1.2),
+            scale: s,
+            background: _searching ? vjodInk.withValues(alpha: 0.18) : AppColorScheme.surfaceVariant,
+            semanticLabel: _searching
+                ? vjodText(context, fr: 'Fermer la recherche', en: 'Close search', ru: 'Закрыть поиск', zh: '关闭搜索')
+                : vjodText(context, fr: 'Rechercher', en: 'Search', ru: 'Поиск', zh: '搜索'),
+            onTap: _openSearch,
+            child: Icon(
+              _searching ? Icons.close_rounded : Icons.search_rounded,
+              color: vjodInk,
+              size: 26 * s.clamp(0.8, 1.2),
+            ),
+          ),
+          if (_searching) _searchField(s),
           VjodSegmented(
             scale: s,
             options: [l10n.all, onServer, iptv, l10n.vjodToRequest],
@@ -173,7 +432,7 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
                 onTap: () => context.push(library),
               ),
             ),
-          Text(
+          if (!_searching) Text(
             vjodText(
               context,
               fr: 'Tout le catalogue : ce qu\'on a, ce qu\'on regarde tout de suite, ce qu\'on peut demander.',
@@ -188,7 +447,10 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
     );
 
     Widget content;
-    if (_items.isEmpty) {
+    final searched = _searchedFor;
+    if (_searching && searched != null) {
+      content = _buildSearchResults(searched, s, left);
+    } else if (_items.isEmpty) {
       content = _failed
           ? Center(child: Text(l10n.enRouteFailed))
           : const Center(child: CircularProgressIndicator());
