@@ -375,6 +375,11 @@ class VjodNavBar extends StatelessWidget {
   final Widget? leading;
   final double scale;
 
+  /// What the search can find, written in the bar so people see they can
+  /// look for an actor or a channel too. The short one is for tight bars.
+  final String? searchHint;
+  final String? searchHintShort;
+
   const VjodNavBar({
     super.key,
     required this.tabs,
@@ -385,6 +390,8 @@ class VjodNavBar extends StatelessWidget {
     this.avatarFocusNode,
     this.leading,
     this.scale = 1,
+    this.searchHint,
+    this.searchHintShort,
   });
 
   @override
@@ -429,15 +436,27 @@ class VjodNavBar extends StatelessWidget {
             ),
           ),
           SizedBox(width: 12 * scale),
-          VjodRoundButton(
-            size: 48 * scale,
-            background: vjodButton,
-            focusNode: searchFocusNode,
-            onTap: onSearch,
-            scale: scale,
-            semanticLabel: 'search',
-            child: Icon(Icons.search_rounded, color: vjodInk, size: 24 * scale),
-          ),
+          // With the tabs in the bar (TV, computer, tablet) search is a field
+          // that says what it finds; on a phone, a white magnifier that stands
+          // out. Either opens the search screen.
+          if (tabs.isEmpty || searchHint == null)
+            VjodRoundButton(
+              size: 48 * scale,
+              background: Colors.white,
+              focusNode: searchFocusNode,
+              onTap: onSearch,
+              scale: scale,
+              semanticLabel: searchHint ?? 'search',
+              child: Icon(Icons.search_rounded, color: const Color(0xFF141414), size: 26 * scale),
+            )
+          else
+            VjodSearchPill(
+              hint: searchHint!,
+              shortHint: searchHintShort,
+              focusNode: searchFocusNode,
+              onTap: onSearch,
+              scale: scale,
+            ),
           SizedBox(width: 16 * scale),
           VjodRoundButton(
             size: 44 * scale,
@@ -458,6 +477,75 @@ class VjodNavBar extends StatelessWidget {
         ],
       ),
     ),
+    );
+  }
+}
+
+/// The search entry of the top bar: a grey pill with the magnifier and what
+/// can be looked for. It lights up like every other button when the remote
+/// is on it, and never takes the tabs' room: a tight bar gets the short text.
+class VjodSearchPill extends StatelessWidget {
+  final String hint;
+  final String? shortHint;
+  final FocusNode? focusNode;
+  final VoidCallback onTap;
+  final double scale;
+
+  const VjodSearchPill({
+    super.key,
+    required this.hint,
+    required this.onTap,
+    this.shortHint,
+    this.focusNode,
+    this.scale = 1,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final s = scale;
+    final tight = MediaQuery.sizeOf(context).width < 1100;
+    final text = tight ? (shortHint ?? hint) : hint;
+    return Semantics(
+      button: true,
+      label: hint,
+      child: VjodFocusable(
+        focusNode: focusNode,
+        onTap: onTap,
+        builder: (context, focused) => AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          height: 46 * s,
+          constraints: BoxConstraints(maxWidth: (tight ? 210 : 280) * s),
+          padding: EdgeInsets.symmetric(horizontal: 14 * s),
+          decoration: BoxDecoration(
+            color: focused ? Colors.white : vjodButton,
+            borderRadius: BorderRadius.circular(23 * s),
+            boxShadow: vjodFocusRing(s, on: focused),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.search_rounded,
+                size: 22 * s,
+                color: focused ? const Color(0xFF141414) : vjodInk,
+              ),
+              SizedBox(width: 8 * s),
+              Flexible(
+                child: Text(
+                  text,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: focused ? const Color(0xFF141414) : vjodInk.withValues(alpha: 0.85),
+                    fontSize: 16 * s,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

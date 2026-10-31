@@ -30,6 +30,7 @@ import '../../util/secondary_library.dart';
 import '../../util/live_tv_library.dart';
 import '../../util/overlay_color_palette.dart';
 import '../../util/platform_detection.dart';
+import '../../util/vjod_text.dart';
 import '../navigation/destinations.dart';
 import '../navigation/home_refresh_bus.dart';
 import '../navigation/route_lifecycle_observer.dart';
@@ -1153,6 +1154,20 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
       },
       onAvatar: _openVjodMenu,
       tabs: narrow ? const [] : tabs,
+      searchHint: vjodText(
+        context,
+        fr: 'Film, série, acteur, chaîne…',
+        en: 'Movie, series, actor, channel…',
+        ru: 'Фильм, сериал, актёр, канал…',
+        zh: '电影、剧集、演员、频道…',
+      ),
+      searchHintShort: vjodText(
+        context,
+        fr: 'Film, acteur, chaîne…',
+        en: 'Movie, actor, channel…',
+        ru: 'Фильм, актёр, канал…',
+        zh: '电影、演员、频道…',
+      ),
     );
   }
 

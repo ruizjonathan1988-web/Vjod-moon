@@ -894,15 +894,17 @@ class CustomKeyboardState extends State<CustomKeyboard> {
     final theme = Theme.of(context);
     final borders = ThemeRegistry.active.borders;
     final palette = _KeyboardPalette(
-      panel: theme.colorScheme.surface,
+      // Readable on every theme: keys clearly lighter than the panel, white
+      // letters. The theme's own dark surfaces made black keys on black.
+      panel: const Color(0xFF1C1C1C),
       panelBorder: borders.cardBorder,
       panelRadius: borders.cardRadius,
-      idleKey: theme.colorScheme.surfaceContainerHighest.scaleAlpha(0.92),
+      idleKey: const Color(0xFF3A3A3A),
       idleKeyBorder: borders.chipBorder,
       selectedKey: AppColorScheme.buttonFocused,
       selectedKeyBorder: borders.focusBorder,
-      textPrimary: AppColorScheme.onSurface,
-      textMuted: AppColorScheme.onSurface.withValues(alpha: 0.64),
+      textPrimary: Colors.white,
+      textMuted: Colors.white.withValues(alpha: 0.72),
       textOnSelected: AppColorScheme.onButtonFocused,
       chipBackground: borders.chipBackground,
       chipBorder: borders.chipBorder,
@@ -1306,7 +1308,7 @@ class _KeyboardKey extends StatelessWidget {
             duration: const Duration(milliseconds: 90),
             curve: Curves.easeOut,
             width: width,
-            height: 40,
+            height: 48,
             margin: margin,
             decoration: BoxDecoration(
               color: isSelected ? palette.selectedKey : palette.idleKey,
@@ -1342,7 +1344,7 @@ class _KeyboardKey extends StatelessWidget {
           ),
           if (alternateOptions != null && alternateOptions!.isNotEmpty)
             Positioned(
-              bottom: 44,
+              bottom: 52,
               child: _AlternateCharacterPopup(
                 options: alternateOptions!,
                 selectedIndex: alternateIndex,
@@ -1404,7 +1406,7 @@ class _KeyboardKey extends StatelessWidget {
           label,
           style: (palette.keyTextStyle ?? const TextStyle()).copyWith(
             color: color,
-            fontSize: 14,
+            fontSize: 20,
             fontWeight: FontWeight.w600,
             letterSpacing: 0.15,
           ),

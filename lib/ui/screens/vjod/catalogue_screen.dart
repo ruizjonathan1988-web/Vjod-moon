@@ -5,7 +5,9 @@
 // top. The server's full library, with its sorting, stays one press away.
 import 'dart:async';
 
+import 'package:custom_tv_text_field/custom_tv_text_field.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:moonfin_design/moonfin_design.dart';
@@ -50,10 +52,232 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
   static const _firstPages = 3;
   static const _morePages = 2;
 
+  // The magnifier: any title of this kind, not only the popular ones.
+  bool _searching = false;
+  final _searchCtl = TextEditingController();
+  final _searchFocus = FocusNode();
+  final _searchTvKey = GlobalKey<CustomTVTextFieldState>();
+  Timer? _searchDebounce;
+  String? _searchedFor;
+  int _searchRun = 0;
+  bool _searchLoading = false;
+  bool _searchFailed = false;
+  final _searchResults = <SeerrDiscoverItem>[];
+  // « Avec Tom Hardy »: what the people the search names played in or made.
+  final _peopleResults = <(String, List<SeerrDiscoverItem>)>[];
+
   @override
   void initState() {
     super.initState();
+    _searchCtl.addListener(_onSearchText);
     unawaited(_load(_firstPages));
+  }
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    _searchCtl.dispose();
+    _searchFocus.dispose();
+    super.dispose();
+  }
+
+  void _openSearch() {
+    if (_searching) {
+      _closeSearch();
+      return;
+    }
+    setState(() => _searching = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _searchFocus.requestFocus();
+      if (PlatformDetection.isTV) _searchTvKey.currentState?.openKeyboard();
+    });
+  }
+
+  void _closeSearch() {
+    _searchDebounce?.cancel();
+    _searchRun++;
+    _searchCtl.clear();
+    setState(() {
+      _searching = false;
+      _searchedFor = null;
+      _searchLoading = false;
+      _searchFailed = false;
+      _searchResults.clear();
+      _peopleResults.clear();
+    });
+  }
+
+  void _onSearchText() {
+    _searchDebounce?.cancel();
+    final q = catalogueSearchQuery(_searchCtl.text);
+    if (q == null) {
+      if (_searchedFor != null) {
+        _searchRun++;
+        setState(() {
+          _searchedFor = null;
+          _searchLoading = false;
+          _searchFailed = false;
+          _searchResults.clear();
+          _peopleResults.clear();
+        });
+      }
+      return;
+    }
+    if (q == _searchedFor) return;
+    _searchDebounce = Timer(const Duration(milliseconds: 400), () => unawaited(_search(q)));
+  }
+
+  Future<void> _search(String q) async {
+    final run = ++_searchRun;
+    setState(() {
+      _searchedFor = q;
+      _searchLoading = true;
+      _searchFailed = false;
+    });
+    try {
+      final repo = await GetIt.instance.getAsync<SeerrRepository>();
+      await repo.ensureInitialized();
+      if (!repo.isAvailable) throw StateError('Seerr unavailable');
+      // Two pages: people and the other kind take part of each.
+      final pages = await Future.wait([
+        repo.search(q, mediaType: _mediaType, offset: 0),
+        repo.search(q, mediaType: _mediaType, offset: 20),
+      ]);
+      if (!mounted || run != _searchRun) return;
+      bool keep(SeerrDiscoverItem item) =>
+          !item.adult &&
+          !item.isBlacklisted &&
+          catalogueSearchKeeps(series: widget.isTv, mediaType: item.mediaType);
+      // An actor or a director: their films (or series), the best known first.
+      final people = catalogueSearchPeople([for (final page in pages) ...page.results]);
+      final credits = await Future.wait([
+        for (final person in people)
+          repo.getPersonCombinedCredits(person.id).then<SeerrPersonCombinedCredits?>((c) => c).catchError((_) => null),
+      ]);
+      if (!mounted || run != _searchRun) return;
+      final byPerson = <(String, List<SeerrDiscoverItem>)>[];
+      for (final (i, person) in people.indexed) {
+        final c = credits[i];
+        if (c == null) continue;
+        final ids = <int>{};
+        final works = [
+          for (final w in [...c.cast, ...c.crew])
+            if (keep(w) && ids.add(w.id)) w,
+        ]..sort((a, b) => (b.popularity ?? 0).compareTo(a.popularity ?? 0));
+        if (works.isNotEmpty) byPerson.add((person.name ?? '', works.take(30).toList()));
+      }
+      final seen = <int>{};
+      final found = <SeerrDiscoverItem>[
+        for (final page in pages)
+          for (final item in page.results)
+            if (keep(item) && seen.add(item.id))
+              item,
+      ];
+      setState(() {
+        _searchResults
+          ..clear()
+          ..addAll(found);
+        _peopleResults
+          ..clear()
+          ..addAll(byPerson);
+        _searchLoading = false;
+      });
+    } catch (e) {
+      debugPrint('[Catalogue] Search failed: $e');
+      if (mounted && run == _searchRun) {
+        setState(() {
+          _searchLoading = false;
+          _searchFailed = true;
+        });
+      }
+    }
+  }
+
+  void _onSearchSubmitted(String text) {
+    final q = catalogueSearchQuery(text);
+    if (q == null || q == _searchedFor) return;
+    _searchDebounce?.cancel();
+    unawaited(_search(q));
+  }
+
+  KeyEventResult _onSearchKey(FocusNode node, KeyEvent event) {
+    if (!PlatformDetection.isTV || event is! KeyDownEvent) return KeyEventResult.ignored;
+    if (event.logicalKey == LogicalKeyboardKey.enter || event.logicalKey == LogicalKeyboardKey.select) {
+      _searchTvKey.currentState?.openKeyboard();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  Widget _searchField(double s) {
+    final hint = widget.isTv
+        ? vjodText(context,
+            fr: 'Une série, un acteur, un réalisateur…',
+            en: 'A series, an actor, a director…',
+            ru: 'Сериал, актёр, режиссёр…',
+            zh: '剧集、演员、导演…')
+        : vjodText(context,
+            fr: 'Un film, un acteur, un réalisateur…',
+            en: 'A movie, an actor, a director…',
+            ru: 'Фильм, актёр, режиссёр…',
+            zh: '电影、演员、导演…');
+    // Big letters: what is typed must read from the sofa.
+    final big = (PlatformDetection.isTV ? 28.0 : 22.0) * s.clamp(0.85, 1.2);
+    final style = TextStyle(color: vjodInk, fontSize: big, fontWeight: FontWeight.w600);
+    final hintStyle = TextStyle(color: vjodInk.withValues(alpha: 0.55), fontSize: big * 0.75);
+    final icon = Icon(Icons.search_rounded, color: vjodInk, size: big);
+    final height = big * 2.4;
+    return SizedBox(
+      width: (480 * s).clamp(260.0, 600.0),
+      height: height,
+      child: PlatformDetection.isTV
+          ? Focus(
+              focusNode: _searchFocus,
+              onKeyEvent: _onSearchKey,
+              child: ListenableBuilder(
+                listenable: _searchFocus,
+                builder: (context, _) => CustomTVTextField(
+                  key: _searchTvKey,
+                  controller: _searchCtl,
+                  isFocused: _searchFocus.hasFocus,
+                  inputPurpose: InputPurpose.search,
+                  preferSystemIme: GetIt.instance<UserPreferences>().get(UserPreferences.preferSystemImeKeyboard),
+                  hint: hint,
+                  textStyle: style,
+                  hintStyle: hintStyle,
+                  prefixIcon: icon,
+                  filled: true,
+                  fillColor: AppColorScheme.surfaceVariant,
+                  borderRadius: height / 2,
+                  focusedBorderColor: vjodInk,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
+                  popParentOnKeyboardClose: false,
+                  onFieldSubmitted: _onSearchSubmitted,
+                ),
+              ),
+            )
+          : TextField(
+              controller: _searchCtl,
+              focusNode: _searchFocus,
+              autofocus: true,
+              textInputAction: TextInputAction.search,
+              onSubmitted: _onSearchSubmitted,
+              style: style,
+              decoration: InputDecoration(
+                hintText: hint,
+                hintStyle: hintStyle,
+                prefixIcon: icon,
+                filled: true,
+                fillColor: AppColorScheme.surfaceVariant,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(height / 2),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+    );
   }
 
   Future<void> _load(int pages) async {
@@ -121,6 +345,82 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
     );
   }
 
+  Widget _buildSearchResults(String query, double s, double left) {
+    Widget note(String text) => Padding(
+      padding: EdgeInsets.only(top: 24 * s),
+      child: Text(text, style: TextStyle(color: vjodInk.withValues(alpha: 0.6), fontSize: 16 * s)),
+    );
+    final children = <Widget>[];
+    if (_searchLoading && _searchResults.isEmpty) {
+      children.add(Padding(
+        padding: EdgeInsets.only(top: 24 * s),
+        child: const Align(alignment: Alignment.centerLeft, child: CircularProgressIndicator()),
+      ));
+    } else if (_searchFailed) {
+      children.add(note(vjodText(
+        context,
+        fr: 'La recherche n\'a pas marché. Réessaie dans un instant.',
+        en: 'The search didn\'t work. Try again in a moment.',
+        ru: 'Поиск не сработал. Попробуй чуть позже.',
+        zh: '搜索失败，请稍后再试。',
+      )));
+    } else {
+      List<(SeerrDiscoverItem, CatalogueAvailability)> tag(List<SeerrDiscoverItem> list) => [
+        for (final item in list)
+          if (catalogueFilterKeeps(_filter, _availabilityOf(item))) (item, _availabilityOf(item)),
+      ];
+      Widget grid(List<(SeerrDiscoverItem, CatalogueAvailability)> list) => Wrap(
+        spacing: 15 * s,
+        runSpacing: 18 * s,
+        children: [
+          for (final (item, a) in list)
+            _CatalogueCard(
+              item: item,
+              availability: a,
+              width: 165 * s,
+              scale: s,
+              autofocus: false,
+              onTap: () => _open(item),
+            ),
+        ],
+      );
+      Widget section(String title) => Padding(
+        padding: EdgeInsets.only(top: 20 * s, bottom: 10 * s),
+        child: Text(title, style: TextStyle(color: vjodInk, fontSize: 22 * s, fontWeight: FontWeight.w700)),
+      );
+      final tagged = tag(_searchResults);
+      final withPeople = [
+        for (final (name, works) in _peopleResults)
+          if (tag(works).isNotEmpty) (name, tag(works)),
+      ];
+      for (final (name, works) in withPeople) {
+        children
+          ..add(section(vjodText(context, fr: 'Avec $name', en: 'With $name', ru: 'С участием: $name', zh: '$name 参与')))
+          ..add(grid(works));
+      }
+      if (withPeople.isNotEmpty && tagged.isNotEmpty) {
+        children.add(section(vjodText(context, fr: 'Titres', en: 'Titles', ru: 'Названия', zh: '作品')));
+      }
+      if (tagged.isEmpty && withPeople.isNotEmpty) {
+        // The people's works already answer the search.
+      } else if (tagged.isEmpty) {
+        children.add(note(vjodText(
+          context,
+          fr: 'Rien trouvé pour « $query ».',
+          en: 'Nothing found for « $query ».',
+          ru: 'Ничего не найдено по «$query».',
+          zh: '没有找到「$query」。',
+        )));
+      } else {
+        children.add(grid(tagged));
+      }
+    }
+    return ListView(
+      padding: EdgeInsets.fromLTRB(left, 0, left, 40),
+      children: children,
+    );
+  }
+
   Widget _buildBody(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final prefs = GetIt.instance<UserPreferences>();
@@ -149,6 +449,21 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
             (widget.isTv ? l10n.vjodTabSeries : l10n.vjodTabMovies).toUpperCase(),
             style: vjodDisplay(48 * s),
           ),
+          VjodRoundButton(
+            size: 48 * s.clamp(0.8, 1.2),
+            scale: s,
+            background: _searching ? vjodInk.withValues(alpha: 0.18) : Colors.white,
+            semanticLabel: _searching
+                ? vjodText(context, fr: 'Fermer la recherche', en: 'Close search', ru: 'Закрыть поиск', zh: '关闭搜索')
+                : vjodText(context, fr: 'Rechercher', en: 'Search', ru: 'Поиск', zh: '搜索'),
+            onTap: _openSearch,
+            child: Icon(
+              _searching ? Icons.close_rounded : Icons.search_rounded,
+              color: _searching ? vjodInk : const Color(0xFF141414),
+              size: 26 * s.clamp(0.8, 1.2),
+            ),
+          ),
+          if (_searching) _searchField(s),
           VjodSegmented(
             scale: s,
             options: [l10n.all, onServer, iptv, l10n.vjodToRequest],
@@ -173,7 +488,7 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
                 onTap: () => context.push(library),
               ),
             ),
-          Text(
+          if (!_searching) Text(
             vjodText(
               context,
               fr: 'Tout le catalogue : ce qu\'on a, ce qu\'on regarde tout de suite, ce qu\'on peut demander.',
@@ -188,7 +503,10 @@ class _CatalogueScreenState extends State<CatalogueScreen> {
     );
 
     Widget content;
-    if (_items.isEmpty) {
+    final searched = _searchedFor;
+    if (_searching && searched != null) {
+      content = _buildSearchResults(searched, s, left);
+    } else if (_items.isEmpty) {
       content = _failed
           ? Center(child: Text(l10n.enRouteFailed))
           : const Center(child: CircularProgressIndicator());
