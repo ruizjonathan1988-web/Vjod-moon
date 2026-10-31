@@ -11,6 +11,8 @@ import '../../util/platform_detection.dart';
 import 'media_server_client_factory.dart';
 import 'plugin_sync_service.dart';
 
+import '../../util/vjod_log.dart' show redactIptvSecrets;
+
 enum LogLevel { debug, info, warning, error }
 
 enum LogCategory {
@@ -418,6 +420,9 @@ class LogService extends ChangeNotifier {
       });
     }
     
+    // VJOD: the IPTV key and the provider's account (query and stream path).
+    result = redactIptvSecrets(result);
+
     // catch any ipv4's
     if (result.contains('.')) {
       result = result.replaceAll(_ipv4Regex, '[REDACTED]');

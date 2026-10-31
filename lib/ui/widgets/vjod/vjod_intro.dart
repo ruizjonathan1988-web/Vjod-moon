@@ -16,6 +16,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../util/platform_detection.dart';
 import '../../../util/startup_timeline.dart';
+import '../../../util/vjod_log.dart';
 
 enum VjodIntroStyle {
   drop('Le drop', 'Le favori. Jump-up drum\'n\'bass à 174 BPM : le terminal tape ses commandes plein écran, le logo vibre de plus en plus, un temps de vide sur « ./vjod --drop »… puis le drop, et le logo vibre au rythme de la basse.', 9.5),
@@ -167,7 +168,9 @@ class _VjodIntroState extends State<VjodIntro> with SingleTickerProviderStateMix
       final p = Player();
       _player = p;
       await p.open(Media('asset:///${style.sound}'));
-    } catch (_) {}
+    } catch (e) {
+      vjodLogError('Intro : son', e);
+    }
   }
 
   void _finish() {
