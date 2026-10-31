@@ -430,6 +430,20 @@ class _SettingsSidePanelState extends ConsumerState<SettingsSidePanel> {
             child: (_query.isEmpty || kidsMode)
                 ? ListView(
                     children: [
+                      // VJOD: the four settings people actually look for,
+                      // first; every category stays where it was below.
+                      if (!kidsMode) ...[
+                        _SectionHeader(vjodText(context,
+                            fr: 'L\'essentiel', en: 'Essentials', ru: 'Главное', zh: '常用')),
+                        adaptiveListSection(
+                          children: [
+                            for (final entry in _vjodEssentials(context, l10n))
+                              _PanelEntryTile(entry: entry),
+                          ],
+                        ),
+                        _SectionHeader(vjodText(context,
+                            fr: 'Tous les réglages', en: 'All settings', ru: 'Все настройки', zh: '全部设置')),
+                      ],
                       adaptiveListSection(
                         children: [
                           for (final entry in entries)
@@ -443,6 +457,53 @@ class _SettingsSidePanelState extends ConsumerState<SettingsSidePanel> {
         ],
       ),
     );
+  }
+
+  /// Shortcuts to the screens that already hold these settings.
+  List<_PanelEntry> _vjodEssentials(BuildContext context, AppLocalizations l10n) {
+    final lang = GetIt.instance<UserPreferences>().get(UserPreferences.languageOverride);
+    final langName = switch (lang) {
+      'fr' => 'Français',
+      'en' => 'English',
+      'ru' => 'Русский',
+      'zh' => '中文',
+      'system' || '' => vjodText(context, fr: 'Celle du téléphone', en: 'Device language', ru: 'Язык устройства', zh: '跟随设备'),
+      _ => lang,
+    };
+    return [
+      _PanelEntry(
+        icon: Icons.language,
+        title: vjodText(context, fr: 'Langue', en: 'Language', ru: 'Язык', zh: '语言'),
+        subtitle: langName,
+        onTap: () => context.pushSettingsScreen(const _GeneralScreen()),
+      ),
+      _PanelEntry(
+        icon: Icons.closed_caption_outlined,
+        title: vjodText(context, fr: 'Sous-titres', en: 'Subtitles', ru: 'Субтитры', zh: '字幕'),
+        subtitle: vjodText(context,
+            fr: 'Quand les afficher, taille et couleur',
+            en: 'When to show them, size and colour',
+            ru: 'Когда показывать, размер и цвет',
+            zh: '何时显示、大小和颜色'),
+        onTap: () => context.pushSettingsScreen(const SubtitleSettingsScreen()),
+      ),
+      _PanelEntry(
+        icon: Icons.high_quality_outlined,
+        title: vjodText(context, fr: 'Qualité vidéo', en: 'Video quality', ru: 'Качество видео', zh: '画质'),
+        subtitle: vjodText(context,
+            fr: 'Qualité maximale, débit',
+            en: 'Maximum quality, bitrate',
+            ru: 'Максимальное качество, битрейт',
+            zh: '最高画质、码率'),
+        onTap: () => context.pushSettingsScreen(const _QualityDecodingScreen()),
+      ),
+      _PanelEntry(
+        icon: Icons.family_restroom,
+        title: l10n.parentalControls,
+        subtitle: l10n.contentRatingRestrictions,
+        onTap: () => context.pushSettingsScreen(const ParentalSettingsScreen()),
+      ),
+    ];
   }
 
   Widget _buildSearchResults(
