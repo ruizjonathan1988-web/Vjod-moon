@@ -580,6 +580,13 @@ class UserPreferences extends ChangeNotifier {
     'pref_kids_mode',
     // VJOD's simple mode belongs to a profile, read from the server.
     'vjod_simple_mode',
+    // Sports (VJOD 4.6): each profile picks its sports, odds, banner and teams.
+    'vjod_sports_on',
+    'vjod_sports_banner',
+    'vjod_sports_odds',
+    'vjod_sports_kinds',
+    'vjod_sports_teams',
+    'vjod_sports_reminders',
     // The other half of parental controls, kept beside Kids Mode because the
     // two get set together and have the same reason to be scoped.
     'blocked_ratings',
@@ -1611,6 +1618,23 @@ class UserPreferences extends ChangeNotifier {
     key: 'vjod_simple_mode',
     defaultValue: false,
   );
+
+  /// Sports (VJOD 4.6, Ma TV 3.55), per profile: the Sports entry in Ma TV,
+  /// the score shown on the channel of a match, and the odds (never in Kids
+  /// Mode, whatever this says).
+  static final vjodSportsOn = Preference(key: 'vjod_sports_on', defaultValue: true);
+  static final vjodSportsBanner = Preference(key: 'vjod_sports_banner', defaultValue: true);
+  static final vjodSportsOdds = Preference(key: 'vjod_sports_odds', defaultValue: true);
+
+  /// The sports this profile follows (Kambi's names, comma separated); empty
+  /// means all of them.
+  static final vjodSportsKinds = Preference<String>(key: 'vjod_sports_kinds', defaultValue: '');
+
+  /// Teams followed (shown first, a word when they play or score), « | » separated.
+  static final vjodSportsTeams = Preference<String>(key: 'vjod_sports_teams', defaultValue: '');
+
+  /// Matches to be told about at kick-off (« Me prévenir »), « | » separated ids.
+  static final vjodSportsReminders = Preference<String>(key: 'vjod_sports_reminders', defaultValue: '');
 
   /// Settled quality of the adaptive glass renderer from the last session.
   /// Seeds GlassAdaptiveScope's initialQuality so repeat launches skip the

@@ -23,6 +23,7 @@ import '../../../preference/seerr_preferences.dart';
 import '../../../util/platform_detection.dart';
 import 'jellyfin_vjod_config.dart';
 import 'ma_tv_alerts.dart';
+import 'ma_tv_sports.dart';
 import 'tv_sources.dart';
 import '../../../util/vjod_log.dart';
 
@@ -222,6 +223,25 @@ class MaTvClient {
     } catch (_) {
       return null;
     }
+  }
+
+  /// Sports (Ma TV 3.55): the day's matches of [kinds] (all when empty),
+  /// [teams] first; [channel] keeps only the matches shown on that channel.
+  /// Null when Ma TV can't be read or is too old to know the route.
+  Future<MaTvSports?> sports({
+    List<String> kinds = const [],
+    List<String> teams = const [],
+    String? channel,
+    int limit = 80,
+  }) async {
+    final json = await _get('/tv/api/sports', {
+      if (kinds.isNotEmpty) 'sports': kinds.join(','),
+      if (teams.isNotEmpty) 'teams': teams.take(30).join('|'),
+      if (channel != null) 'chan': channel,
+      'limit': '$limit',
+    });
+    if (json is! Map) return null;
+    return MaTvSports.fromJson(Map<String, dynamic>.from(json));
   }
 
   /// What Ma TV wants the administrator to know (failed night, account about
