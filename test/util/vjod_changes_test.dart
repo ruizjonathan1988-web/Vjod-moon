@@ -27,4 +27,10 @@ void main() {
     expect(vjodChangesFromNotes('- Recherche plus visible\n- Profil simple\nautre ligne'), ['Recherche plus visible', 'Profil simple']);
     expect(vjodChangesFromNotes(null), isEmpty);
   });
+
+  test('le commit lu dans les notes de la release Mac', () {
+    expect(vjodCommitFromNotes('commit 9e73f6c\n- Profil simple'), '9e73f6c');
+    expect(vjodCommitFromNotes('- Profil simple'), isNull);
+    expect(vjodCommitFromNotes(null), isNull);
+  });
 }

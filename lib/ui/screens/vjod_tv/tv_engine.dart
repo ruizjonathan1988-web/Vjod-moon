@@ -17,10 +17,12 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:moonfin_native_video/moonfin_native_video.dart';
 
+import '../../../playback/aether_backend.dart';
 import '../../../playback/media3_player_backend.dart';
 import '../../../preference/seerr_preferences.dart';
 import '../../../util/platform_detection.dart';
 import '../../../util/vjod_text.dart';
+import '../../widgets/aether_video_view.dart';
 
 String _tn(String fr, String en, String ru, String zh) =>
     vjodTextNow(fr: fr, en: en, ru: ru, zh: zh);
@@ -317,6 +319,82 @@ class ExoTvEngine implements TvEngine {
     await _errors.close();
     // The backend is Moonfin's own, shared with Jellyfin playback: stopped,
     // never disposed.
+    try {
+      await _backend.stop();
+    } catch (_) {}
+  }
+}
+
+// -------------------------------------------------------------------- Apple
+/// On the Mac (and iPhone): Moonfin's Apple player (AetherEngine), the one it
+/// already plays the server's films with; mpv and ExoPlayer aren't there.
+class AppleTvEngine implements TvEngine {
+  AppleTvEngine() : _backend = GetIt.instance<AetherBackend>() {
+    _subs.add(_backend.playingStream.listen((on) {
+      if (on && !_seen) {
+        _seen = true;
+        _first.add(null);
+      }
+    }));
+    _subs.add(_backend.errorStream.listen((e) {
+      _errors.add((e['message'] ?? e['error'] ?? e['code'] ?? _tn('erreur du lecteur', 'player error', 'ошибка плеера', '播放器错误')).toString());
+    }));
+  }
+
+  final AetherBackend _backend;
+  final _first = StreamController<void>.broadcast();
+  final _errors = StreamController<String>.broadcast();
+  final _subs = <StreamSubscription<Object?>>[];
+  bool _seen = false;
+
+  /// Whether this platform plays live TV through it.
+  static bool get wanted => PlatformDetection.isMacOS || PlatformDetection.isIOS;
+
+  @override
+  String get name => 'Apple';
+  @override
+  Stream<void> get firstFrame => _first.stream;
+  @override
+  Stream<bool> get buffering => _backend.bufferingStream;
+  @override
+  Stream<String> get errors => _errors.stream;
+  @override
+  Stream<bool> get completed => _backend.completedStream;
+  @override
+  Duration get position => _backend.position;
+
+  @override
+  Future<void> open(String url, {bool live = true}) async {
+    _seen = false;
+    await _backend.play({
+      'url': url,
+      'isLive': live,
+      'mediaType': 'video',
+      'autoPlay': true,
+    });
+  }
+
+  @override
+  Future<void> play() => _backend.resume();
+  @override
+  Future<void> pause() => _backend.pause();
+  @override
+  Future<void> playOrPause() => _backend.isPlaying ? _backend.pause() : _backend.resume();
+  @override
+  Future<void> seek(Duration position) => _backend.seekTo(position);
+  @override
+  Future<void> stop() => _backend.stop();
+  @override
+  Widget view() => const ColoredBox(color: Colors.black, child: AetherVideoView());
+
+  @override
+  Future<void> dispose() async {
+    for (final s in _subs) {
+      await s.cancel();
+    }
+    await _first.close();
+    await _errors.close();
+    // Moonfin's own player, shared with the films: stopped, never disposed.
     try {
       await _backend.stop();
     } catch (_) {}

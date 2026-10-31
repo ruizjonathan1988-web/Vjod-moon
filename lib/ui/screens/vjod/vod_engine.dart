@@ -17,11 +17,13 @@ import 'package:media_kit_video/media_kit_video.dart';
 import 'package:moonfin_native_video/moonfin_native_video.dart';
 
 import '../../../data/services/vjod/web_iptv.dart';
+import '../../../playback/aether_backend.dart';
 import '../../../playback/html_video_backend.dart';
 import '../../../playback/media3_player_backend.dart';
 import '../../../playback/subtitle_style.dart';
 import '../../../preference/user_preferences.dart';
 import '../../../util/vjod_log.dart';
+import '../../widgets/aether_video_view.dart';
 
 /// One audio or subtitle track of the file.
 class VodTrack {
@@ -327,6 +329,100 @@ class ExoVodEngine implements VodEngine {
   @override
   Future<void> dispose() async {
     _viewReady = null;
+    for (final s in _subs) {
+      await s.cancel();
+    }
+    await _first.close();
+    await _errors.close();
+    await _changed.close();
+    try {
+      await _backend.stop();
+    } catch (_) {}
+  }
+}
+
+// -------------------------------------------------------------------- Apple
+/// On the Mac (and iPhone), Moonfin plays through its own Apple player
+/// (AetherEngine), not mpv: the IPTV films and series go through it too.
+/// Step 1: play, pause and seek; the track menus come later.
+class AetherVodEngine implements VodEngine {
+  AetherVodEngine() : _backend = GetIt.instance<AetherBackend>() {
+    _subs.add(_backend.errorStream.listen((e) {
+      _errors.add((e['message'] ?? e['error'] ?? e['code'] ?? 'erreur du lecteur').toString());
+    }));
+    // The first time it plays stands for the first picture.
+    _subs.add(_backend.playingStream.listen((on) {
+      if (on && !_seen) {
+        _seen = true;
+        _first.add(null);
+      }
+    }));
+    _subs.add(_backend.tracksChangedStream.listen((_) => _changed.add(null)));
+  }
+
+  final AetherBackend _backend;
+  final _first = StreamController<void>.broadcast();
+  final _errors = StreamController<String>.broadcast();
+  final _changed = StreamController<void>.broadcast();
+  final _subs = <StreamSubscription<Object?>>[];
+  bool _seen = false;
+
+  @override
+  String get name => 'Apple';
+  @override
+  Stream<Duration> get position => _backend.positionStream;
+  @override
+  Stream<Duration> get duration => _backend.durationStream;
+  @override
+  Stream<bool> get playing => _backend.playingStream;
+  @override
+  Stream<bool> get buffering => _backend.bufferingStream;
+  @override
+  Stream<String> get errors => _errors.stream;
+  @override
+  Stream<void> get firstFrame => _first.stream;
+  @override
+  Stream<void> get tracksChanged => _changed.stream;
+  @override
+  List<VodTrack> get audio => const [];
+  @override
+  List<VodTrack> get subtitles => const [];
+  @override
+  String? get audioId => null;
+  @override
+  String? get subtitleId => null;
+
+  @override
+  Future<void> open(String url, Map<String, String> headers, {Duration start = Duration.zero}) async {
+    _seen = false;
+    await _backend.play({
+      'url': url,
+      'headers': headers,
+      'isLive': false,
+      'mediaType': 'video',
+      'autoPlay': true,
+    }, startPosition: start);
+  }
+
+  @override
+  Future<void> seek(Duration position) => _backend.seekTo(position);
+  @override
+  Future<void> playOrPause() => _backend.isPlaying ? _backend.pause() : _backend.resume();
+  @override
+  Future<void> setAudio(VodTrack track) async {}
+  @override
+  Future<void> setSubtitle(VodTrack? track) async {}
+  @override
+  Future<void> styleSubtitles({required double scale, required bool raised}) async {}
+  @override
+  Future<void> setSubtitleDelay(double seconds) => _backend.setSubtitleDelay(seconds);
+
+  @override
+  Widget view({required double scale, required bool raised}) =>
+      const ColoredBox(color: Colors.black, child: AetherVideoView());
+
+  @override
+  Future<void> dispose() async {
     for (final s in _subs) {
       await s.cancel();
     }

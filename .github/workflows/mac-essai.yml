@@ -1,0 +1,57 @@
+name: Essai Mac
+
+# VJOD for the Mac, step 1: does the app build, open and play a film from the
+# server. No Apple developer account: the app is signed ad hoc, so the first
+# opening is right click → Open. Runs on the claude/mac-* branches only and
+# publishes on its own release, never over the Android APKs.
+on:
+  push:
+    branches: ['claude/mac-*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  dmg:
+    runs-on: macos-26
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.2'
+
+      - name: Xcode 26.3
+        run: sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer
+
+      - name: Construire le DMG
+        env:
+          BUILD_APPSTORE_PKG: '0'
+          BUILD_DMG_GITHUB: '1'
+          FETCH_CORES: '0'
+          APP_NAME: VJOD
+          # VJOD's own updates (mac-latest), never Moonfin's.
+          DMG_CHANNEL: macos_dmg
+        run: |
+          set +e
+          export VJOD_DART_DEFINES="--dart-define=VJOD_BUILD=$(TZ=Europe/Paris date +%Y-%m-%dT%H:%M) --dart-define=VJOD_COMMIT=${GITHUB_SHA::7}"
+          chmod +x build-macos.sh
+          ./build-macos.sh > build.txt 2>&1
+          status=$?
+          tail -60 build.txt
+          if [ $status -ne 0 ]; then
+            grep -E "error:|Error|\.dart:[0-9]+|FAILED|failed" build.txt | head -40 | while IFS= read -r line; do echo "::error::$line"; done
+          fi
+          exit $status
+
+      - name: Publier l'essai
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          dmg=$(ls VJOD_macOS_v*.dmg | head -1)
+          cp "$dmg" vjod-mac.dmg
+          ls -la vjod-mac.dmg
+          gh release create mac-essai --repo "$GITHUB_REPOSITORY" --title "VJOD Mac (essai)" --notes "Essai de VJOD pour Mac. Première ouverture : clic droit sur VJOD → Ouvrir." --prerelease || true
+          gh release upload mac-essai vjod-mac.dmg --repo "$GITHUB_REPOSITORY" --clobber
