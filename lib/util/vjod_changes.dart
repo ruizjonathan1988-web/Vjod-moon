@@ -15,6 +15,10 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.7', [
+    'Nouveau : Multiview. Deux chaînes côte à côte (quatre sur ordinateur), depuis le menu du lecteur ; le son suit la case choisie.',
+    'Multiview n\u2019apparaît que sur les appareils assez puissants : jamais sur Fire TV, en mode léger, sur Mac ou sur iPad.',
+  ]),
   VjodRelease('4.6', [
     'Nouveau : Sports dans la TV. Les matchs du jour pour tous les sports, le score en direct, les cotes et la chaîne qui diffuse le match.',
     'Pendant un match, le score s\u2019affiche en haut de l\u2019image, avec un mot à chaque but.',
