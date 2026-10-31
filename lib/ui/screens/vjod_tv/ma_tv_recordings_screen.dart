@@ -252,7 +252,7 @@ class _MaTvRecordingsScreenState extends State<MaTvRecordingsScreen> {
       builder: (context) => _ChoiceDialog(
         title: rule.title,
         subtitle: '${_tn('Toutes les diffusions sur', 'Every airing on', 'Все показы на', '所有播出：')} ${rule.channelName}',
-        choices: const [
+        choices: [
           ('stop', Icons.stop_circle_outlined, _tn('Ne plus enregistrer', 'Stop recording', 'Больше не записывать', '停止录制')),
           ('none', Icons.close_rounded, _tn('Retour', 'Back', 'Назад', '返回')),
         ],
