@@ -125,6 +125,8 @@ Widget _tvHome() {
         right: 64,
         top: 30,
         child: VjodNavBar(
+          searchHint: 'Film, série, acteur, chaîne…',
+          searchHintShort: 'Film, acteur, chaîne…',
           scale: s,
           avatarInitial: 'J',
           onSearch: () {},
@@ -199,7 +201,11 @@ Widget _tvHome() {
           children: [
             const VjodRowHeader(title: 'Continuer'),
             const SizedBox(height: 14),
-            Row(
+            // Cut at the screen's edge like a real row, not overflowing it.
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              physics: const NeverScrollableScrollPhysics(),
+              child: Row(
               children: [
                 for (var i = 0; i < 4; i++) ...[
                   SizedBox(
@@ -229,7 +235,7 @@ Widget _tvHome() {
                   const SizedBox(width: 19),
                 ],
               ],
-            ),
+            )),
             const SizedBox(height: 40),
             VjodRowHeader(
               title: 'Top 10 en France aujourd\'hui',
@@ -273,7 +279,11 @@ Widget _tvHome() {
               subtitle: 'Vos goûts, Trakt et BetaSeries réunis',
             ),
             const SizedBox(height: 14),
-            Row(
+            // Cut at the screen's edge like a real row, not overflowing it.
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              physics: const NeverScrollableScrollPhysics(),
+              child: Row(
               children: [
                 for (var i = 0; i < 8; i++) ...[
                   _poster(
@@ -284,7 +294,7 @@ Widget _tvHome() {
                   const SizedBox(width: 15),
                 ],
               ],
-            ),
+            )),
           ],
         ),
       ),
@@ -336,6 +346,8 @@ Widget _foldHome() {
         right: 16,
         top: 12,
         child: VjodNavBar(
+          searchHint: 'Film, série, acteur, chaîne…',
+          searchHintShort: 'Film, acteur, chaîne…',
           scale: s,
           avatarInitial: 'J',
           onSearch: () {},
