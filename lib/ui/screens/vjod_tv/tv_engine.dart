@@ -82,6 +82,9 @@ abstract class TvEngine {
   Future<void> playOrPause();
   Future<void> seek(Duration position);
   Future<void> stop();
+
+  /// Sound off or back on (Multiview: only the tile picked is heard).
+  Future<void> setMuted(bool muted);
   Widget view();
   Future<void> dispose();
 }
@@ -169,6 +172,8 @@ class MpvTvEngine implements TvEngine {
   Future<void> seek(Duration position) => _player.seek(position);
   @override
   Future<void> stop() => _player.stop();
+  @override
+  Future<void> setMuted(bool muted) => _player.setVolume(muted ? 0 : 100);
 
   @override
   Widget view() => Video(
@@ -302,6 +307,8 @@ class ExoTvEngine implements TvEngine {
     _dropCushion();
     return _backend.stop();
   }
+  @override
+  Future<void> setMuted(bool muted) => _backend.setVolume(muted ? 0 : 100);
 
   @override
   Widget view() => Media3VideoView(
@@ -389,6 +396,8 @@ class AppleTvEngine implements TvEngine {
   Future<void> seek(Duration position) => _backend.seekTo(position);
   @override
   Future<void> stop() => _backend.stop();
+  @override
+  Future<void> setMuted(bool muted) => _backend.setVolume(muted ? 0 : 100);
   @override
   Widget view() => const ColoredBox(color: Colors.black, child: AetherVideoView());
 
@@ -499,6 +508,8 @@ class WebTvEngine implements TvEngine {
     ++_seq;
     await _release();
   }
+  @override
+  Future<void> setMuted(bool muted) => _backend.setVolume(muted ? 0 : 100);
 
   @override
   Widget view() => ColoredBox(color: Colors.black, child: _backend.buildView());

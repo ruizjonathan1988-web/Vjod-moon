@@ -13,6 +13,7 @@ import 'package:flutter/services.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../data/services/vjod/ma_tv.dart';
+import '../../../data/services/vjod/ma_tv_multiview.dart';
 import '../../../data/services/vjod/ma_tv_recordings.dart';
 import '../../../data/services/vjod/ma_tv_sports.dart';
 import '../../../data/services/vjod/tv_sources.dart';
@@ -23,6 +24,7 @@ import '../../../util/vjod_text.dart';
 import '../../screensaver/screensaver_controller.dart';
 import '../../widgets/live_tv/tv_sources_panel.dart';
 import 'ma_tv_guide.dart';
+import 'ma_tv_multiview_screen.dart';
 import 'ma_tv_recordings_screen.dart';
 import 'ma_tv_widgets.dart';
 import 'tv_engine.dart';
@@ -162,6 +164,8 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     _favorites = MaTvMemory.favorites.toSet();
     // What is scheduled, so the menu shows « Enregistrement prévu ».
     if (!widget.kids) unawaited(MaTvRecorder().list());
+    // Whether Multiview may show (read once per launch).
+    if (!widget.kids) unawaited(MaTvMultiview.resolve().then((_) {}));
     setImmersive(true);
     _screensaver(true);
     _engine = WebTvEngine.wanted
@@ -780,6 +784,9 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
         action: _GuideAction.favorite,
       ),
       (icon: Icons.grid_view_rounded, label: _t('Grille des programmes', 'TV guide', 'Телепрограмма', '节目表'), action: _GuideAction.grid),
+      // Only on devices strong enough (never Fire TV, light mode, Mac or iPad).
+      if (!widget.kids && MaTvMultiview.tiles > 0 && _replaying == null)
+        (icon: Icons.splitscreen_rounded, label: _t('Multiview (plusieurs chaînes)', 'Multiview (several channels)', 'Мультиэкран', '多画面'), action: _GuideAction.multiview),
       (
         icon: Icons.high_quality_rounded,
         label: '${_t('Qualité', 'Quality', 'Качество', '画质')} : ${MaTvDevice.qualityLabel}',
@@ -836,6 +843,8 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
         _openList();
       case _GuideAction.grid:
         await _openGrid();
+      case _GuideAction.multiview:
+        await _openMultiview();
       case _GuideAction.engine:
         {
           await TvEngineChoice.next();
@@ -862,6 +871,35 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
         await _toggleFavorite();
         if (mounted) setState(() {});
     }
+  }
+
+  /// Multiview: this player lets go of its picture (one decoder less), the
+  /// tiles start with this channel; « Plein écran » on a tile comes back here
+  /// on that channel.
+  Future<void> _openMultiview() async {
+    setState(() => _overlay = _Overlay.none);
+    final here = _channel;
+    _watchdog?.cancel();
+    _zapTimer?.cancel();
+    await _engine.stop().catchError((_) {});
+    if (!mounted) return;
+    final pick = await Navigator.of(context).push<MaTvChannel>(
+      maTvRoute((_) => MaTvMultiviewScreen(channels: _list, first: here, tiles: MaTvMultiview.tiles)),
+    );
+    if (!mounted) return;
+    _focus.requestFocus();
+    if (pick != null) {
+      final i = _list.indexWhere((c) => c.id == pick.id);
+      if (i >= 0) {
+        setState(() => _index = i);
+      } else {
+        setState(() {
+          _list = [pick, ..._list];
+          _index = 0;
+        });
+      }
+    }
+    _tune(immediate: true);
   }
 
   Future<void> _openGrid() async {
@@ -1573,4 +1611,4 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
 }
 
 /// What an entry of the player's menu does.
-enum _GuideAction { live, fromStart, record, replay, favorite, grid, quality, engine, sources, list }
+enum _GuideAction { live, fromStart, record, replay, favorite, grid, multiview, quality, engine, sources, list }
