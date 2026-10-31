@@ -47,9 +47,18 @@ Future<void> showAppUpdateDialog(
   final l10n = AppLocalizations.of(context);
 
   final builtAt = update.builtAt;
+  final vjod = update.vjodVersion;
   final choice = await showStyledPlayerDialog<String>(
     context,
-    title: builtAt != null
+    title: vjod != null
+        ? vjodText(
+            context,
+            fr: 'VJOD $vjod est disponible',
+            en: 'VJOD $vjod is available',
+            ru: 'Доступна VJOD $vjod',
+            zh: 'VJOD $vjod 已发布',
+          )
+        : builtAt != null
         ? vjodText(
             context,
             fr: 'Nouvelle version de VJOD (${vjodBuildDate(context, builtAt)})',
@@ -62,6 +71,13 @@ Future<void> showAppUpdateDialog(
     builder: (ctx) => Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        // What the new version brings, as the build wrote it on the release.
+        for (final change in update.vjodChanges.take(8))
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Text('• $change', style: Theme.of(ctx).textTheme.bodyMedium),
+          ),
+        if (update.vjodChanges.isNotEmpty) const SizedBox(height: 8),
         if (!PlatformDetection.isTV || _installsApkInApp(update))
           _UpdateOption(
             icon: Icons.download_rounded,
@@ -120,9 +136,18 @@ Future<void> _downloadAndInstallWindowsUpdate(
   final errorNotifier = ValueNotifier<String?>(null);
 
   final builtAt = update.builtAt;
+  final vjod = update.vjodVersion;
   showStyledPlayerDialog<void>(
     context,
-    title: builtAt != null
+    title: vjod != null
+        ? vjodText(
+            context,
+            fr: 'Mise à jour vers VJOD $vjod…',
+            en: 'Updating to VJOD $vjod…',
+            ru: 'Обновление до VJOD $vjod…',
+            zh: '正在更新到 VJOD $vjod…',
+          )
+        : builtAt != null
         ? vjodText(
             context,
             fr: 'Mise à jour de VJOD (${vjodBuildDate(context, builtAt)})…',

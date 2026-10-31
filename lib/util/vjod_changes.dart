@@ -1,0 +1,37 @@
+/// VJOD's versions and what each brought, newest first. The first entry is
+/// the version being built: « À propos » shows it, the app shows it once after
+/// updating, and the build (perso-apk.yml) writes it on the GitHub release, so
+/// the update window can say « VJOD 4.1 » and what changed.
+///
+/// Every update adds an entry on top, with the next number (4.2, 4.3…), in
+/// French, one line per change, said the way the household would.
+library;
+
+class VjodRelease {
+  final String version;
+  final List<String> changes;
+
+  const VjodRelease(this.version, this.changes);
+}
+
+const vjodReleases = <VjodRelease>[
+  VjodRelease('4.1', [
+    'Recherche plus visible : un champ « Film, série, acteur, chaîne… » en haut, et une loupe dans Films et Séries (même par acteur ou réalisateur).',
+    'Clavier TV plus lisible et mots de recherche écrits en grand.',
+    'Profil simple : 4 onglets, un seul bouton Regarder ou Demander, textes plus grands. L’administrateur l’active pour un profil.',
+    'Mode léger automatique sur les vieilles Fire TV.',
+    'Écrans de la TV en direct traduits (anglais, russe, chinois).',
+    'Le serveur de la maison est reproposé si la première connexion a échoué.',
+    'Plus de saccades pendant le chargement de Films et Séries, et corrections diverses.',
+  ]),
+];
+
+/// The version a GitHub release names in its title (« VJOD 4.1 »), or null.
+String? vjodVersionFromTitle(String? title) =>
+    RegExp(r'VJOD\s+(\d+(?:\.\d+)+)').firstMatch(title ?? '')?.group(1);
+
+/// The changes a GitHub release lists in its notes (lines starting « - »).
+List<String> vjodChangesFromNotes(String? notes) => [
+  for (final line in (notes ?? '').split('\n'))
+    if (line.trimLeft().startsWith('- ')) line.trimLeft().substring(2).trim(),
+];

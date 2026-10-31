@@ -42,6 +42,7 @@ import '../../../util/platform_detection.dart';
 import '../../../util/playback_time_label.dart';
 import '../../../util/app_beta.dart';
 import '../../../util/vjod_build.dart';
+import '../../../util/vjod_changes.dart';
 import '../../../util/vjod_text.dart';
 import '../../../data/services/vjod/tv_sources.dart' show TvSourcesClient;
 import '../../../util/app_distribution.dart';

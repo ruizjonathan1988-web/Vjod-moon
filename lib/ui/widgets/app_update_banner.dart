@@ -171,7 +171,15 @@ class _AppUpdateBannerState extends State<AppUpdateBanner>
     final pill = StatusBannerPill(
       icon: Icons.system_update_alt_rounded,
       tint: tint,
-      title: update.builtAt != null
+      title: update.vjodVersion != null
+          ? vjodText(
+              context,
+              fr: 'VJOD ${update.vjodVersion} est disponible',
+              en: 'VJOD ${update.vjodVersion} is available',
+              ru: 'Доступна VJOD ${update.vjodVersion}',
+              zh: 'VJOD ${update.vjodVersion} 已发布',
+            )
+          : update.builtAt != null
           ? vjodText(
               context,
               fr: 'Nouvelle version de VJOD · ${vjodBuildDate(context, update.builtAt!)}',

@@ -7,6 +7,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../preference/user_preferences.dart';
 import '../../util/app_distribution.dart';
+import '../../util/vjod_changes.dart';
 
 enum DesktopUpdateCheckStatus {
   updateAvailable,
@@ -41,11 +42,18 @@ class DesktopUpdateInfo {
   /// of a version number ("VJOD du 29/10 à 13h53").
   final DateTime? builtAt;
 
+  /// For this fork's builds: VJOD's number (« 4.1 ») and what it brings, as
+  /// the build wrote them on the release. Null and empty when it didn't.
+  final String? vjodVersion;
+  final List<String> vjodChanges;
+
   const DesktopUpdateInfo({
     required this.version,
     required this.downloadUri,
     required this.releaseNotesUrl,
     this.builtAt,
+    this.vjodVersion,
+    this.vjodChanges = const [],
   });
 }
 
@@ -241,6 +249,8 @@ class AppUpdateService {
         downloadUri: Uri.parse(asset.downloadUrl),
         releaseNotesUrl: release.releaseNotesUrl,
         builtAt: local,
+        vjodVersion: vjodVersionFromTitle(release.title),
+        vjodChanges: vjodChangesFromNotes(release.notes),
       ),
     );
   }
@@ -324,7 +334,13 @@ class AppUpdateService {
         }
       }
 
-      return _LatestRelease(version: tagName, assets: assets, releaseNotesUrl: htmlUrl);
+      return _LatestRelease(
+        version: tagName,
+        assets: assets,
+        releaseNotesUrl: htmlUrl,
+        title: decoded['name']?.toString(),
+        notes: decoded['body']?.toString(),
+      );
     } catch (_) {
       return null;
     } finally {
@@ -445,11 +461,15 @@ class _LatestRelease {
   final String version;
   final List<_ReleaseAsset> assets;
   final String releaseNotesUrl;
+  final String? title;
+  final String? notes;
 
   const _LatestRelease({
     required this.version,
     required this.assets,
     required this.releaseNotesUrl,
+    this.title,
+    this.notes,
   });
 }
 

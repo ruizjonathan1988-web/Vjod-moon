@@ -90,6 +90,8 @@ jobs:
           cp build/app/outputs/flutter-apk/*-release.apk moonfin-fold.apk
           gh release create perso-latest --repo "$GITHUB_REPOSITORY" --title "Dernière version perso" --notes "APK de la dernière compilation de la branche perso." --prerelease || true
           gh release upload perso-latest moonfin-fold.apk --repo "$GITHUB_REPOSITORY" --clobber
+          python3 tool/vjod_release_notes.py > notes.txt
+          gh release edit perso-latest --repo "$GITHUB_REPOSITORY" --title "VJOD $(head -1 notes.txt)" --notes "$(tail -n +2 notes.txt)" || true
 
   tv:
     runs-on: ubuntu-latest
@@ -140,3 +142,6 @@ jobs:
           cp build/app/outputs/flutter-apk/*-release.apk moonfin-tv.apk
           gh release create perso-latest --repo "$GITHUB_REPOSITORY" --title "Dernière version perso" --notes "APK de la dernière compilation de la branche perso." --prerelease || true
           gh release upload perso-latest moonfin-tv.apk --repo "$GITHUB_REPOSITORY" --clobber
+          # VJOD's number and what it brings, for the update window (vjod_changes.dart).
+          python3 tool/vjod_release_notes.py > notes.txt
+          gh release edit perso-latest --repo "$GITHUB_REPOSITORY" --title "VJOD $(head -1 notes.txt)" --notes "$(tail -n +2 notes.txt)" || true
