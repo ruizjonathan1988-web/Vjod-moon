@@ -6,7 +6,6 @@ import '../../widgets/bounded_network_image.dart';
 import '../../widgets/floating_notification.dart';
 import '../../../data/services/vjod/provider_catalog_access.dart';
 import '../../../data/services/vjod/iptv_progress.dart';
-import '../../../data/services/vjod/web_iptv.dart';
 import '../../../data/services/vjod/simple_mode.dart';
 import '../../../data/services/vjod/xtream_catalog.dart';
 import '../../../data/services/vjod/ma_tv.dart' show MaTvDevice;
@@ -5986,12 +5985,8 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
                           : f.file.shownQuality,
                     ].join(' · '),
                   ),
-                  subtitle: Text(
-                    // In a browser, files it never plays say so before a press.
-                    PlatformDetection.isWeb && webUnplayableReason(f.file.extension) != null
-                        ? '${f.file.details} · ne se lit pas dans le navigateur'
-                        : f.file.details,
-                  ),
+                  // In a browser, files it can't play go through Ma TV's relay.
+                  subtitle: Text(f.file.details),
                   onTap: () => Navigator.of(sheetContext).pop(f),
                 ),
             ],

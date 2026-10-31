@@ -59,8 +59,9 @@ class MaTvPlayerScreen extends StatefulWidget {
 class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSystemUi {
   static const _zapDelay = Duration(milliseconds: 420);
   static const _bannerTime = Duration(seconds: 5);
-  static const _noPictureRetry = Duration(seconds: 14);
-  static const _noPictureGiveUp = Duration(seconds: 30);
+  // In a browser, Ma TV first prepares the HLS version (a few seconds more).
+  static final _noPictureRetry = Duration(seconds: WebTvEngine.wanted ? 30 : 14);
+  static final _noPictureGiveUp = Duration(seconds: WebTvEngine.wanted ? 60 : 30);
 
   final _client = MaTvClient();
   // Built each time: the caps it carries follow the quality chosen and the
@@ -151,7 +152,9 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     if (!widget.kids) unawaited(MaTvRecorder().list());
     setImmersive(true);
     _screensaver(true);
-    _engine = AppleTvEngine.wanted
+    _engine = WebTvEngine.wanted
+        ? (_apple = _attach(WebTvEngine()))
+        : AppleTvEngine.wanted
         ? (_apple = _attach(AppleTvEngine()))
         : _useExo
         ? (_exo = _attach(ExoTvEngine()))
@@ -177,6 +180,9 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
   /// The engine for [ch]: mpv when chosen, or when ExoPlayer brought no
   /// picture for this channel earlier in the session.
   TvEngine _engineFor(MaTvChannel ch) {
+    // In a browser, Ma TV's relay; on the Mac and iPhone, Moonfin's Apple
+    // player. Both kept in [_apple]: the single engine of those platforms.
+    if (WebTvEngine.wanted) return _apple ??= _attach(WebTvEngine());
     if (AppleTvEngine.wanted) return _apple ??= _attach(AppleTvEngine());
     final mpv = !_useExo || (TvEngineChoice.value == 'auto' && _mpvChannels.contains(ch.id));
     if (mpv) return _mpv ??= _attach(MpvTvEngine());

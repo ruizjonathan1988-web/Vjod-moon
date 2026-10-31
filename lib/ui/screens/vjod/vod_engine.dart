@@ -16,11 +16,13 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:moonfin_native_video/moonfin_native_video.dart';
 
+import '../../../data/services/vjod/iptv_cast.dart';
 import '../../../data/services/vjod/web_iptv.dart';
 import '../../../playback/aether_backend.dart';
 import '../../../playback/html_video_backend.dart';
 import '../../../playback/media3_player_backend.dart';
 import '../../../playback/subtitle_style.dart';
+import '../../../playback/web_playback_capabilities.dart';
 import '../../../preference/user_preferences.dart';
 import '../../../util/vjod_log.dart';
 import '../../widgets/aether_video_view.dart';
@@ -438,6 +440,11 @@ class AetherVodEngine implements VodEngine {
 // ------------------------------------------------------------------ browser
 /// The web version's engine, the browser's own <video>. Used only in a
 /// browser (kIsWeb), so Android and the TV never see it.
+///
+/// What the browser can't play (every MKV on Safari, an HEVC film on Chrome…)
+/// goes through Ma TV's relay instead: Ma TV prepares an HLS version from the
+/// requested point, which every browser plays. Positions are then shifted by
+/// where that version starts, and a jump outside it asks for a new one.
 class WebVodEngine implements VodEngine {
   WebVodEngine() : _backend = HtmlVideoBackend(GetIt.instance<UserPreferences>()) {
     _subs.add(_backend.errorStream.listen((_) => _fail()));
@@ -457,8 +464,18 @@ class WebVodEngine implements VodEngine {
   // decoded (HEVC in most browsers).
   int _soundOnly = 0;
 
+  // Ma TV's relay: the file asked for, the HLS version playing (null when the
+  // file itself plays) and where that version starts in the film.
+  String _fileUrl = '';
+  Duration _fileStart = Duration.zero;
+  String? _relayUrl;
+  Duration _offset = Duration.zero;
+  bool _triedRelay = false;
+  bool _switching = false;
+  int _openSeq = 0;
+
   void _check() {
-    if (_failed || _errors.isClosed) return;
+    if (_failed || _switching || _errors.isClosed) return;
     final code = _backend.mediaErrorCode;
     if (code != null) {
       _fail(code == 2 ? webUnreachableMessage : webPlaybackFailedMessage);
@@ -474,17 +491,55 @@ class WebVodEngine implements VodEngine {
   }
 
   void _fail([String message = webPlaybackFailedMessage]) {
-    if (_failed || _seen || _errors.isClosed) return;
+    if (_failed || _seen || _switching || _errors.isClosed) return;
+    // The file doesn't play here: Ma TV prepares a version that does.
+    if (message == webPlaybackFailedMessage && !_triedRelay && _fileUrl.isNotEmpty) {
+      unawaited(_openRelay(_fileStart));
+      return;
+    }
     _failed = true;
     _errors.add(message);
+  }
+
+  Future<void> _openRelay(Duration at) async {
+    final seq = ++_openSeq;
+    _triedRelay = true;
+    _switching = true;
+    final previous = _relayUrl;
+    _relayUrl = null;
+    unawaited(stopMaTvRelay(previous));
+    try {
+      await _backend.stop();
+    } catch (_) {}
+    final source = await resolveWebRelay(_fileUrl, position: at);
+    if (seq != _openSeq || _errors.isClosed) {
+      if (source.ok) unawaited(stopMaTvRelay(source.url));
+      return;
+    }
+    _switching = false;
+    if (!source.ok) {
+      _failed = true;
+      _errors.add(source.problem ?? webPlaybackFailedMessage);
+      return;
+    }
+    _relayUrl = source.url;
+    _offset = source.offset;
+    _seen = false;
+    _failed = false;
+    _soundOnly = 0;
+    final local = at - _offset;
+    await _backend.play(
+      {'url': source.url, 'container': 'hls', 'autoPlay': true},
+      startPosition: local > Duration.zero ? local : Duration.zero,
+    );
   }
 
   @override
   String get name => 'Navigateur';
   @override
-  Stream<Duration> get position => _backend.positionStream;
+  Stream<Duration> get position => _backend.positionStream.map((p) => p + _offset);
   @override
-  Stream<Duration> get duration => _backend.durationStream;
+  Stream<Duration> get duration => _backend.durationStream.map((d) => d + _offset);
   @override
   Stream<bool> get playing => _backend.playingStream;
   @override
@@ -509,11 +564,15 @@ class WebVodEngine implements VodEngine {
   // their address instead.
   @override
   Future<void> open(String url, Map<String, String> headers, {Duration start = Duration.zero}) async {
-    final reason = webUnplayableReason(extensionOfUrl(url));
-    if (reason != null) {
-      _fail(reason);
-      return;
+    _fileUrl = url;
+    _fileStart = start;
+    _triedRelay = false;
+    final safari = detectWebPlaybackCapabilities().isSafari;
+    if (webUsesRelayFirst(safari: safari, extension: extensionOfUrl(url))) {
+      return _openRelay(start);
     }
+    ++_openSeq;
+    _offset = Duration.zero;
     _seen = false;
     _failed = false;
     _soundOnly = 0;
@@ -521,7 +580,17 @@ class WebVodEngine implements VodEngine {
   }
 
   @override
-  Future<void> seek(Duration position) => _backend.seekTo(position);
+  Future<void> seek(Duration position) async {
+    if (_relayUrl == null) return _backend.seekTo(position);
+    // Inside what Ma TV has prepared: a plain jump; elsewhere a new version
+    // from there (Ma TV prepares from the start point onwards).
+    final local = position - _offset;
+    if (local >= Duration.zero && local <= _backend.duration + const Duration(seconds: 10)) {
+      return _backend.seekTo(local);
+    }
+    _fileStart = position;
+    await _openRelay(position);
+  }
   @override
   Future<void> playOrPause() => _backend.isPlaying ? _backend.pause() : _backend.resume();
   @override
@@ -540,6 +609,8 @@ class WebVodEngine implements VodEngine {
   @override
   Future<void> dispose() async {
     _watch?.cancel();
+    ++_openSeq;
+    unawaited(stopMaTvRelay(_relayUrl));
     for (final s in _subs) {
       await s.cancel();
     }

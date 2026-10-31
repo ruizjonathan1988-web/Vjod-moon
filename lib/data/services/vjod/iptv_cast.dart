@@ -8,6 +8,8 @@
 //   (`/tv/api/cast`, Ma TV 3.53 and up): the same file when it already fits,
 //   otherwise an HLS stream it prepares on the fly, behind a short-lived token
 //   rather than Ma TV's key;
+// - the same relay serves the web version: Safari (iPad, iPhone) plays none
+//   of the IPTV files but plays this HLS, live channels included (3.54);
 // - an older Ma TV, or a provider read directly: only an MP4 file is sent as
 //   it is; anything else gets a clear message instead of a black screen.
 //
@@ -137,6 +139,25 @@ IptvCastSource? castSourceFromMaTv(int status, String body) {
 int castStartTicks(IptvCastSource source, Duration position) =>
     source.offset > Duration.zero ? 0 : position.inMicroseconds * 10;
 
+/// Asks Ma TV's relay (`/tv/api/cast`) for an HLS version of [query]: a film
+/// or an episode (Ma TV 3.53 and up), a live channel (3.54 and up). Shared by
+/// the Chromecast and the web version (Safari plays none of the IPTV files
+/// but plays this). Null when Ma TV doesn't know the route (too old).
+Future<IptvCastSource?> askMaTvRelay(Map<String, String> query, {http.Client? client}) async {
+  final server = TvSourcesClient().server;
+  if (server == null) return const IptvCastSource.impossible(iptvCastMaTvFailed);
+  try {
+    final uri = server.endpoint('/tv/api/cast', query);
+    // Ma TV looks at the file (a few seconds, up to 45 when the source is slow).
+    final r = await (client?.get(uri) ?? http.get(uri)).timeout(const Duration(seconds: 60));
+    if (r.statusCode == 404) return null;
+    return castSourceFromMaTv(r.statusCode, utf8.decode(r.bodyBytes)) ??
+        const IptvCastSource.impossible(iptvCastMaTvFailed);
+  } catch (_) {
+    return const IptvCastSource.impossible(iptvCastMaTvFailed);
+  }
+}
+
 /// Finds what to send to the Chromecast for [playUrl].
 Future<IptvCastSource> resolveIptvCast(
   String playUrl, {
@@ -148,20 +169,77 @@ Future<IptvCastSource> resolveIptvCast(
   final request = IptvCastRequest.fromPlayUrl(playUrl);
   final fromMaTv = server != null && request != null && playUrl.startsWith(server.url);
   if (!fromMaTv) return directCastSource(playUrl, maTvTooOld: false);
+  final source = await askMaTvRelay(relayQuery(request, position: position, title: title), client: client);
+  // An older Ma TV doesn't know the route.
+  return source ?? directCastSource(playUrl, maTvTooOld: true);
+}
+
+/// The relay's parameters for a film or an episode: Ma TV prepares the
+/// stream from where it was left (5 s before), when past the first minute.
+Map<String, String> relayQuery(IptvCastRequest request, {Duration position = Duration.zero, String title = ''}) => {
+  ...request.query,
+  if (position > const Duration(minutes: 1)) 'start': '${position.inSeconds - 5}',
+  if (title.isNotEmpty) 'title': title,
+};
+
+// ------------------------------------------------------------------ web version
+const webRelayUpdateMaTv =
+    'Pour lire ceci dans le navigateur, Ma TV doit être à jour (version 3.54 ou plus). '
+    'En attendant, regarde-le sur l\'appli.';
+
+const webRelayNotMaTv =
+    'Ce fichier ne se lit pas dans le navigateur. Regarde-le sur l\'appli.';
+
+/// The relay's parameters for a live channel, from Ma TV's live address
+/// (`…/tv/play/<channel>.ts?u=…&k=…`); null for any other address.
+Map<String, String>? liveRelayQuery(String playUrl) {
+  final uri = Uri.tryParse(playUrl);
+  if (uri == null) return null;
+  final parts = uri.pathSegments.where((p) => p.isNotEmpty).toList();
+  if (parts.length < 3 || parts[parts.length - 3] != 'tv' || parts[parts.length - 2] != 'play') return null;
+  final file = parts.last;
+  final id = file.endsWith('.ts') ? file.substring(0, file.length - 3) : file;
+  if (id.isEmpty) return null;
+  final user = uri.queryParameters['u'] ?? '';
+  return {'kind': 'live', 'id': id, if (user.isNotEmpty) 'u': user};
+}
+
+/// The address that stops Ma TV's preparation behind [hlsUrl]
+/// (`…/tv/cast/<token>/index.m3u8` → `…/tv/cast/<token>/stop`), or null.
+Uri? relayStopUri(String hlsUrl) {
+  final uri = Uri.tryParse(hlsUrl);
+  if (uri == null || !uri.path.contains('/tv/cast/')) return null;
+  final parts = List.of(uri.pathSegments);
+  if (parts.isEmpty) return null;
+  parts[parts.length - 1] = 'stop';
+  return uri.replace(pathSegments: parts, query: null);
+}
+
+/// Tells Ma TV it can stop preparing [hlsUrl] now (player closed, other
+/// channel, jump in the film), instead of a few minutes later. Never fails.
+Future<void> stopMaTvRelay(String? hlsUrl, {http.Client? client}) async {
+  final uri = hlsUrl == null ? null : relayStopUri(hlsUrl);
+  if (uri == null) return;
   try {
-    final uri = server.endpoint('/tv/api/cast', {
-      ...request.query,
-      // Ma TV prepares the stream from where the film was left.
-      if (position > const Duration(minutes: 1)) 'start': '${position.inSeconds - 5}',
-      if (title.isNotEmpty) 'title': title,
-    });
-    // Ma TV looks at the file (a few seconds, up to 45 when the source is slow).
-    final r = await (client?.get(uri) ?? http.get(uri)).timeout(const Duration(seconds: 60));
-    // An older Ma TV doesn't know the route.
-    if (r.statusCode == 404) return directCastSource(playUrl, maTvTooOld: true);
-    return castSourceFromMaTv(r.statusCode, utf8.decode(r.bodyBytes)) ??
-        const IptvCastSource.impossible(iptvCastMaTvFailed);
-  } catch (_) {
-    return const IptvCastSource.impossible(iptvCastMaTvFailed);
+    await (client?.get(uri) ?? http.get(uri)).timeout(const Duration(seconds: 5));
+  } catch (_) {}
+}
+
+/// The web version's film or episode through Ma TV's relay, from [playUrl]
+/// (Ma TV's file address) and where to start.
+Future<IptvCastSource> resolveWebRelay(String playUrl, {Duration position = Duration.zero}) async {
+  final server = TvSourcesClient().server;
+  final request = IptvCastRequest.fromPlayUrl(playUrl);
+  if (server == null || request == null || !playUrl.startsWith(server.url)) {
+    return const IptvCastSource.impossible(webRelayNotMaTv);
   }
+  return await askMaTvRelay(relayQuery(request, position: position)) ??
+      const IptvCastSource.impossible(webRelayUpdateMaTv);
+}
+
+/// The web version's live channel through Ma TV's relay.
+Future<IptvCastSource> resolveWebLive(String liveUrl) async {
+  final query = liveRelayQuery(liveUrl);
+  if (query == null) return const IptvCastSource.impossible(webRelayNotMaTv);
+  return await askMaTvRelay(query) ?? const IptvCastSource.impossible(webRelayUpdateMaTv);
 }

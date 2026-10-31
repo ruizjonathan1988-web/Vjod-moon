@@ -15,6 +15,12 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.5', [
+    'VJOD sur iPad : une vraie appli, installée avec AltStore (guide fourni), qui se met à jour dans AltStore.',
+    'Dans Safari (iPad, iPhone) : les films et séries IPTV et la TV en direct se lisent, Ma TV prépare une version lisible.',
+    'Sur ordinateur aussi : un film que le navigateur ne lisait pas passe maintenant par Ma TV au lieu d\u2019afficher une erreur.',
+    'VJOD ajouté à l\u2019écran d\u2019accueil de l\u2019iPad garde son nom et son icône, et tourne dans les deux sens.',
+  ]),
   VjodRelease('4.4', [
     'Les rangées de l\u2019Accueil ne disparaissent plus quand un service met trop de temps à répondre : elles restent, et VJOD réessaie tout seul.',
     'Réglages : « L\u2019essentiel » en haut (langue, sous-titres, qualité vidéo, contrôle parental).',
