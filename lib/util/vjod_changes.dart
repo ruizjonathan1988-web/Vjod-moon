@@ -15,6 +15,11 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.4', [
+    'Les rangées de l\u2019Accueil ne disparaissent plus quand un service met trop de temps à répondre : elles restent, et VJOD réessaie tout seul.',
+    'Réglages : « L\u2019essentiel » en haut (langue, sous-titres, qualité vidéo, contrôle parental).',
+    'Le menu du profil ne montre « Demandes à valider » qu\u2019à l\u2019administrateur.',
+  ]),
   VjodRelease('4.3', [
     'VJOD sur Mac : une vraie appli, avec les films du serveur, les films et séries IPTV et la TV en direct.',
     'Sur Mac, VJOD propose lui-même ses mises à jour.',
