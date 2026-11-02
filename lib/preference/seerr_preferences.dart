@@ -164,6 +164,12 @@ class SeerrPreferences {
   Future<void> setVjodTvSourcesJson(String value) =>
       _store.setString('vjod_tv_sources', value);
 
+  /// This profile's own key to Ma TV (Ma TV 3.60), as JSON `{url, key}`, or
+  /// `{url, cut: true}` when the admin cut the profile off. Per profile.
+  String get vjodTvPersonalJson => _store.getString(_userKey('vjod_tv_personal')) ?? '';
+  Future<void> setVjodTvPersonalJson(String value) =>
+      _store.setString(_userKey('vjod_tv_personal'), value);
+
   /// Ma TV in VJOD, per profile: favourite channels (ids, in the order they
   /// were added), the last channels watched (most recent first), the last
   /// one and the category it was watched from, so "VJOD TV" reopens there.
