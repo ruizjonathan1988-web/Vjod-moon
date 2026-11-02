@@ -29,6 +29,7 @@ import '../../../util/system_ui.dart';
 import '../../navigation/destinations.dart';
 import '../../screensaver/screensaver_controller.dart';
 import '../../widgets/vjod/iptv_cast_sheet.dart';
+import '../../widgets/vjod/report_problem.dart';
 import '../vjod_tv/tv_engine.dart' show TvEngineChoice;
 import 'vod_engine.dart';
 import '../../../util/vjod_log.dart';
@@ -165,6 +166,7 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
   @override
   void initState() {
     super.initState();
+    unawaited(loadSupportNumber());
     setImmersive(true);
     GetIt.instance<ScreensaverController>().setPlaybackActive(true);
     // In a browser, its own player; the apps keep ExoPlayer / mpv as before.
@@ -406,8 +408,15 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
 
   /// Shows [message] in place of the picture and tells Ma TV which title
   /// would not play, with which player.
+  /// The « Signaler un problème » button of the error screen: OK on the
+  /// remote reaches it at once.
+  final _reportFocus = FocusNode(debugLabel: 'ProviderPlayerReport');
+
   void _failWith(String message) {
     setState(() => _error = message);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _error != null && vjodSupportNumber.value != null) _reportFocus.requestFocus();
+    });
     MaTvReports.instance.play(
       message,
       where: 'iptv',
@@ -470,6 +479,7 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
       s.cancel();
     }
     _hideTimer?.cancel();
+    _reportFocus.dispose();
     _noPicture?.cancel();
     _saveTimer?.cancel();
     _voteTimer?.cancel();
@@ -938,8 +948,31 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
                 Center(
                   child: Padding(
                     padding: const EdgeInsets.all(32),
-                    child: Text(_error!, textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.white, fontSize: 20)),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(_error!, textAlign: TextAlign.center,
+                            style: const TextStyle(color: Colors.white, fontSize: 20)),
+                        // To the admin by WhatsApp, with the title and the error.
+                        ValueListenableBuilder<String?>(
+                          valueListenable: vjodSupportNumber,
+                          builder: (context, number, _) => number == null
+                              ? const SizedBox.shrink()
+                              : Padding(
+                                  padding: const EdgeInsets.only(top: 20),
+                                  child: FilledButton.tonalIcon(
+                                    focusNode: _reportFocus,
+                                    onPressed: () => unawaited(openReportProblem(
+                                      context,
+                                      what: '${widget.title.isEmpty ? 'Film ou épisode IPTV' : widget.title} · ${_error ?? ''}',
+                                    )),
+                                    icon: const Icon(Icons.chat_rounded),
+                                    label: const Text('Signaler un problème'),
+                                  ),
+                                ),
+                        ),
+                      ],
+                    ),
                   ),
                 )
               else if (_loading || _buffering)
