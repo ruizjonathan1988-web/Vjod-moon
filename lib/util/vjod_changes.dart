@@ -15,6 +15,9 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.15', [
+    'La recherche de l\u2019Accueil trouve aussi les chaînes : par leur nom, leur numéro ou ce qu\u2019elles passent (« PSG » trouve la chaîne du match). Un appui et la chaîne se lance.',
+  ]),
   VjodRelease('4.14', [
     'Versions d\u2019essai : chaque nouvelle version arrive d\u2019abord sur les appareils de l\u2019administrateur (Réglages → À propos → Versions d\u2019essai), puis chez tout le monde quand il la valide sur la page Ma TV.',
   ]),

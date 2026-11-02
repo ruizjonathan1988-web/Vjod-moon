@@ -19,6 +19,7 @@ import 'package:http/http.dart' as http;
 import 'package:server_core/server_core.dart';
 
 import '../../../auth/repositories/session_repository.dart';
+import 'channel_search.dart';
 import '../../../preference/seerr_preferences.dart';
 import '../../../util/platform_detection.dart';
 import 'jellyfin_vjod_config.dart';
@@ -538,4 +539,30 @@ class MaTvMemory {
       await p.setMaTvLastCategory(category);
     }
   }
+}
+
+
+/// The channels a search finds (the home search, VJOD 4.15): those whose
+/// name or number match first, then those airing a matching programme now or
+/// next. At most [limit]; nothing for a single letter.
+List<MaTvChannel> searchChannelHits(List<MaTvChannel> all, String query, {int limit = 12}) {
+  final q = normalizeChannelQuery(query);
+  if (q.length < 2 && int.tryParse(q) == null) return const [];
+  final byName = <MaTvChannel>[];
+  final byShow = <MaTvChannel>[];
+  for (final c in all) {
+    if (channelMatchesQuery(query, name: c.name, number: '${c.number}')) {
+      byName.add(c);
+    } else if (channelMatchesQuery(query, name: '', programTitles: [?c.now?.title, ?c.next?.title]) && q.length >= 3) {
+      byShow.add(c);
+    }
+  }
+  // An exact name (« TF1 ») or number (« 1 ») first.
+  int exact(MaTvChannel c) =>
+      normalizeChannelQuery(c.name) == q || '${c.number}' == q ? 0 : 1;
+  byName.sort((a, b) {
+    final e = exact(a) - exact(b);
+    return e != 0 ? e : a.number.compareTo(b.number);
+  });
+  return [...byName, ...byShow].take(limit).toList();
 }
