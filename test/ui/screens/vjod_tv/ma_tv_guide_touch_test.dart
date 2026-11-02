@@ -29,13 +29,13 @@ void main() {
   testWidgets('« Maintenant » quand les heures ont bougé, et il ramène à maintenant', (tester) async {
     var back = 0;
     await tester.pumpWidget(grid(back: () => back++));
-    expect(find.text('Maintenant'), findsOneWidget);
-    await tester.tap(find.text('Maintenant'));
+    expect(find.byIcon(Icons.schedule_rounded), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.schedule_rounded));
     expect(back, 1);
   });
 
   testWidgets('pas de bouton quand la grille est déjà sur maintenant', (tester) async {
     await tester.pumpWidget(grid());
-    expect(find.text('Maintenant'), findsNothing);
+    expect(find.byIcon(Icons.schedule_rounded), findsNothing);
   });
 }
