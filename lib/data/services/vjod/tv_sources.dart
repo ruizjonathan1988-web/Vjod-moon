@@ -277,13 +277,13 @@ class TvSourcesClient {
     if (_fixed != null) return _fixed;
     final getIt = GetIt.instance;
     if (!getIt.isRegistered<SeerrPreferences>()) return null;
-    final raw = getIt<SeerrPreferences>().vjodTvSourcesJson;
-    if (raw.isEmpty) return null;
-    try {
-      return TvSourcesServer.fromJson(jsonDecode(raw));
-    } catch (_) {
-      return null;
-    }
+    final prefs = getIt<SeerrPreferences>();
+    final base = sharedTvServer(prefs);
+    if (base == null) return null;
+    // The profile's own key once Ma TV gave one (Ma TV 3.60), else the
+    // shared one as before.
+    final own = personalTvKey(prefs, base.url);
+    return own == null ? base : TvSourcesServer(url: base.url, key: own);
   }
 
   bool get isConfigured => server != null;
@@ -343,4 +343,86 @@ Future<bool> saveTvSourcesServer(TvSourcesServer server) async {
   if (prefs.vjodTvSourcesJson == json) return false;
   await prefs.setVjodTvSourcesJson(json);
   return true;
+}
+
+/// The Ma TV address and key every profile reads from Jellyfin (or pasted by
+/// hand). With Ma TV 3.60 and personal keys on, that key only lets a profile
+/// ask for its own ([enrollMaTv]).
+TvSourcesServer? sharedTvServer(SeerrPreferences prefs) {
+  final raw = prefs.vjodTvSourcesJson;
+  if (raw.isEmpty) return null;
+  try {
+    return TvSourcesServer.fromJson(jsonDecode(raw));
+  } catch (_) {
+    return null;
+  }
+}
+
+/// This profile's own key for Ma TV at [url], or null.
+String? personalTvKey(SeerrPreferences prefs, String url) {
+  final raw = prefs.vjodTvPersonalJson;
+  if (raw.isEmpty) return null;
+  try {
+    final j = jsonDecode(raw);
+    if (j is! Map || j['url'] != url) return null;
+    final k = j['key']?.toString() ?? '';
+    return k.isEmpty ? null : k;
+  } catch (_) {
+    return null;
+  }
+}
+
+/// Whether the admin cut this profile off from Ma TV (Ma TV said so).
+bool maTvAccessCut() {
+  final getIt = GetIt.instance;
+  if (!getIt.isRegistered<SeerrPreferences>()) return false;
+  try {
+    final j = jsonDecode(getIt<SeerrPreferences>().vjodTvPersonalJson);
+    return j is Map && j['cut'] == true;
+  } catch (_) {
+    return false;
+  }
+}
+
+DateTime? _enrolledAt;
+
+/// Asks Ma TV for this profile's own key, showing the profile's Jellyfin
+/// token, which Ma TV has Jellyfin check. Kept for the profile; asked again
+/// at most every 30 minutes so a new key (or a cut) set by the admin is
+/// picked up. An older Ma TV without personal keys answers 404: the shared
+/// key stays in use, as before. Returns whether the key in use changed.
+Future<bool> enrollMaTv({required String? token, http.Client? client, bool force = false}) async {
+  final getIt = GetIt.instance;
+  if (!getIt.isRegistered<SeerrPreferences>() || token == null || token.isEmpty) return false;
+  final now = DateTime.now();
+  if (!force && _enrolledAt != null && now.difference(_enrolledAt!) < const Duration(minutes: 30)) return false;
+  final prefs = getIt<SeerrPreferences>();
+  final base = sharedTvServer(prefs);
+  if (base == null) return false;
+  _enrolledAt = now;
+  try {
+    final uri = base.endpoint('/tv/api/enroll');
+    const headers = {'Content-Type': 'application/json'};
+    final body = jsonEncode({'token': token});
+    final r = await (client?.post(uri, headers: headers, body: body) ?? http.post(uri, headers: headers, body: body))
+        .timeout(const Duration(seconds: 15));
+    final before = prefs.vjodTvPersonalJson;
+    String next;
+    if (r.statusCode == 200) {
+      final j = jsonDecode(utf8.decode(r.bodyBytes));
+      final key = j is Map ? (j['key']?.toString() ?? '') : '';
+      if (key.isEmpty) return false;
+      next = jsonEncode({'url': base.url, 'key': key});
+    } else if (r.statusCode == 403) {
+      next = jsonEncode({'url': base.url, 'cut': true});
+    } else {
+      // 404 (Ma TV before 3.60), Jellyfin unreachable…: nothing changes.
+      return false;
+    }
+    if (next == before) return false;
+    await prefs.setVjodTvPersonalJson(next);
+    return true;
+  } catch (_) {
+    return false;
+  }
 }

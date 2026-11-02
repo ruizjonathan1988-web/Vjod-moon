@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../data/services/vjod/ma_tv.dart';
+import '../../../data/services/vjod/tv_sources.dart' show maTvAccessCut;
 import '../../../util/focus/dpad_keys.dart';
 import '../../../util/platform_detection.dart';
 import '../../navigation/destinations.dart';
@@ -562,6 +563,7 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
   }
 
   Widget _unreachable() {
+    final cut = maTvAccessCut();
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -569,12 +571,16 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              _tn('Ma TV ne répond pas', 'Ma TV isn’t responding', 'Ma TV не отвечает', 'Ma TV 无响应'),
+              cut
+                  ? _tn('Accès à Ma TV coupé', 'Ma TV access cut off', 'Доступ к Ma TV отключён', 'Ma TV 访问已被关闭')
+                  : _tn('Ma TV ne répond pas', 'Ma TV isn’t responding', 'Ma TV не отвечает', 'Ma TV 无响应'),
               style: const TextStyle(color: MaTvColors.ink, fontSize: 22, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 8),
             Text(
-              _tn('IPTV Checker, sur la seedbox, n\'a pas répondu. Il redémarre peut-être, réessaie dans un instant.', 'IPTV Checker, on the seedbox, didn\'t answer. It may be restarting, try again in a moment.', 'IPTV Checker на сидбоксе не ответил. Возможно, перезапускается — попробуй чуть позже.', '种子盒上的 IPTV Checker 没有响应，可能正在重启，请稍后再试。'),
+              cut
+                  ? _tn('L\'administrateur a coupé l\'accès de ce profil à la TV et aux films IPTV. Demande-lui de le rétablir.', 'The admin cut this profile off from TV and IPTV films. Ask them to restore it.', 'Администратор отключил этому профилю ТВ и IPTV-фильмы. Попроси вернуть доступ.', '管理员已关闭此用户的电视和 IPTV 影片访问，请联系其恢复。')
+                  : _tn('IPTV Checker, sur la seedbox, n\'a pas répondu. Il redémarre peut-être, réessaie dans un instant.', 'IPTV Checker, on the seedbox, didn\'t answer. It may be restarting, try again in a moment.', 'IPTV Checker на сидбоксе не ответил. Возможно, перезапускается — попробуй чуть позже.', '种子盒上的 IPTV Checker 没有响应，可能正在重启，请稍后再试。'),
               textAlign: TextAlign.center,
               style: const TextStyle(color: MaTvColors.mute, fontSize: 15),
             ),
