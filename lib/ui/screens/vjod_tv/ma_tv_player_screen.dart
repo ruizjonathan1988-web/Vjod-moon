@@ -24,6 +24,7 @@ import '../../../util/system_ui.dart';
 import '../../../util/vjod_text.dart';
 import '../../screensaver/screensaver_controller.dart';
 import '../../widgets/live_tv/tv_sources_panel.dart';
+import '../../widgets/vjod/report_problem.dart';
 import 'ma_tv_guide.dart';
 import 'ma_tv_multiview_screen.dart';
 import 'ma_tv_recordings_screen.dart';
@@ -170,6 +171,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
   @override
   void initState() {
     super.initState();
+    unawaited(loadSupportNumber());
     _list = List.of(widget.channels);
     _index = widget.startIndex.clamp(0, _list.isEmpty ? 0 : _list.length - 1);
     _catId = widget.categoryId;
@@ -818,6 +820,9 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
         ),
       if (!widget.kids) (icon: Icons.tune_rounded, label: _t('Sources', 'Sources', 'Источники', '片源'), action: _GuideAction.sources),
       (icon: Icons.list_rounded, label: _t('Liste des chaînes', 'Channel list', 'Список каналов', '频道列表'), action: _GuideAction.list),
+      // To the admin by WhatsApp, with the channel and what went wrong.
+      if (!widget.kids && vjodSupportNumber.value != null)
+        (icon: Icons.chat_rounded, label: _t('Signaler un problème', 'Report a problem', 'Сообщить о проблеме', '报告问题'), action: _GuideAction.report),
     ];
   }
 
@@ -859,6 +864,9 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
         setState(() => _overlay = _Overlay.sources);
       case _GuideAction.list:
         _openList();
+      case _GuideAction.report:
+        final ch = _channel;
+        unawaited(openReportProblem(context, what: '${_t('Chaîne', 'Channel', 'Канал', '频道')} ${ch.number} ${ch.name}${_failed && _status != null ? ' · ${_status!}' : ''}'));
       case _GuideAction.grid:
         await _openGrid();
       case _GuideAction.multiview:
@@ -1629,4 +1637,4 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
 }
 
 /// What an entry of the player's menu does.
-enum _GuideAction { live, fromStart, record, replay, favorite, grid, multiview, quality, engine, sources, list }
+enum _GuideAction { live, fromStart, record, replay, favorite, grid, multiview, quality, engine, sources, list, report }

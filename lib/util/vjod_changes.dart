@@ -15,6 +15,10 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.12', [
+    '« Signaler un problème » aussi dans le menu de la chaîne (TV) et sur l\u2019écran d\u2019un film ou d\u2019un épisode qui ne se lance pas, pas seulement dans les réglages.',
+    'Le message WhatsApp dit déjà ce qui était à l\u2019écran, le dernier souci noté par l\u2019appareil et son numéro sur la page Ma TV.',
+  ]),
   VjodRelease('4.11', [
     'Quand VJOD plante ou qu\u2019une chaîne, un film ou un épisode ne se lance pas, l\u2019appareil le signale tout seul à Ma TV : l\u2019administrateur le voit sur la page Ma TV (et sur son téléphone pour un plantage), sans avoir besoin d\u2019une photo de l\u2019écran.',
   ]),

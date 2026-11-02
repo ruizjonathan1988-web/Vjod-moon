@@ -173,8 +173,27 @@ class MaTvReports {
     }
   }
 
+  static const lastKey = 'vjod_matv_last_report';
+
+  /// The last thing that went wrong on this device (sent or not), for the
+  /// « Signaler un problème » message.
+  Future<MaTvReport?> last() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(lastKey);
+      return raw == null ? null : MaTvReport.fromJson(jsonDecode(raw));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// This device's number, the one the Ma TV page shows with its reports.
+  Future<String> deviceId() async => (await _deviceInfo())['device'] ?? '';
+
   Future<void> _store(MaTvReport r) async {
     try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(lastKey, jsonEncode(r.toJson()));
       final list = await pending();
       list.add(r);
       while (list.length > maxStored) {

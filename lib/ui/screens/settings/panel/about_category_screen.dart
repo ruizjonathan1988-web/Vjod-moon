@@ -188,64 +188,36 @@ class _ReportProblemTile extends StatefulWidget {
 }
 
 class _ReportProblemTileState extends State<_ReportProblemTile> {
-  String? _number;
-
   @override
   void initState() {
     super.initState();
-    unawaited(_load());
-  }
-
-  Future<void> _load() async {
-    final server = TvSourcesClient().server;
-    if (server == null) return;
-    try {
-      final r = await http
-          .get(server.endpoint('/tv/api/support'))
-          .timeout(const Duration(seconds: 6));
-      if (r.statusCode != 200) return;
-      final json = jsonDecode(utf8.decode(r.bodyBytes));
-      final n = json is Map ? (json['whatsapp'] ?? '').toString() : '';
-      if (n.isNotEmpty && mounted) setState(() => _number = n);
-    } catch (_) {}
+    unawaited(loadSupportNumber());
   }
 
   @override
   Widget build(BuildContext context) {
-    final number = _number;
-    if (number == null) return const SizedBox.shrink();
-    return _TvSettingsListTile(
-      leading: const Icon(Icons.chat_rounded),
-      title: Text(vjodText(
-        context,
-        fr: 'Signaler un problème',
-        en: 'Report a problem',
-        ru: 'Сообщить о проблеме',
-        zh: '报告问题',
-      )),
-      subtitle: Text(vjodText(
-        context,
-        fr: 'Par WhatsApp, avec la version et l\'appareil déjà indiqués',
-        en: 'On WhatsApp, with the version and device already filled in',
-        ru: 'В WhatsApp, версия и устройство уже указаны',
-        zh: '通过 WhatsApp，已附上版本和设备信息',
-      )),
-      onTap: () {
-        final info = GetIt.instance<DeviceInfo>();
-        final text = [
-          vjodText(context,
-              fr: 'Problème sur VJOD :', en: 'Problem with VJOD:', ru: 'Проблема с VJOD:', zh: 'VJOD 问题：'),
-          '',
-          '',
-          '— VJOD ${_AboutCategoryScreen.vjodVersion(context)}',
-          '— ${PlatformDetection.isTV ? 'TV' : 'Mobile'} · ${info.name}',
-        ].join('\n');
-        unawaited(showQrOrLaunch(
-          context,
-          url: 'https://wa.me/$number?text=${Uri.encodeComponent(text)}',
-          title: vjodText(context,
-              fr: 'Signaler un problème', en: 'Report a problem', ru: 'Сообщить о проблеме', zh: '报告问题'),
-        ));
+    return ValueListenableBuilder<String?>(
+      valueListenable: vjodSupportNumber,
+      builder: (context, number, _) {
+        if (number == null) return const SizedBox.shrink();
+        return _TvSettingsListTile(
+          leading: const Icon(Icons.chat_rounded),
+          title: Text(vjodText(
+            context,
+            fr: 'Signaler un problème',
+            en: 'Report a problem',
+            ru: 'Сообщить о проблеме',
+            zh: '报告问题',
+          )),
+          subtitle: Text(vjodText(
+            context,
+            fr: 'Par WhatsApp, avec la version, l\'appareil et le dernier souci déjà indiqués',
+            en: 'On WhatsApp, with the version, device and last problem already filled in',
+            ru: 'В WhatsApp, версия, устройство и последняя проблема уже указаны',
+            zh: '通过 WhatsApp，已附上版本、设备和最近的问题',
+          )),
+          onTap: () => unawaited(openReportProblem(context)),
+        );
       },
     );
   }
