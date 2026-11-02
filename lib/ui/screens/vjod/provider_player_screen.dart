@@ -19,6 +19,7 @@ import '../../../data/services/seerr/taste_profile.dart';
 import '../../../data/services/vjod/iptv_learning.dart';
 import '../../../data/services/vjod/iptv_next.dart';
 import '../../../data/services/vjod/iptv_progress.dart';
+import '../../../data/services/vjod/ma_tv_reports.dart';
 import '../../../data/services/vjod/provider_catalog_access.dart';
 import '../../../data/services/vjod/vjod_votes.dart';
 import '../../../preference/seerr_preferences.dart';
@@ -352,7 +353,7 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
         if (!mounted || _picture) return;
         if (_fallBack()) return;
         // The web engine's messages are already a full French sentence.
-        setState(() => _error = _engine is WebVodEngine ? msg : 'Lecture impossible : $msg');
+        _failWith(_engine is WebVodEngine ? msg : 'Lecture impossible : $msg');
       }),
     ]);
   }
@@ -366,7 +367,7 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
     _noPicture = Timer(_engine is ExoVodEngine ? const Duration(seconds: 25) : _openTimeout, () {
       if (!mounted || seq != _openSeq || _picture) return;
       if (_fallBack()) return;
-      setState(() => _error = 'Aucune source n\'a répondu à temps. Réessaie dans un moment.');
+      _failWith('Aucune source n\'a répondu à temps. Réessaie dans un moment.');
     });
     await WidgetsBinding.instance.endOfFrame;
     if (!mounted || seq != _openSeq) return;
@@ -397,10 +398,23 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
     } catch (e) {
       if (!mounted || seq != _openSeq) return;
       if (_fallBack()) return;
-      setState(() => _error = e is TimeoutException
+      _failWith(e is TimeoutException
           ? 'Aucune source n\'a répondu à temps. Réessaie dans un moment.'
           : 'Lecture impossible : $e');
     }
+  }
+
+  /// Shows [message] in place of the picture and tells Ma TV which title
+  /// would not play, with which player.
+  void _failWith(String message) {
+    setState(() => _error = message);
+    MaTvReports.instance.play(
+      message,
+      where: 'iptv',
+      title: widget.title,
+      player: _engine.runtimeType.toString().replaceAll('VodEngine', ''),
+      source: widget.url,
+    );
   }
 
   /// ExoPlayer brought no picture: once more (Ma TV may still be looking for

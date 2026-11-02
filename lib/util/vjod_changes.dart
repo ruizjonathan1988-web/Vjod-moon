@@ -15,6 +15,9 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.11', [
+    'Quand VJOD plante ou qu\u2019une chaîne, un film ou un épisode ne se lance pas, l\u2019appareil le signale tout seul à Ma TV : l\u2019administrateur le voit sur la page Ma TV (et sur son téléphone pour un plantage), sans avoir besoin d\u2019une photo de l\u2019écran.',
+  ]),
   VjodRelease('4.10', [
     'Mise à jour : si la Fire TV n\u2019autorise pas encore VJOD à installer ses mises à jour, VJOD l\u2019explique et ouvre le bon réglage, au lieu de l\u2019écran bloquant « Pour votre sécurité » à chaque ouverture.',
   ]),
