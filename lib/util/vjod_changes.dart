@@ -19,6 +19,9 @@ const vjodReleases = <VjodRelease>[
     'TV sur le téléphone : en quittant l\u2019appli, la chaîne continue dans une petite fenêtre (image dans l\u2019image), les films et séries IPTV aussi.',
     'Grille des programmes au doigt : glisser vers la gauche ou la droite avance ou recule d\u2019une heure, « Maintenant » y revient, et les programmes se chargent là où l\u2019on fait défiler.',
   ]),
+  VjodRelease('4.15', [
+    'La recherche de l\u2019Accueil trouve aussi les chaînes : par leur nom, leur numéro ou ce qu\u2019elles passent (« PSG » trouve la chaîne du match). Un appui et la chaîne se lance.',
+  ]),
   VjodRelease('4.14', [
     'Versions d\u2019essai : chaque nouvelle version arrive d\u2019abord sur les appareils de l\u2019administrateur (Réglages → À propos → Versions d\u2019essai), puis chez tout le monde quand il la valide sur la page Ma TV.',
   ]),
