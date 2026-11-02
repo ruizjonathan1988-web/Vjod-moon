@@ -44,6 +44,8 @@ import '../../../util/vjod_build.dart';
 import '../../../util/vjod_changes.dart';
 import '../../../util/vjod_text.dart';
 import '../../../util/app_distribution.dart';
+import '../../../auth/repositories/user_repository.dart' show UserRepository;
+import '../../../data/services/app_update_service.dart' show AppUpdateService;
 import '../../../util/pin_code_util.dart';
 import '../../widgets/pin_entry_dialog.dart';
 import '../../widgets/app_update_dialog.dart';

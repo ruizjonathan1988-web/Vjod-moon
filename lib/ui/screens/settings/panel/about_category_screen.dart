@@ -88,6 +88,11 @@ class _AboutCategoryScreen extends StatelessWidget {
               const _StartupTimelineTile(),
               if (AppDistribution.supportsInAppUpdates)
                 const _CheckForUpdatesTile(),
+              // The admin's own devices take each new version first.
+              if (AppDistribution.supportsInAppUpdates &&
+                  AppUpdateService.isPersoBuild &&
+                  (GetIt.instance<UserRepository>().currentUser?.isAdministrator ?? false))
+                const _TrialChannelTile(),
               const _ReportProblemTile(),
               _TvSettingsListTile(
                 leading: const Icon(Icons.code),
@@ -220,6 +225,53 @@ class _ReportProblemTileState extends State<_ReportProblemTile> {
         );
       },
     );
+  }
+}
+
+/// « Versions d'essai » on this device: each new build arrives here first,
+/// the household's devices get it once validated on the Ma TV page.
+class _TrialChannelTile extends StatefulWidget {
+  const _TrialChannelTile();
+
+  @override
+  State<_TrialChannelTile> createState() => _TrialChannelTileState();
+}
+
+class _TrialChannelTileState extends State<_TrialChannelTile> {
+  AppUpdateService get _updates => GetIt.instance<AppUpdateService>();
+
+  @override
+  Widget build(BuildContext context) {
+    final on = _updates.betaChannel;
+    return _TvSettingsListTile(
+      leading: const Icon(Icons.science_outlined),
+      title: Text(vjodText(
+        context,
+        fr: 'Versions d\'essai sur cet appareil',
+        en: 'Trial versions on this device',
+        ru: 'Тестовые версии на этом устройстве',
+        zh: '在此设备上接收测试版',
+      )),
+      subtitle: Text(vjodText(
+        context,
+        fr: on
+            ? 'Chaque nouvelle version arrive ici d\'abord ; les autres appareils la reçoivent quand tu la valides sur la page Ma TV'
+            : 'Les autres appareils : seulement les versions validées',
+        en: on
+            ? 'Each new version comes here first; the other devices get it once you validate it on the Ma TV page'
+            : 'Validated versions only',
+        ru: on ? 'Новые версии сначала приходят сюда' : 'Только проверенные версии',
+        zh: on ? '新版本先到这里' : '仅接收已验证的版本',
+      )),
+      trailing: Switch(value: on, onChanged: (v) => unawaited(_set(v))),
+      onTap: () => unawaited(_set(!on)),
+    );
+  }
+
+  Future<void> _set(bool v) async {
+    await _updates.setBetaChannel(v);
+    if (mounted) setState(() {});
+    if (v && mounted) await checkAndShowUpdateResult(context);
   }
 }
 

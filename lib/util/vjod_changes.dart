@@ -15,6 +15,9 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.14', [
+    'Versions d\u2019essai : chaque nouvelle version arrive d\u2019abord sur les appareils de l\u2019administrateur (Réglages → À propos → Versions d\u2019essai), puis chez tout le monde quand il la valide sur la page Ma TV.',
+  ]),
   VjodRelease('4.13', [
     'Chaque profil a maintenant sa propre clé pour Ma TV, demandée toute seule : l\u2019administrateur voit qui regarde quoi et peut couper l\u2019accès d\u2019une seule personne.',
     'Un profil coupé le voit écrit sur l\u2019écran de la TV, au lieu de « Ma TV ne répond pas ».',
