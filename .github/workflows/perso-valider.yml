@@ -1,0 +1,36 @@
+# « Valider cette version » (page Ma TV, ou à la main ici) : la version d'essai
+# (release perso-beta, que seuls les appareils réglés sur « Versions d'essai »
+# reçoivent) est recopiée sur perso-latest, que tous les autres appareils lisent.
+# Les fichiers sont envoyés à nouveau : leur heure d'envoi est ce qui dit aux
+# appareils qu'une mise à jour attend (app_update_service.dart, _persoResult).
+name: Valider la version d'essai
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: perso-valider
+  cancel-in-progress: false
+
+jobs:
+  valider:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Recopier perso-beta sur perso-latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -e
+          mkdir essai && cd essai
+          gh release download perso-beta --repo "$REPO" --pattern '*.apk'
+          ls -la
+          title=$(gh release view perso-beta --repo "$REPO" --json name -q .name)
+          notes=$(gh release view perso-beta --repo "$REPO" --json body -q .body)
+          gh release create perso-latest --repo "$REPO" --title "$title" --notes "$notes" --prerelease || true
+          gh release upload perso-latest *.apk --repo "$REPO" --clobber
+          gh release edit perso-latest --repo "$REPO" --title "$title" --notes "$notes"
+          echo "Validée : $title"
