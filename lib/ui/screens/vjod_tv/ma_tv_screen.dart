@@ -28,6 +28,25 @@ String _tn(String fr, String en, String ru, String zh) =>
 
 /// Where the TV entries of the app land: Ma TV when the seedbox hands it out,
 /// the Jellyfin guide ([fallback]) otherwise.
+/// Entries of the list that open a page rather than list channels.
+bool maTvIsAction(MaTvCategory c) => c.kind == 'search' || c.kind == 'rec' || c.kind == 'sports';
+
+/// The category the TV tab opens on: the last one watched, else the
+/// favourites, France, or the first list of channels. Never Rechercher,
+/// Sports or Enregistrements: their column is empty and the remote seemed
+/// stuck there.
+int maTvStartCategory(List<MaTvCategory> cats, String last) {
+  if (cats.isEmpty) return 0;
+  final i = cats.indexWhere((c) => c.id == last && !maTvIsAction(c));
+  if (i >= 0) return i;
+  final fav = cats.indexWhere((c) => c.id == 'fav');
+  if (fav >= 0) return fav;
+  final fr = cats.indexWhere((c) => c.id == 'c:FR');
+  if (fr >= 0) return fr;
+  final first = cats.indexWhere((c) => !maTvIsAction(c));
+  return first >= 0 ? first : 0;
+}
+
 class MaTvEntryScreen extends StatefulWidget {
   final Widget Function() fallback;
 
@@ -199,19 +218,11 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
       return;
     }
     final cats = _localCats(server);
-    var start = 0;
-    final last = widget.kids ? '' : MaTvMemory.lastCategory;
-    final i = cats.indexWhere((c) => c.id == last);
-    if (i >= 0) {
-      start = i;
-    } else {
-      final fr = cats.indexWhere((c) => c.id == 'c:FR');
-      final fav = cats.indexWhere((c) => c.id == 'fav');
-      start = fav >= 0 ? fav : (fr >= 0 ? fr : 0);
-    }
+    final start = maTvStartCategory(cats, widget.kids ? '' : MaTvMemory.lastCategory);
     setState(() {
       _cats = cats;
       _cat = start;
+      _column = cats.isNotEmpty && maTvIsAction(cats[start]) ? 0 : _column;
       _loading = false;
     });
     await _openCategory(start, fresh: fresh);
@@ -312,7 +323,7 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
   }
 
   /// Entries of the list that open a page rather than list channels.
-  static bool _isAction(MaTvCategory c) => c.kind == 'search' || c.kind == 'rec' || c.kind == 'sports';
+  static bool _isAction(MaTvCategory c) => maTvIsAction(c);
 
   bool get _onAction => _cats.isNotEmpty && _isAction(_cats[_cat]);
 
@@ -398,8 +409,9 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
     setState(() {
       _favorites = MaTvMemory.favorites.toSet();
       _cats = _localCats(server);
-      final ci = _cats.indexWhere((c) => c.id == MaTvMemory.lastCategory);
+      final ci = _cats.indexWhere((c) => c.id == MaTvMemory.lastCategory && !_isAction(c));
       _cat = ci >= 0 ? ci : _idx(_cats.indexWhere((c) => c.id == current), _cats.length);
+      if (_isAction(_cats[_cat])) _column = 0;
       _now = DateTime.now();
     });
     await _openCategory(_cat);
@@ -413,6 +425,9 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
 
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (!event.isActionable || _cats.isEmpty) return KeyEventResult.ignored;
+    // Nothing in the channel column (an action entry, an empty category):
+    // the keys work on the list of categories instead of doing nothing.
+    if (_column == 1 && _chans.isEmpty && !_loadingChans) _column = 0;
     final key = event.logicalKey;
     if (key.isBackKey && _column == 1 && !_narrow) {
       setState(() => _column = 0);

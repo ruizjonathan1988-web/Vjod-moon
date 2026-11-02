@@ -533,6 +533,9 @@ class MaTvMemory {
     final list = [id, ...p.maTvRecent.where((x) => x != id)];
     await p.setMaTvRecent(list);
     await p.setMaTvLastChannel(id);
-    if (category.isNotEmpty) await p.setMaTvLastCategory(category);
+    // Rechercher, Sports and Enregistrements aren't lists to come back to.
+    if (category.isNotEmpty && !const {'search', 'sports', 'rec'}.contains(category)) {
+      await p.setMaTvLastCategory(category);
+    }
   }
 }

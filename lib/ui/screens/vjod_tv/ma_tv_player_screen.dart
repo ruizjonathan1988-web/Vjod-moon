@@ -15,6 +15,7 @@ import 'package:get_it/get_it.dart';
 import '../../../data/services/vjod/ma_tv.dart';
 import '../../../data/services/vjod/ma_tv_multiview.dart';
 import '../../../data/services/vjod/ma_tv_recordings.dart';
+import '../../../data/services/vjod/ma_tv_reports.dart';
 import '../../../data/services/vjod/ma_tv_sports.dart';
 import '../../../data/services/vjod/tv_sources.dart';
 import '../../../util/focus/dpad_keys.dart';
@@ -152,6 +153,18 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
   MaTvProgram? _replaying;
 
   MaTvChannel get _channel => _list[_index.clamp(0, _list.length - 1)];
+
+  /// The picture never came: Ma TV hears which channel, with which player,
+  /// and what the screen said.
+  void _reportFailure() {
+    final ch = _channel;
+    MaTvReports.instance.play(
+      _status ?? 'Pas d’image',
+      channel: '${ch.number} ${ch.name}',
+      player: _engine.runtimeType.toString().replaceAll('TvEngine', ''),
+      source: _replaying != null ? 'replay' : (_delay > Duration.zero ? 'différé' : 'direct'),
+    );
+  }
   bool get _touch => !PlatformDetection.isTV;
 
   @override
@@ -328,6 +341,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
         .toList();
     if (rest.isEmpty) {
       setState(() => _status = '${_t('Ça saccade', 'Stuttering', 'Подтормаживает', '卡顿')} ($why) ${_t('et aucune autre source à essayer', 'and no other source to try', 'и других источников нет', '且没有其他片源可试')}');
+      _reportFailure();
       _showBanner(time: const Duration(seconds: 6));
       return;
     }
@@ -461,6 +475,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
           _status = _t('Pas d’image pour cette lecture · Retour pour revenir au direct', 'No picture for this playback · Back to return to live', 'Нет картинки · Назад — вернуться в эфир', '此次播放无画面 · 按返回回到直播');
           _failed = true;
         });
+        _reportFailure();
         _showBanner(time: const Duration(seconds: 12));
       } else {
         unawaited(_nextSource());
@@ -501,6 +516,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
             _status = _t('Pas d’image pour cette lecture · Retour pour revenir au direct', 'No picture for this playback · Back to return to live', 'Нет картинки · Назад — вернуться в эфир', '此次播放无画面 · 按返回回到直播');
             _failed = true;
           });
+          _reportFailure();
           _showBanner(time: const Duration(seconds: 12));
         }());
       }
@@ -521,6 +537,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
           _status = _t('La chaîne ne répond pas', 'The channel isn’t responding', 'Канал не отвечает', '频道无响应');
           _failed = true;
         });
+        _reportFailure();
         _showBanner(time: const Duration(seconds: 12));
         return;
       }
@@ -537,6 +554,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
           _status = _t('Aucune source ne répond · MENU puis Sources pour en choisir une', 'No source responds · MENU then Sources to pick one', 'Ни один источник не отвечает · МЕНЮ, затем Источники', '所有片源均无响应 · 按菜单再选片源');
           _failed = true;
         });
+        _reportFailure();
         _showBanner(time: const Duration(seconds: 12));
         return;
       }

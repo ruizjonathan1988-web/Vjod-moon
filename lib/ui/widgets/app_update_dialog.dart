@@ -96,6 +96,11 @@ Future<void> showAppUpdateDialog(
   if (choice == null || !context.mounted) return;
 
   if (choice == 'download' && _installsApkInApp(update)) {
+    if (!await apkInstallAllowed()) {
+      if (context.mounted) await showInstallRightDialog(context);
+      return;
+    }
+    if (!context.mounted) return;
     await _downloadAndInstallWindowsUpdate(context, update);
     return;
   }
@@ -118,10 +123,86 @@ Future<void> showAppUpdateDialog(
 /// Elsewhere it offers the update as usual.
 Future<void> installAppUpdateNow(BuildContext context, DesktopUpdateInfo update) async {
   if (_installsApkInApp(update)) {
+    // Without the right to install, Android (Fire OS above all) answers with
+    // its own blocking « Pour votre sécurité » screen, at every opening: VJOD
+    // says what to do instead, once per version and per launch.
+    if (!await apkInstallAllowed()) {
+      final key = update.builtAt?.millisecondsSinceEpoch ?? update.version.hashCode;
+      if (!_installRightAsked.add(key) || !context.mounted) return;
+      await showInstallRightDialog(context);
+      return;
+    }
+    if (!context.mounted) return;
     await _downloadAndInstallWindowsUpdate(context, update);
   } else {
     await showAppUpdateDialog(context, update);
   }
+}
+
+/// Versions for which the missing install right was already explained in
+/// this launch: the update check runs again at each return to the app.
+final Set<int> _installRightAsked = <int>{};
+
+/// Whether this app may hand an APK to the system installer (true where the
+/// question does not apply).
+Future<bool> apkInstallAllowed() async {
+  if (kIsWeb || !Platform.isAndroid) return true;
+  try {
+    return await _apkChannel.invokeMethod<bool>('canInstall') ?? true;
+  } catch (_) {
+    return true;
+  }
+}
+
+/// Explains why the update can't install by itself and opens the setting.
+Future<void> showInstallRightDialog(BuildContext context) async {
+  final choice = await showStyledPlayerDialog<String>(
+    context,
+    title: vjodText(
+      context,
+      fr: 'Une mise à jour de VJOD attend',
+      en: 'A VJOD update is waiting',
+      ru: 'Ждёт обновление VJOD',
+      zh: 'VJOD 有更新待安装',
+    ),
+    builder: (ctx) => Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          vjodText(
+            ctx,
+            fr: 'Pour se mettre à jour toute seule, VJOD doit avoir le droit d\u2019installer des applis. '
+                'C\u2019est à faire une seule fois.\n\n'
+                'Sur Fire TV : Paramètres → Ma Fire TV → Options pour les développeurs → '
+                'Installer des applications inconnues → VJOD : Activé.',
+            en: 'To update by itself, VJOD needs the right to install apps. It is needed only once.\n\n'
+                'On Fire TV: Settings → My Fire TV → Developer options → Install unknown apps → VJOD: On.',
+            ru: 'Чтобы обновляться самой, VJOD нужно разрешение на установку приложений. Это делается один раз.\n\n'
+                'Fire TV: Настройки → Мой Fire TV → Для разработчиков → Установка неизвестных приложений → VJOD: Вкл.',
+            zh: '要自动更新，VJOD 需要安装应用的权限，只需设置一次。\n\n'
+                'Fire TV：设置 → 我的 Fire TV → 开发者选项 → 安装未知应用 → VJOD：开启。',
+          ),
+          style: Theme.of(ctx).textTheme.bodyMedium,
+        ),
+        const SizedBox(height: 14),
+        _UpdateOption(
+          icon: Icons.settings_rounded,
+          label: vjodText(ctx, fr: 'Ouvrir le réglage', en: 'Open the setting', ru: 'Открыть настройку', zh: '打开设置'),
+          value: 'settings',
+        ),
+        _UpdateOption(
+          icon: Icons.schedule_rounded,
+          label: vjodText(ctx, fr: 'Plus tard', en: 'Later', ru: 'Позже', zh: '稍后'),
+          value: 'later',
+        ),
+      ],
+    ),
+  );
+  if (choice != 'settings') return;
+  try {
+    await _apkChannel.invokeMethod<bool>('openInstallSettings');
+  } catch (_) {}
 }
 
 /// Whether [update] installs inside the app (no choice to make).

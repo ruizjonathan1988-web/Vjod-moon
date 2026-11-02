@@ -16,6 +16,7 @@ import 'package:window_manager/window_manager.dart';
 import 'app.dart';
 import 'data/models/aggregated_item.dart';
 import 'background/watch_next_background.dart' as watch_next_bg;
+import 'data/services/vjod/ma_tv_reports.dart';
 import 'data/services/carplay_service.dart';
 import 'data/services/cast/airplay_command_bridge.dart';
 
@@ -175,6 +176,8 @@ void _installCrashHandlers() {
 }
 
 void _captureCrash(Object error, StackTrace? stack) {
+  // To Ma TV too, where the household admin sees it (VJOD 4.11).
+  MaTvReports.instance.crash(error, stack);
   try {
     final errorLine = error.toString().split('\n').first;
     final frameLine = stack?.toString().split('\n').first.trim() ?? '';
@@ -966,6 +969,9 @@ void main() async {
   await configureDependencies();
   _installCrashHandlers();
   if (PlatformDetection.isAndroid) _startProcessExitReporter();
+  // What waited on the device (a crash that closed the app last time) goes
+  // to Ma TV once the app has settled.
+  Timer(const Duration(seconds: 20), () => unawaited(MaTvReports.instance.flush()));
   // When the system runs the auto-download refresh task against this
   // engine, the native side retries its call until this handler is bound.
   if (AutoDownloadService.isSupportedPlatform) {

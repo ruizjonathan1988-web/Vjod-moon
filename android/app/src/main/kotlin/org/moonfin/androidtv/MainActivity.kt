@@ -454,6 +454,8 @@ class MainActivity : AudioServiceActivity(), GamepadsCompatibleActivity {
                     }
                 }
                 "lastUpdateTime" -> result.success(PersoApkInstaller.lastUpdateTime(this))
+                "canInstall" -> result.success(PersoApkInstaller.canInstall(this))
+                "openInstallSettings" -> result.success(PersoApkInstaller.openInstallSettings(this))
                 else -> result.notImplemented()
             }
         }
