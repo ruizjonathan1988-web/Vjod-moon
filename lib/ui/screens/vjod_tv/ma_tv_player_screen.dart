@@ -13,6 +13,7 @@ import 'package:flutter/services.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../data/services/vjod/ma_tv.dart';
+import '../../../platform/pip_service.dart';
 import '../../../data/services/vjod/ma_tv_multiview.dart';
 import '../../../data/services/vjod/ma_tv_recordings.dart';
 import '../../../data/services/vjod/ma_tv_reports.dart';
@@ -183,6 +184,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     if (!widget.kids) unawaited(MaTvMultiview.resolve().then((_) {}));
     setImmersive(true);
     _screensaver(true);
+    _startPip();
     _engine = WebTvEngine.wanted
         ? (_apple = _attach(WebTvEngine()))
         : AppleTvEngine.wanted
@@ -362,8 +364,47 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     if (getIt.isRegistered<ScreensaverController>()) getIt<ScreensaverController>().setPlaybackActive(on);
   }
 
+  // ------------------------------------------------------- image dans l'image
+  /// On a phone or tablet, leaving the app (home, another app) keeps the
+  /// channel in a small window; back in VJOD, the player is as it was.
+  PipService? _pip;
+  bool _inPip = false;
+  final List<StreamSubscription<Object?>> _pipSubs = [];
+
+  void _startPip() {
+    if (!PlatformDetection.isAndroid || PlatformDetection.isTV) return;
+    if (!GetIt.instance.isRegistered<PipService>()) return;
+    final pip = _pip = GetIt.instance<PipService>();
+    unawaited(pip.enableAutoPiP(true, owner: this));
+    _pipSubs.add(pip.onPiPChanged.listen((on) {
+      if (!mounted) return;
+      setState(() {
+        _inPip = on;
+        // Panels and banners would only clutter the small window.
+        if (on) {
+          _overlay = _Overlay.none;
+          _banner = false;
+        }
+      });
+      if (!on) _showBanner();
+    }));
+    _pipSubs.add(pip.onPiPAction.listen((action) {
+      if (action == 'playPause') unawaited(_engine.playOrPause());
+    }));
+  }
+
+  void _stopPip() {
+    for (final s in _pipSubs) {
+      unawaited(s.cancel());
+    }
+    _pipSubs.clear();
+    final pip = _pip;
+    if (pip != null) unawaited(pip.enableAutoPiP(false, owner: this));
+  }
+
   @override
   void dispose() {
+    _stopPip();
     _screensaver(false);
     for (final t in [_clock, _zapTimer, _bannerTimer, _watchdog, _summaryTimer, _numberTimer, _refreshTimer, _seekTimer, _freezeTimer, _sportsTimer, _flashTimer, _sportSoon]) {
       t?.cancel();
@@ -1387,6 +1428,13 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
 
   @override
   Widget build(BuildContext context) {
+    if (_inPip) {
+      // The small window: the picture alone.
+      return ColoredBox(
+        color: Colors.black,
+        child: KeyedSubtree(key: ValueKey(_engine.name), child: _engine.view()),
+      );
+    }
     final ch = _list.isEmpty ? null : _channel;
     final sport = _sport;
     return PopScope(

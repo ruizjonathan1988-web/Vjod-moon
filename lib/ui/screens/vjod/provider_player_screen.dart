@@ -34,6 +34,7 @@ import '../vjod_tv/tv_engine.dart' show TvEngineChoice;
 import 'vod_engine.dart';
 import '../../../util/vjod_log.dart';
 import '../../../util/platform_detection.dart';
+import '../../../platform/pip_service.dart';
 
 /// Where each film was left, for this run of the app, so leaving by mistake
 /// and coming back picks up there.
@@ -167,6 +168,7 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
   void initState() {
     super.initState();
     unawaited(loadSupportNumber());
+    _startPip();
     setImmersive(true);
     GetIt.instance<ScreensaverController>().setPlaybackActive(true);
     // In a browser, its own player; the apps keep ExoPlayer / mpv as before.
@@ -473,8 +475,35 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
     if (sub != null) unawaited(_engine.setSubtitle(sub));
   }
 
+  /// Phone or tablet: leaving the app keeps the film in a small window.
+  PipService? _pip;
+  bool _inPip = false;
+  final List<StreamSubscription<Object?>> _pipSubs = [];
+
+  void _startPip() {
+    if (kIsWeb || !PlatformDetection.isAndroid || PlatformDetection.isTV) return;
+    if (!GetIt.instance.isRegistered<PipService>()) return;
+    final pip = _pip = GetIt.instance<PipService>();
+    unawaited(pip.enableAutoPiP(true, owner: this));
+    _pipSubs.add(pip.onPiPChanged.listen((on) {
+      if (!mounted) return;
+      setState(() {
+        _inPip = on;
+        if (on) _controls = false;
+      });
+    }));
+    _pipSubs.add(pip.onPiPAction.listen((action) {
+      if (action == 'playPause') unawaited(_engine.playOrPause());
+    }));
+  }
+
   @override
   void dispose() {
+    for (final s in _pipSubs) {
+      unawaited(s.cancel());
+    }
+    final pip = _pip;
+    if (pip != null) unawaited(pip.enableAutoPiP(false, owner: this));
     for (final s in _subs) {
       s.cancel();
     }
@@ -924,6 +953,12 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
 
   @override
   Widget build(BuildContext context) {
+    if (_inPip) {
+      return ColoredBox(
+        color: Colors.black,
+        child: KeyedSubtree(key: ValueKey(_engine), child: _engine.view(scale: _subScale, raised: _subRaised)),
+      );
+    }
     final audio = _engine.audio.where((a) => a.id == _engine.audioId).firstOrNull;
     final audioName = audio == null ? '' : trackLanguageName(audio.language, null);
     final sub = _engine.subtitles.where((s) => s.id == _engine.subtitleId).firstOrNull;
