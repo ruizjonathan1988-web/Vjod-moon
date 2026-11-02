@@ -15,6 +15,9 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.10', [
+    'Mise à jour : si la Fire TV n\u2019autorise pas encore VJOD à installer ses mises à jour, VJOD l\u2019explique et ouvre le bon réglage, au lieu de l\u2019écran bloquant « Pour votre sécurité » à chaque ouverture.',
+  ]),
   VjodRelease('4.9', [
     'Correctif TV : l\u2019écran des chaînes ne reste plus bloqué sur « Rechercher » à la télécommande ; il s\u2019ouvre sur tes chaînes.',
   ]),
