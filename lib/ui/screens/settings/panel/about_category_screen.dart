@@ -87,6 +87,7 @@ class _AboutCategoryScreen extends StatelessWidget {
               ),
               const _StartupTimelineTile(),
               const _TimingsTile(),
+              const _ReplayTraceTile(),
               if (AppDistribution.supportsInAppUpdates)
                 const _CheckForUpdatesTile(),
               // The admin's own devices take each new version first.
@@ -328,6 +329,36 @@ class _TimingsTile extends StatelessWidget {
       leading: const Icon(Icons.speed_rounded),
       title: const Text('Temps de réponse'),
       subtitle: Text(lines.isEmpty ? 'Pas encore mesuré : utilise VJOD un moment.' : lines.join('\n')),
+      trailing: const SizedBox.shrink(),
+      onTap: () {},
+    );
+  }
+}
+
+/// VJOD 4.22: what the Home's Replay row did on this device, and whether it
+/// is on the Home right now.
+class _ReplayTraceTile extends StatelessWidget {
+  const _ReplayTraceTile();
+
+  @override
+  Widget build(BuildContext context) {
+    final getIt = GetIt.instance;
+    String now = 'Accueil pas encore ouvert';
+    if (getIt.isRegistered<HomeViewModel>()) {
+      final rows = getIt<HomeViewModel>().rows;
+      final i = rows.indexWhere((r) => r.id == HomeViewModel.replayRowId);
+      final vm = getIt<HomeViewModel>();
+      now = i < 0
+          ? (vm.replayBuilt
+                ? 'Prête mais cachée par un filtre de l\u2019Accueil'
+                : 'Absente de l\u2019Accueil en ce moment (${rows.length} rangées)')
+          : 'Sur l\u2019Accueil : rangée ${i + 1} sur ${rows.length}, ${rows[i].items.length} tuiles';
+    }
+    final lines = ReplayTrace.lines();
+    return _TvSettingsListTile(
+      leading: const Icon(Icons.replay_rounded),
+      title: const Text('Rangée Replay'),
+      subtitle: Text([now, if (lines.isEmpty) 'Pas encore demandée depuis le lancement.' else ...lines].join('\n')),
       trailing: const SizedBox.shrink(),
       onTap: () {},
     );

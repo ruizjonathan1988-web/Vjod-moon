@@ -110,3 +110,25 @@ class VjodTimingInterceptor extends Interceptor {
     handler.next(err);
   }
 }
+
+/// VJOD 4.22: what the Replay row of the Home did on this device, step by
+/// step (asked, answered, put in place, taken away), shown in « À propos »
+/// so a missing row says why without going through Ma TV.
+class ReplayTrace {
+  ReplayTrace._();
+
+  static const _keep = 14;
+  static final _lines = <String>[];
+
+  static void note(String what) {
+    final t = DateTime.now();
+    String two(int n) => n.toString().padLeft(2, '0');
+    _lines.add('${two(t.hour)}:${two(t.minute)}:${two(t.second)}  $what');
+    if (_lines.length > _keep) _lines.removeAt(0);
+  }
+
+  static List<String> lines() => List.unmodifiable(_lines);
+
+  /// For tests.
+  static void reset() => _lines.clear();
+}
