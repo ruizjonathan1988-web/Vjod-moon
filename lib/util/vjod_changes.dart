@@ -15,6 +15,9 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.19', [
+    'La rangée « Replay » s\u2019affiche aussi quand « Continuer » regroupe les reprises et les épisodes suivants (elle manquait dans ce cas).',
+  ]),
   VjodRelease('4.18', [
     'Replay des chaînes dans VJOD : une rangée « Replay » sur l\u2019Accueil avec « Mes émissions » et une tuile par chaîne (Arte, France 2, 3, 4, 5), jusqu\u2019à 3 semaines, sans passer par l\u2019IPTV.',
     'Un appui et l\u2019épisode se lance dans VJOD ; appui long : « Suivre », « Pas pour nous » ou l\u2019appli de la chaîne. Météo, journaux et jeux masqués.',

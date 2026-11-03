@@ -923,7 +923,9 @@ class HomeViewModel extends ChangeNotifier {
       // behind every other section while its cached copy sits on screen.
       if (showMergedResume) {
         unawaited(
-          _loadResumeAndNextUpInBackground().then((_) => _refreshIptvResume()),
+          _loadResumeAndNextUpInBackground()
+              .then((_) => _refreshIptvResume())
+              .then((_) => refreshReplay()),
         );
       }
 
@@ -1293,7 +1295,7 @@ class HomeViewModel extends ChangeNotifier {
   Future<void> refreshResumeAndNextUp() async {
     // A full load already covers these rows, so don't compete with it.
     if (_isLoading) return;
-    unawaited(_refreshIptvResume());
+    unawaited(_refreshIptvResume().then((_) => refreshReplay()));
 
     if (_prefs.effectiveMergeContinueWatchingNextUp) {
       await _loadResumeAndNextUpInBackground();
@@ -1445,13 +1447,28 @@ class HomeViewModel extends ChangeNotifier {
     return _seerrRow(replayRowId, 'Replay', cards, totalCount: cards.length);
   }
 
-  /// Back from the replay: the badges follow.
+  /// The Replay row put in place (badges after the replay, or a merged
+  /// « Continuer », which builds its row by another road): replaced where it
+  /// is, else added after the IPTV row or the library's Continue row.
   Future<void> refreshReplay() async {
     final row = await _loadReplayRow();
     final index = _rows.indexWhere((r) => r.id == replayRowId);
-    if (row == null || index < 0) return;
-    _rows = List.of(_rows);
-    _rows[index] = row;
+    if (row == null) {
+      if (index >= 0) {
+        _rows = List.of(_rows)..removeAt(index);
+        notifyListeners();
+      }
+      return;
+    }
+    if (index >= 0) {
+      _rows = List.of(_rows);
+      _rows[index] = row;
+    } else {
+      var after = _rows.indexWhere((r) => r.id == iptvResumeRowId);
+      if (after < 0) after = _rows.indexWhere((r) => r.rowType == HomeRowType.resume);
+      if (after < 0) return;
+      _rows = List.of(_rows)..insert(after + 1, row);
+    }
     notifyListeners();
   }
 
