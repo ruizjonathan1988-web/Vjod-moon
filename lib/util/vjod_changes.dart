@@ -15,6 +15,9 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.21', [
+    'Rangée « Replay » : si elle ne peut pas s\u2019afficher, VJOD réessaie un peu plus tard et envoie la raison à la page Ma TV (Signalements), au lieu de ne rien dire.',
+  ]),
   VjodRelease('4.20', [
     'Recherche plus rapide : les résultats arrivent dès qu\u2019on s\u2019arrête de taper, se filtrent à chaque lettre ajoutée, et une recherche déjà faite revient aussitôt ; la bibliothèque n\u2019attend plus Seerr.',
     'Les listes s\u2019affichent tout de suite, même juste après avoir ouvert l\u2019appli : chaînes et catégories de Ma TV, replay, et première page de Films et Séries. Elles se mettent à jour d\u2019elles-mêmes.',
