@@ -50,6 +50,7 @@ import '../../../data/services/chart_cards.dart';
 import '../../../data/services/trakt/trakt_client.dart';
 import '../../../data/services/vjod/vjod_collection_service.dart';
 import '../../../data/services/vjod/iptv_progress.dart';
+import '../../../data/services/vjod/ma_tv_replay.dart';
 import '../../../data/services/vjod/vjod_collections.dart';
 import '../../../data/services/vjod/vjod_personalizer.dart';
 import '../../../data/services/tonight/evening_journal.dart';
@@ -1088,7 +1089,9 @@ class HomeViewModel extends ChangeNotifier {
 
     switch (cfg.type) {
       case HomeSectionType.resume:
-        return row.rowType == HomeRowType.resume || row.id == iptvResumeRowId;
+        return row.rowType == HomeRowType.resume ||
+            row.id == iptvResumeRowId ||
+            row.id == replayRowId;
       case HomeSectionType.resumeAudio:
         return row.rowType == HomeRowType.resumeAudio;
       case HomeSectionType.nextUp:
@@ -1381,6 +1384,75 @@ class HomeViewModel extends ChangeNotifier {
       cards,
       totalCount: cards.length,
     );
+  }
+
+  static const replayRowId = 'vjod_replay';
+
+  /// On a card of the Replay row: `kind` (`mine` or `chan`), `chan`, `name`.
+  static const replayKey = 'VjodReplay';
+
+  /// The channels' replay, in one row (VJOD 4.18): « Mes émissions » first,
+  /// then a tile per channel with its new episodes, in this week's order.
+  /// Nothing when Ma TV has no replay (older than 3.62, or none reachable).
+  Future<HomeRow?> _loadReplayRow() async {
+    final ReplayHome? home;
+    try {
+      home = await MaTvReplay().home().timeout(const Duration(seconds: 8), onTimeout: () => null);
+    } catch (_) {
+      return null;
+    }
+    if (home == null || home.isEmpty) return null;
+    final chans = await ReplayOrder.sort([for (final c in home.channels) if (c.count > 0) c]);
+    final logos = await replayLogos(chans);
+    String imageOf(String chan) {
+      for (final e in [...home!.mine, ...home.featured]) {
+        if (e.chan == chan && e.image.isNotEmpty) return e.image;
+      }
+      return '';
+    }
+    final mineImage = home.mine.isNotEmpty ? home.mine.first.image : (home.featured.isNotEmpty ? home.featured.first.image : '');
+    final cards = [
+      AggregatedItem(
+        id: 'replay-mine',
+        serverId: 'seerr',
+        rawData: {
+          'Name': 'Mes émissions',
+          'Type': 'Folder',
+          'Overview': '',
+          'BackdropPath': mineImage,
+          vjodWhyKey: home.mineNew > 0
+              ? '${home.mineNew} nouveau${home.mineNew > 1 ? 'x' : ''}'
+              : (home.mine.isEmpty ? 'Choisis tes émissions' : 'À jour'),
+          replayKey: {'kind': 'mine'},
+        },
+      ),
+      for (final c in chans)
+        AggregatedItem(
+          id: 'replay-${c.chan}',
+          serverId: 'seerr',
+          rawData: {
+            'Name': c.name,
+            'Type': 'Folder',
+            'Overview': '',
+            'BackdropPath': logos[c.chan] ?? imageOf(c.chan),
+            vjodWhyKey: c.fresh > 0
+                ? '${c.fresh} nouveau${c.fresh > 1 ? 'x' : ''}'
+                : '${c.count} en replay',
+            replayKey: {'kind': 'chan', 'chan': c.chan, 'name': c.name},
+          },
+        ),
+    ];
+    return _seerrRow(replayRowId, 'Replay', cards, totalCount: cards.length);
+  }
+
+  /// Back from the replay: the badges follow.
+  Future<void> refreshReplay() async {
+    final row = await _loadReplayRow();
+    final index = _rows.indexWhere((r) => r.id == replayRowId);
+    if (row == null || index < 0) return;
+    _rows = List.of(_rows);
+    _rows[index] = row;
+    notifyListeners();
   }
 
   /// Back from a film: the IPTV row follows, added after the library's own
@@ -1763,15 +1835,17 @@ class HomeViewModel extends ChangeNotifier {
         .includeItemTypes;
     switch (section) {
       case HomeSectionType.resume:
-        final (row, iptv) = await (
+        final (row, iptv, replay) = await (
           _multiServerEnabled
               ? _multiServerRepo.getAggregatedResume()
               : _dataSource.loadResume(_serverId),
           _loadIptvResumeRow(),
+          _loadReplayRow(),
         ).wait;
         return [
           row.copyWith(items: _prefs.filterContinueWatching(row.items)),
           ?iptv,
+          ?replay,
         ];
       case HomeSectionType.resumeAudio:
         final row = _multiServerEnabled

@@ -109,6 +109,8 @@ import '../../../data/services/vjod/iptv_progress.dart';
 import '../../../util/startup_timeline.dart';
 import '../../../data/services/vjod/provider_catalog_access.dart' show currentProviderCatalog;
 import '../../widgets/vjod/vjod_whats_new.dart';
+import '../vjod_tv/ma_tv_replay_screen.dart' show openReplayCard;
+import '../../../data/services/vjod/ma_tv_replay.dart' show ReplayOrder;
 
 Color get _homeBackground => AppColorScheme.background;
 
@@ -849,8 +851,44 @@ class _ContentRowsState extends State<_ContentRows>
     );
   }
 
+  /// A card of the Replay row: « Mes émissions » or a channel's page; the
+  /// badges follow on the way back.
+  void _openReplay(BuildContext context, AggregatedItem item) {
+    final r = item.rawData[HomeViewModel.replayKey];
+    if (r is! Map) return;
+    if (r['kind'] == 'chan') unawaited(ReplayOrder.noteOpen('${r['chan']}'));
+    openReplayCard(context, r, onClosed: () => unawaited(widget.viewModel.refreshReplay()));
+  }
+
+  /// Long press on a channel tile: pin it first in the row, or unpin it.
+  Future<void> _replayLongPress(BuildContext context, AggregatedItem item) async {
+    final r = item.rawData[HomeViewModel.replayKey];
+    if (r is! Map || r['kind'] != 'chan') return;
+    final chan = '${r['chan']}';
+    final pinned = await ReplayOrder.isPinned(chan);
+    if (!context.mounted) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('${r['name']}'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Annuler')),
+          FilledButton(
+            autofocus: true,
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(pinned ? 'Ne plus épingler' : 'Épingler en premier'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await ReplayOrder.togglePin(chan);
+    await widget.viewModel.refreshReplay();
+  }
+
   String? _iptvTmdb(AggregatedItem item) {
     if (item.serverId != 'seerr') return null;
+    if (item.rawData[HomeViewModel.replayKey] != null) return null;
     if (item.rawData[HomeViewModel.iptvResumeKey] != null) return null;
     final status = item.seerrStatus;
     if (status == SeerrMediaStatus.available || status == SeerrMediaStatus.partiallyAvailable) return null;
@@ -5570,6 +5608,8 @@ class _ContentRowsState extends State<_ContentRows>
             widget.viewModel.toggleTop10();
           } else if (item.rawData[HomeViewModel.iptvResumeKey] is Map) {
             _openIptvResume(context, item);
+          } else if (item.rawData[HomeViewModel.replayKey] is Map) {
+            _openReplay(context, item);
           } else if (item.serverId == 'seerr') {
             _navigateToSeerrItem(
               context,
@@ -5689,6 +5729,8 @@ class _ContentRowsState extends State<_ContentRows>
                       _playSurprise(context, item);
                     } else if (item.rawData[HomeViewModel.iptvResumeKey] is Map) {
                       _openIptvResume(context, item);
+                    } else if (item.rawData[HomeViewModel.replayKey] is Map) {
+                      _openReplay(context, item);
                     } else if (item.serverId == 'seerr') {
                       _navigateToSeerrItem(
                         context,
@@ -6481,12 +6523,17 @@ class _ContentRowsState extends State<_ContentRows>
       item.serverId == 'seerr' &&
       item.rawData['SeerrShortcut'] == null &&
       item.rawData['FilterType'] == null &&
-      item.rawData[HomeViewModel.iptvResumeKey] == null;
+      item.rawData[HomeViewModel.iptvResumeKey] == null &&
+      item.rawData[HomeViewModel.replayKey] == null;
 
   /// Long press on a title the library lacks: « Voir la fiche » first, then
   /// watching it now at the IPTV provider and asking for it (the « Pour
   /// vous » choices too on those cards). Library titles keep their menu.
   void _onItemLongPress(AggregatedItem item) {
+    if (item.rawData[HomeViewModel.replayKey] is Map) {
+      unawaited(_replayLongPress(context, item));
+      return;
+    }
     if (!_isSeerrTitle(item)) {
       showContextMenu(context, item, onChanged: () => setState(() {}));
       return;

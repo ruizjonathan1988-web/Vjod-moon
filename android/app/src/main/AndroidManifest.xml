@@ -192,5 +192,8 @@
         <package android:name="studio.scillarium.ottnavigator"/>
         <package android:name="com.nst.iptvsmarterspro"/>
         <package android:name="ru.iptvremote.android.iptv"/>
+        <!-- Replay : les applis des chaînes, en dernier recours (VJOD 4.18) -->
+        <package android:name="tv.arte.plus7"/>
+        <package android:name="fr.francetv.pluzz"/>
     </queries>
 </manifest>

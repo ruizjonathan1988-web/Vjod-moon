@@ -15,6 +15,11 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.18', [
+    'Replay des chaînes dans VJOD : une rangée « Replay » sur l\u2019Accueil avec « Mes émissions » et une tuile par chaîne (Arte, France 2, 3, 4, 5), jusqu\u2019à 3 semaines, sans passer par l\u2019IPTV.',
+    'Un appui et l\u2019épisode se lance dans VJOD ; appui long : « Suivre », « Pas pour nous » ou l\u2019appli de la chaîne. Météo, journaux et jeux masqués.',
+    'Les tuiles des chaînes gardent leur place toute la semaine (les plus regardées en tête), et un appui long en épingle une en premier.',
+  ]),
   VjodRelease('4.17', [
     'Sur le téléphone : la chaîne ou le film IPTV continue écran éteint ou appli réduite, avec une notification pour mettre en pause ou arrêter (Réglages → Lecture pour le couper).',
   ]),
