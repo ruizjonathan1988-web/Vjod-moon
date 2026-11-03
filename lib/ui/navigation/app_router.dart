@@ -691,6 +691,7 @@ final appRouter = GoRouter(
         url: state.uri.queryParameters['url'] ?? '',
         title: state.uri.queryParameters['title'] ?? '',
         watch: IptvWatch.fromQuery(state.uri.queryParameters),
+        adSkip: state.uri.queryParameters['ads'] == '1',
       ),
     ),
     GoRoute(

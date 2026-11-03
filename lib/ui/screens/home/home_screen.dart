@@ -109,7 +109,7 @@ import '../../../data/services/vjod/iptv_progress.dart';
 import '../../../util/startup_timeline.dart';
 import '../../../data/services/vjod/provider_catalog_access.dart' show currentProviderCatalog;
 import '../../widgets/vjod/vjod_whats_new.dart';
-import '../vjod_tv/ma_tv_replay_screen.dart' show openReplayCard;
+import '../vjod_tv/ma_tv_replay_screen.dart' show openReplayCard, resumeReplay;
 import '../../../data/services/vjod/ma_tv_replay.dart' show ReplayOrder;
 
 Color get _homeBackground => AppColorScheme.background;
@@ -820,6 +820,11 @@ class _ContentRowsState extends State<_ContentRows>
   /// left, the series opens on the episode to go on with.
   void _openIptvResume(BuildContext context, AggregatedItem item) {
     final r = item.rawData[HomeViewModel.iptvResumeKey];
+    if (r is Map && r['kind'] == 'replay') {
+      // A channel's replay picks up where it was left, from its source again.
+      unawaited(resumeReplay(context, '${r['id']}'));
+      return;
+    }
     final catalog = currentProviderCatalog();
     if (r is! Map || catalog == null) return;
     String v(String k) => '${r[k] ?? ''}';
@@ -4513,6 +4518,7 @@ class _ContentRowsState extends State<_ContentRows>
       // The mock-up says what a row is for, not where it comes from.
       return switch (row.id) {
         HomeViewModel.forYouRowId => l10n.vjodForYouSubtitle,
+        HomeViewModel.replayRowId => 'Un appui : tes émissions · ou une chaîne pour explorer',
         'french_movies' => l10n.vjodFrenchSubtitle,
         HomeViewModel.vjodMoodRowId => l10n.localeName.startsWith('fr')
             ? 'Votre humeur colore les rangées jusqu\'à demain matin'

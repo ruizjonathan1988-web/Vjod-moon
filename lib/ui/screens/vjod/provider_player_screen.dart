@@ -90,7 +90,11 @@ class ProviderPlayerScreen extends StatefulWidget {
   /// to learn from it. Null for a playback that keeps nothing.
   final IptvWatch? watch;
 
-  const ProviderPlayerScreen({super.key, required this.url, this.title = '', this.watch});
+  /// A channel's broadcast recorded by the IPTV provider: it may open on the
+  /// end of the programme before or on ads, « Passer la pub » jumps 3 min.
+  final bool adSkip;
+
+  const ProviderPlayerScreen({super.key, required this.url, this.title = '', this.watch, this.adSkip = false});
 
   @override
   State<ProviderPlayerScreen> createState() => _ProviderPlayerScreenState();
@@ -285,6 +289,9 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
   bool get _canSkipIntro =>
       (widget.watch?.isSeries ?? false) && _skipFrom == null &&
       _pos > const Duration(seconds: 2) && _pos < const Duration(minutes: 6);
+
+  /// « Passer la pub »: in a recorded broadcast's first 20 minutes.
+  bool get _canSkipAds => widget.adSkip && _pos < const Duration(minutes: 20);
 
   void _skipIntro() {
     final from = _pos;
@@ -533,7 +540,8 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
     final w = widget.watch;
     if (w != null) {
       _savePlace();
-      unawaited(IptvLearning.record(
+      // A channel's replay teaches nothing about films and series.
+      if (!w.isReplay) unawaited(IptvLearning.record(
         watch: w,
         startedAt: _startedAt,
         position: _pos,
@@ -582,7 +590,7 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
 
   String? get _voteKey {
     final w = widget.watch;
-    if (w == null || w.isSeries) return null;
+    if (w == null || w.kind != 'movie') return null;
     return w.tmdb.isEmpty ? 'iptv:movie:${w.id}' : 'movie:${w.tmdb}';
   }
 
@@ -1123,6 +1131,8 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
                             children: [
                               if (_canSkipIntro)
                                 _button(Icons.fast_forward_rounded, 'Passer le générique', _skipIntro),
+                              if (_canSkipAds)
+                                _button(Icons.fast_forward_rounded, 'Passer la pub', () => _seekBy(180)),
                               _button(Icons.replay_10_rounded, '−10 s', () => _seekBy(-10)),
                               _button(_playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
                                   _playing ? 'Pause' : 'Lecture', () => unawaited(_engine.playOrPause()),

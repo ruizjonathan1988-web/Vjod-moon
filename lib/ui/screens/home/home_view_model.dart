@@ -923,7 +923,9 @@ class HomeViewModel extends ChangeNotifier {
       // behind every other section while its cached copy sits on screen.
       if (showMergedResume) {
         unawaited(
-          _loadResumeAndNextUpInBackground().then((_) => _refreshIptvResume()),
+          _loadResumeAndNextUpInBackground()
+              .then((_) => _refreshIptvResume())
+              .then((_) => refreshReplay()),
         );
       }
 
@@ -935,6 +937,11 @@ class HomeViewModel extends ChangeNotifier {
       );
 
       _saveRowCache();
+      // The Replay row comes with « Continuer », whatever its form; without
+      // it, it still finds its place.
+      if (!showMergedResume && !_rows.any((r) => r.id == replayRowId)) {
+        unawaited(refreshReplay());
+      }
       unawaited(StartupTimeline.finish('Toutes les rangées chargées'));
       _topShelf.update(_rows);
       _watchNext.update(_rows);
@@ -1293,7 +1300,7 @@ class HomeViewModel extends ChangeNotifier {
   Future<void> refreshResumeAndNextUp() async {
     // A full load already covers these rows, so don't compete with it.
     if (_isLoading) return;
-    unawaited(_refreshIptvResume());
+    unawaited(_refreshIptvResume().then((_) => refreshReplay()));
 
     if (_prefs.effectiveMergeContinueWatchingNextUp) {
       await _loadResumeAndNextUpInBackground();
@@ -1353,34 +1360,55 @@ class HomeViewModel extends ChangeNotifier {
     } catch (_) {
       return null;
     }
+    AggregatedItem replayCard(IptvProgress p) => AggregatedItem(
+      id: 'iptv-replay-${p.id}',
+      serverId: 'seerr',
+      rawData: {
+        'Name': p.name,
+        'Type': 'Folder',
+        'Overview': '',
+        'BackdropPath': p.poster,
+        vjodWhyKey: 'Replay · reste ${(p.duration - p.position).inMinutes.clamp(1, 999)} min',
+        'UserData': {'PlayedPercentage': p.fraction * 100},
+        iptvResumeKey: {'kind': 'replay', 'id': p.id, 'name': p.name, 'poster': p.poster},
+      },
+    );
     final cards = [
       for (final p in list)
-        AggregatedItem(
-          id: p.tmdb.isNotEmpty ? p.tmdb : 'iptv-${p.kind}-${p.id}',
-          serverId: 'seerr',
-          rawData: {
-            'Name': p.isSeries && p.season > 0
-                ? '${p.name} · S${p.season} É${p.episode}'
-                : p.name,
-            'Type': p.isSeries ? 'Series' : 'Movie',
-            'PosterPath': p.poster,
-            'SeerrMediaType': p.isSeries ? 'tv' : 'movie',
-            if (!p.done) 'UserData': {'PlayedPercentage': p.fraction * 100},
-            iptvResumeKey: {
-              'kind': p.kind,
-              'id': p.id,
-              'name': p.name,
-              'poster': p.poster,
-              'tmdb': p.tmdb,
-              'ext': p.ext,
+        if (p.kind == 'replay')
+          if (p.resumable) replayCard(p) else ...const <AggregatedItem>[]
+        else
+          AggregatedItem(
+            id: p.tmdb.isNotEmpty ? p.tmdb : 'iptv-${p.kind}-${p.id}',
+            serverId: 'seerr',
+            rawData: {
+              'Name': p.isSeries && p.season > 0
+                  ? '${p.name} · S${p.season} É${p.episode}'
+                  : p.name,
+              'Type': p.isSeries ? 'Series' : 'Movie',
+              'PosterPath': p.poster,
+              'SeerrMediaType': p.isSeries ? 'tv' : 'movie',
+              if (!p.done) 'UserData': {'PlayedPercentage': p.fraction * 100},
+              iptvResumeKey: {
+                'kind': p.kind,
+                'id': p.id,
+                'name': p.name,
+                'poster': p.poster,
+                'tmdb': p.tmdb,
+                'ext': p.ext,
+              },
             },
-          },
-        ),
+          ),
     ];
+    final replays = list.where((p) => p.kind == 'replay' && p.resumable).length;
     if (cards.isEmpty) return null;
     return _seerrRow(
       iptvResumeRowId,
-      'Reprendre (IPTV)',
+      replays == 0
+          ? 'Reprendre (IPTV)'
+          : replays == cards.length
+          ? 'Reprendre (replay)'
+          : 'Reprendre (IPTV et replay)',
       cards,
       totalCount: cards.length,
     );
@@ -1404,6 +1432,9 @@ class HomeViewModel extends ChangeNotifier {
     if (home == null || home.isEmpty) return null;
     final chans = await ReplayOrder.sort([for (final c in home.channels) if (c.count > 0) c]);
     final logos = await replayLogos(chans);
+    final pins = await ReplayOrder.pins();
+    final names = <String>{for (final e in home.mine) e.show}.take(3).join(', ');
+    String fresh(int n) => '$n nouveau${n > 1 ? 'x' : ''}';
     String imageOf(String chan) {
       for (final e in [...home!.mine, ...home.featured]) {
         if (e.chan == chan && e.image.isNotEmpty) return e.image;
@@ -1420,9 +1451,9 @@ class HomeViewModel extends ChangeNotifier {
           'Type': 'Folder',
           'Overview': '',
           'BackdropPath': mineImage,
-          vjodWhyKey: home.mineNew > 0
-              ? '${home.mineNew} nouveau${home.mineNew > 1 ? 'x' : ''}'
-              : (home.mine.isEmpty ? 'Choisis tes émissions' : 'À jour'),
+          vjodWhyKey: home.mine.isEmpty
+              ? 'Rien de suivi · choisis en un appui'
+              : [if (home.mineNew > 0) fresh(home.mineNew), names].join(' · '),
           replayKey: {'kind': 'mine'},
         },
       ),
@@ -1435,9 +1466,10 @@ class HomeViewModel extends ChangeNotifier {
             'Type': 'Folder',
             'Overview': '',
             'BackdropPath': logos[c.chan] ?? imageOf(c.chan),
-            vjodWhyKey: c.fresh > 0
-                ? '${c.fresh} nouveau${c.fresh > 1 ? 'x' : ''}'
-                : '${c.count} en replay',
+            vjodWhyKey: [
+              if (pins.contains(c.chan)) '● épinglée',
+              c.fresh > 0 ? fresh(c.fresh) : '${c.count} en replay',
+            ].join(' · '),
             replayKey: {'kind': 'chan', 'chan': c.chan, 'name': c.name},
           },
         ),
@@ -1445,13 +1477,28 @@ class HomeViewModel extends ChangeNotifier {
     return _seerrRow(replayRowId, 'Replay', cards, totalCount: cards.length);
   }
 
-  /// Back from the replay: the badges follow.
+  /// The Replay row put in place (badges after the replay, or a merged
+  /// « Continuer », which builds its row by another road): replaced where it
+  /// is, else added after the IPTV row or the library's Continue row.
   Future<void> refreshReplay() async {
     final row = await _loadReplayRow();
     final index = _rows.indexWhere((r) => r.id == replayRowId);
-    if (row == null || index < 0) return;
-    _rows = List.of(_rows);
-    _rows[index] = row;
+    if (row == null) {
+      if (index >= 0) {
+        _rows = List.of(_rows)..removeAt(index);
+        notifyListeners();
+      }
+      return;
+    }
+    if (index >= 0) {
+      _rows = List.of(_rows);
+      _rows[index] = row;
+    } else {
+      var after = _rows.indexWhere((r) => r.id == iptvResumeRowId);
+      if (after < 0) after = _rows.indexWhere((r) => r.rowType == HomeRowType.resume);
+      // No « Continuer » on this Home: first of the rows.
+      _rows = List.of(_rows)..insert(after + 1, row);
+    }
     notifyListeners();
   }
 

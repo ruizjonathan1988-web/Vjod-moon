@@ -10,12 +10,18 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:get_it/get_it.dart';
+import 'package:server_core/server_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../util/accent_folding.dart';
 import '../../../util/tv_app_launcher.dart';
 import '../../../util/vjod_log.dart';
 import 'ma_tv.dart';
+import 'provider_catalog_access.dart' show currentProviderCatalog;
+import 'xtream_catalog.dart' show XtreamKind;
+import '../../../ui/navigation/destinations.dart';
 import 'tv_sources.dart';
 
 @immutable
@@ -41,6 +47,12 @@ class ReplayItem {
   final bool featured;
   final bool followed;
 
+  /// Aired since this profile last opened « Mes émissions ».
+  final bool isNew;
+
+  /// When this profile watched the show live (a suggestion to follow).
+  final DateTime? liveAt;
+
   const ReplayItem({
     required this.id,
     required this.kind,
@@ -56,6 +68,8 @@ class ReplayItem {
     this.episode = 0,
     this.featured = false,
     this.followed = false,
+    this.isNew = false,
+    this.liveAt,
   });
 
   factory ReplayItem.fromJson(Map<String, dynamic> j) {
@@ -76,6 +90,8 @@ class ReplayItem {
       episode: n(j['episode']),
       featured: j['featured'] == true,
       followed: j['followed'] == true,
+      isNew: j['new'] == true,
+      liveAt: (j['live_at'] as num?) == null ? null : DateTime.fromMillisecondsSinceEpoch((j['live_at'] as num).toInt() * 1000),
     );
   }
 
@@ -111,7 +127,10 @@ class ReplayHome {
   final int mineNew;
   final List<ReplayChannel> channels;
   final List<ReplayItem> featured;
-  const ReplayHome({this.mine = const [], this.mineNew = 0, this.channels = const [], this.featured = const []});
+
+  /// Shows this profile watched live lately, at the replay, not followed.
+  final List<ReplayItem> suggest;
+  const ReplayHome({this.mine = const [], this.mineNew = 0, this.channels = const [], this.featured = const [], this.suggest = const []});
 
   bool get isEmpty => channels.every((c) => c.count == 0);
 
@@ -129,6 +148,7 @@ class ReplayHome {
           ),
     ],
     featured: _items(j['featured']),
+    suggest: _items(j['suggest']),
   );
 }
 
@@ -141,12 +161,49 @@ class ReplayShow {
 }
 
 @immutable
+class ReplayDay {
+  final DateTime day;
+  final List<ReplayItem> items;
+  const ReplayDay({required this.day, this.items = const []});
+
+  /// « Aujourd\u2019hui », « Hier », then « Lun. 2 nov. ».
+  String label([DateTime? now]) {
+    final t = now ?? DateTime.now();
+    final today = DateTime(t.year, t.month, t.day);
+    final d = DateTime(day.year, day.month, day.day);
+    final ago = today.difference(d).inDays;
+    if (ago == 0) return 'Aujourd\u2019hui';
+    if (ago == 1) return 'Hier';
+    const wd = ['Lun.', 'Mar.', 'Mer.', 'Jeu.', 'Ven.', 'Sam.', 'Dim.'];
+    const mo = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+    return '${wd[d.weekday - 1]} ${d.day == 1 ? '1er' : d.day} ${mo[d.month - 1]}';
+  }
+}
+
+/// The episode of the same show aired just after [e] in [list] (any order),
+/// or null.
+ReplayItem? nextEpisode(ReplayItem e, Iterable<ReplayItem> list) {
+  final at = e.aired;
+  if (at == null) return null;
+  ReplayItem? best;
+  for (final x in list) {
+    final t = x.aired;
+    if (x.id == e.id || x.show != e.show || t == null || !t.isAfter(at)) continue;
+    if (best == null || t.isBefore(best.aired!)) best = x;
+  }
+  return best;
+}
+
+@immutable
 class ReplayChannelPage {
   final String chan;
   final String name;
   final ReplayItem? prime;
   final List<ReplayShow> shows;
-  const ReplayChannelPage({required this.chan, required this.name, this.prime, this.shows = const []});
+
+  /// Day by day, the latest first.
+  final List<ReplayDay> days;
+  const ReplayChannelPage({required this.chan, required this.name, this.prime, this.shows = const [], this.days = const []});
 
   factory ReplayChannelPage.fromJson(Map<String, dynamic> j) => ReplayChannelPage(
     chan: '${j['chan'] ?? ''}',
@@ -156,6 +213,11 @@ class ReplayChannelPage {
       for (final s in (j['shows'] as List? ?? const []))
         if (s is Map)
           ReplayShow(show: '${s['show']}', followed: s['followed'] == true, items: _items(s['items'])),
+    ],
+    days: [
+      for (final d in (j['days'] as List? ?? const []))
+        if (d is Map && DateTime.tryParse('${d['day']}') != null)
+          ReplayDay(day: DateTime.parse('${d['day']}'), items: _items(d['items'])),
     ],
   );
 }
@@ -211,6 +273,12 @@ class MaTvReplay {
   Future<ReplayChannelPage?> channel(String chan) async {
     final j = await _get('/tv/api/replay/chan', {'c': chan});
     return j is Map ? ReplayChannelPage.fromJson(Map<String, dynamic>.from(j)) : null;
+  }
+
+  /// One episode, by Ma TV's id (a replay picked up from « Reprendre »).
+  Future<ReplayItem?> item(String id) async {
+    final j = await _get('/tv/api/replay/item', {'id': id});
+    return j is Map ? ReplayItem.fromJson(Map<String, dynamic>.from(j)) : null;
   }
 
   Future<List<ReplayItem>> search(String text) async {
@@ -470,4 +538,152 @@ Future<Map<String, String>> replayLogos(List<ReplayChannel> channels) async {
     for (final c in channels)
       if (byName[replayNameKey(c.name)] ?? byName[replayNameKey(c.chan)] case final logo?) c.chan: logo,
   };
+}
+
+
+/// Another way to watch an episode, for « Autres sources ».
+@immutable
+class ReplaySource {
+  /// `library` (Jellyfin), `vod` (the IPTV provider's series), `vjod` (the
+  /// channel's replay, in VJOD), `iptv` (the broadcast the IPTV provider
+  /// recorded), `app` (the channel's app), `seerr` (ask for it).
+  final String kind;
+  final String name;
+
+  /// « choisie », « avec pub », « en dernier »… shown only when it says
+  /// something.
+  final String tag;
+  final String detail;
+
+  /// A page of VJOD that opens it (library, vod, seerr).
+  final String? route;
+
+  /// The broadcast to play (iptv).
+  final Uri? stream;
+
+  const ReplaySource({required this.kind, required this.name, this.tag = '', this.detail = '', this.route, this.stream});
+}
+
+/// Finds the other sources of an episode: the library first (no ads, kept),
+/// then the provider's series, the channel's replay in VJOD, the IPTV
+/// recording of the broadcast, the channel's app, and Seerr.
+class ReplaySources {
+  ReplaySources._();
+
+  static String _fold(String s) => foldForSearch(s).replaceAll(RegExp(r'[^a-z0-9]+'), ' ').trim();
+
+  static bool _sameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
+
+  /// The episode in the Jellyfin library (by its numbers, else its first
+  /// airing that day), or the series when the episode isn't there: its page.
+  static Future<({String route, bool episode})?> library(ReplayItem e) async {
+    final getIt = GetIt.instance;
+    if (!getIt.isRegistered<MediaServerClient>() || e.show.isEmpty) return null;
+    try {
+      final api = getIt<MediaServerClient>().itemsApi;
+      final found = await api
+          .getItems(searchTerm: e.show, includeItemTypes: const ['Series'], recursive: true, limit: 6)
+          .timeout(const Duration(seconds: 4));
+      final want = _fold(e.show);
+      final series = [
+        for (final x in (found['Items'] as List? ?? const []))
+          if (x is Map && _fold('${x['Name'] ?? ''}') == want) x,
+      ];
+      if (series.isEmpty) return null;
+      final id = '${series.first['Id']}';
+      final aired = e.aired;
+      final eps = await api
+          .getItems(
+            parentId: id,
+            includeItemTypes: const ['Episode'],
+            recursive: true,
+            fields: 'PremiereDate',
+            sortBy: 'PremiereDate',
+            sortOrder: 'Descending',
+            limit: 300,
+          )
+          .timeout(const Duration(seconds: 4));
+      for (final x in (eps['Items'] as List? ?? const [])) {
+        if (x is! Map) continue;
+        final byNumber = e.season > 0 && e.episode > 0 && x['ParentIndexNumber'] == e.season && x['IndexNumber'] == e.episode;
+        final premiere = DateTime.tryParse('${x['PremiereDate'] ?? ''}')?.toLocal();
+        final byDay = aired != null && premiere != null && _sameDay(premiere, aired);
+        if (byNumber || byDay) return (route: Destinations.item('${x['Id']}'), episode: true);
+      }
+      return (route: Destinations.item(id), episode: false);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// The broadcast as the IPTV provider recorded it, when its catch-up of
+  /// that channel goes back far enough.
+  static Future<Uri?> iptv(ReplayItem e) async {
+    final aired = e.aired;
+    if (aired == null) return null;
+    try {
+      final client = MaTvClient();
+      final all = await client.allChannels().timeout(const Duration(seconds: 6));
+      if (all == null) return null;
+      final key = replayNameKey(e.chan);
+      final days = DateTime.now().difference(aired).inHours / 24;
+      for (final c in all) {
+        if (replayNameKey(c.name) != key || c.replayDays <= 0 || days > c.replayDays) continue;
+        final len = e.duration > Duration.zero ? e.duration : const Duration(minutes: 60);
+        return client.replayUri(c, MaTvProgram(title: e.show, start: aired, end: aired.add(len)));
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// The IPTV provider's series of that name.
+  static Future<String?> vod(ReplayItem e) async {
+    final catalog = currentProviderCatalog();
+    if (catalog == null || e.show.isEmpty) return null;
+    try {
+      final want = _fold(e.show);
+      final found = await catalog.search(e.show, limit: 8).timeout(const Duration(seconds: 6));
+      for (final t in found) {
+        if (t.kind == XtreamKind.series && _fold(t.name) == want) {
+          return Destinations.providerSeries(id: t.id, name: t.name, poster: t.poster, tmdb: t.tmdbId);
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  static String appName(ReplayItem e) => switch (e.kind) {
+    'arte' => 'Appli Arte',
+    'ftv' => 'Appli france.tv',
+    _ => 'Appli de la chaîne',
+  };
+
+  /// Every source found, the best first, [vjodOk] false when the channel's
+  /// replay can't be read here (encrypted).
+  static Future<List<ReplaySource>> all(ReplayItem e, {String chanName = ''}) async {
+    final (lib, vodRoute, iptvUri) = await (library(e), vod(e), iptv(e)).wait;
+    final name = chanName.isEmpty ? e.chan : chanName;
+    return [
+      if (lib != null)
+        ReplaySource(
+          kind: 'library',
+          name: lib.episode ? 'Dans ta bibliothèque' : 'La série est dans ta bibliothèque',
+          detail: lib.episode ? 'Sans pub · gardé · reprise sur tous tes appareils' : 'Cet épisode n’y est peut-être pas',
+          route: lib.route,
+        ),
+      if (vodRoute != null)
+        ReplaySource(kind: 'vod', name: 'VOD de ton fournisseur', detail: 'Sans pub · la série, épisode à choisir', route: vodRoute),
+      ReplaySource(kind: 'vjod', name: 'Replay $name dans VJOD', detail: 'Sans pub · lecteur VJOD'),
+      if (iptvUri != null)
+        ReplaySource(
+          kind: 'iptv',
+          name: 'Replay IPTV de $name',
+          tag: 'avec pub',
+          detail: 'Diffusion d’origine · « Passer la pub » saute 3 min',
+          stream: iptvUri,
+        ),
+      ReplaySource(kind: 'app', name: appName(e), tag: 'en dernier', detail: 'S’ouvre sur l’épisode quand elle le permet'),
+      ReplaySource(kind: 'seerr', name: 'Demander (Seerr)', tag: 'à garder', detail: 'Ajouté à ta bibliothèque si la série est trouvée', route: Destinations.searchWith(e.show)),
+    ];
+  }
 }

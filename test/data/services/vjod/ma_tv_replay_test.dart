@@ -7,6 +7,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:moonfin/data/services/vjod/iptv_progress.dart';
 import 'package:moonfin/data/services/vjod/ma_tv_replay.dart';
 import 'package:moonfin/data/services/vjod/tv_sources.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -146,5 +147,55 @@ void main() {
     expect(replayNameKey('FR: France 2'), 'france2');
     expect(replayNameKey('france-2'), 'france2');
     expect(replayNameKey('ARTE FHD'), 'arte');
+  });
+
+  test('page de chaîne : jour par jour, et l’épisode suivant', () {
+    final page = ReplayChannelPage.fromJson({
+      'chan': 'france-2',
+      'name': 'France 2',
+      'shows': [
+        {
+          'show': 'Envoyé spécial',
+          'items': [
+            {'id': 'b', 'show': 'Envoyé spécial', 'aired': DateTime(2026, 10, 29, 21).millisecondsSinceEpoch ~/ 1000},
+            {'id': 'a', 'show': 'Envoyé spécial', 'aired': DateTime(2026, 10, 22, 21).millisecondsSinceEpoch ~/ 1000, 'new': true},
+          ],
+        },
+      ],
+      'days': [
+        {'day': '2026-11-02', 'items': []},
+        {'day': '2026-11-01', 'items': []},
+        {'day': '2026-10-29', 'items': [{'id': 'b', 'show': 'Envoyé spécial'}]},
+        {'day': 'n’importe', 'items': []},
+      ],
+    });
+    expect(page.days, hasLength(3));
+    final now = DateTime(2026, 11, 2, 20);
+    expect(page.days.map((d) => d.label(now)), ['Aujourd’hui', 'Hier', 'Jeu. 29 oct.']);
+    final items = page.shows.single.items;
+    expect(items.last.isNew, isTrue);
+    expect(nextEpisode(items.last, items)?.id, 'b');
+    expect(nextEpisode(items.first, items), isNull);
+  });
+
+  test('vu en direct : proposé à suivre', () {
+    final home = ReplayHome.fromJson({
+      'chans': [],
+      'suggest': [
+        {'id': 'x', 'kind': 'ftv', 'chan': 'france-2', 'show': 'Cash Investigation', 'live_at': 1762200000},
+      ],
+    });
+    expect(home.suggest.single.show, 'Cash Investigation');
+    expect(home.suggest.single.liveAt, DateTime.fromMillisecondsSinceEpoch(1762200000 * 1000));
+  });
+
+  test('un replay commencé garde sa place comme un film', () {
+    const w = IptvWatch(kind: 'replay', id: 'ftv-0123456789', name: 'Envoyé spécial', poster: 'https://img/x.jpg');
+    final back = IptvWatch.fromQuery(w.toQuery())!;
+    expect(back.isReplay, isTrue);
+    expect(back.id, 'ftv-0123456789');
+    final p = IptvProgress.fromJson({'kind': 'replay', 'id': 'ftv-0123456789', 'name': 'Envoyé spécial', 'pos': 600, 'dur': 3600})!;
+    expect(p.kind, 'replay');
+    expect(p.resumable, isTrue);
   });
 }
