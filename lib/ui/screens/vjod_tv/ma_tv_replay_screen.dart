@@ -17,8 +17,11 @@ import '../../navigation/destinations.dart';
 import '../../widgets/media_card.dart';
 import 'ma_tv_widgets.dart';
 
-const _ink = Color(0xFFEDEBE6);
+// The palette of the rest of Ma TV.
+const _ink = MaTvColors.ink;
 const _mute = Color(0xFFB8B4AC);
+const _good = MaTvColors.good;
+const _live = MaTvColors.live;
 const _bg = Color(0xFF0B0B0D);
 
 IptvWatch _watchOf(ReplayItem item) => IptvWatch(
@@ -157,7 +160,7 @@ Widget _episodeCard(
     overlayOccupiesTopLeft: chanChip && chanName.isNotEmpty,
     imageOverlays: [
       if (chanChip && chanName.isNotEmpty) Positioned(top: 8, left: 8, child: _chip(chanName)),
-      if (e.isNew) Positioned(top: 8, right: 8, child: _chip('NOUVEAU', bg: const Color(0xFFE5484D), fg: Colors.white)),
+      if (e.isNew) Positioned(top: 8, right: 8, child: _chip('NOUVEAU', bg: _live, fg: Colors.white)),
     ],
     onTap: () => unawaited(playReplay(context, e)),
     onLongPress: sheet,
@@ -243,7 +246,7 @@ Future<void> showReplaySheet(
                                   const SizedBox(width: 8),
                                   Text(src.tag,
                                       style: TextStyle(
-                                        color: src.tag == 'avec pub' ? const Color(0xFFF0C27A) : _mute,
+                                        color: src.tag == 'avec pub' ? MaTvColors.accent : _mute,
                                         fontSize: 12,
                                         fontWeight: FontWeight.w700,
                                       )),
@@ -322,7 +325,7 @@ Widget _rowTitle(String title, {String count = '', bool followed = false}) => Pa
       if (count.isNotEmpty) ...[const SizedBox(width: 10), Text(count, style: const TextStyle(color: _mute))],
       if (followed) ...[
         const SizedBox(width: 10),
-        const Text('✓ Suivi', style: TextStyle(color: Color(0xFF8FD6A8), fontWeight: FontWeight.w700)),
+        const Text('✓ Suivi', style: TextStyle(color: _good, fontWeight: FontWeight.w700)),
       ],
     ],
   ),
