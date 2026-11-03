@@ -15,6 +15,9 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.17', [
+    'Sur le téléphone : la chaîne ou le film IPTV continue écran éteint ou appli réduite, avec une notification pour mettre en pause ou arrêter (Réglages → Lecture pour le couper).',
+  ]),
   VjodRelease('4.16', [
     'TV sur le téléphone : en quittant l\u2019appli, la chaîne continue dans une petite fenêtre (image dans l\u2019image), les films et séries IPTV aussi.',
     'Grille des programmes au doigt : glisser vers la gauche ou la droite avance ou recule d\u2019une heure, « Maintenant » y revient, et les programmes se chargent là où l\u2019on fait défiler.',

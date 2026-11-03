@@ -132,6 +132,14 @@
             android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver"
             android:exported="false" />
 
+        <!-- VJOD 4.17: a Ma TV channel or an IPTV film keeps playing with the
+             screen off or the app in the background. -->
+        <service
+            android:name=".VjodPlaybackService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback"
+            android:stopWithTask="true" />
+
         <service
             android:name="com.ryanheise.audioservice.AudioService"
             android:exported="true"

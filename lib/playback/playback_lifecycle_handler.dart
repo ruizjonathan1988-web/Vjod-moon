@@ -6,6 +6,7 @@ import 'package:playback_core/playback_core.dart';
 import '../data/models/aggregated_item.dart';
 import '../util/platform_detection.dart';
 import 'media3_player_backend.dart';
+import '../data/services/vjod/background_playback.dart';
 
 class _StaleVideoClaim {
   _StaleVideoClaim({
@@ -69,6 +70,11 @@ class PlaybackLifecycleHandler with WidgetsBindingObserver {
       }
     }
     if (isAudio) {
+      return;
+    }
+    // A VJOD player (Ma TV, IPTV films) playing on in the background: the
+    // player must not be released (VJOD 4.17).
+    if (VjodBackgroundPlayback.keepsPlaying) {
       return;
     }
     switch (state) {
