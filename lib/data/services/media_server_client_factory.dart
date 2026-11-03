@@ -10,6 +10,7 @@ import '../offline/offline_catalog.dart';
 import '../repositories/offline_repository.dart';
 import 'pending_rating_store.dart';
 import 'storage_path_service.dart';
+import '../../util/vjod_timings.dart';
 
 class MediaServerClientFactory {
   final DeviceInfo deviceInfo;
@@ -119,6 +120,7 @@ class MediaServerClientFactory {
           baseUrl: baseUrl,
           deviceInfo: deviceInfo,
           interceptors: [
+            VjodTimingInterceptor('Jellyfin'),
             if (onForbidden != null)
               InterceptorsWrapper(
                 onError: (error, handler) {

@@ -16,6 +16,7 @@ import 'package:http/http.dart' as http;
 import '../../../util/accent_folding.dart';
 import 'tv_playlists.dart';
 import 'xtream_cache_store.dart';
+import '../../../util/vjod_timings.dart';
 
 enum XtreamKind { movie, series }
 
@@ -812,7 +813,7 @@ class XtreamCatalog {
           .replace(queryParameters: {...query, 'k': password});
 
   Future<Object?> _maTvGet(String what, Map<String, String> query) async {
-    final body = await _get(_vodApi(what, query), _maTvTimeout);
+    final body = await VjodTimings.time('Ma TV (VOD)', _get(_vodApi(what, query), _maTvTimeout), what: what);
     return jsonDecode(body);
   }
 

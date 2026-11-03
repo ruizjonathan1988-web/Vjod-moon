@@ -28,6 +28,7 @@ import 'vjod_snapshots.dart';
 import 'ma_tv_sports.dart';
 import 'tv_sources.dart';
 import '../../../util/vjod_log.dart';
+import '../../../util/vjod_timings.dart';
 
 class MaTvCategory {
   final String id;
@@ -219,7 +220,7 @@ class MaTvClient {
     if (s == null) return null;
     try {
       final uri = s.endpoint(path, query);
-      final r = await (_http?.get(uri) ?? http.get(uri)).timeout(timeout);
+      final r = await VjodTimings.time('Ma TV', (_http?.get(uri) ?? http.get(uri)).timeout(timeout), what: path);
       if (r.statusCode != 200) return null;
       return jsonDecode(utf8.decode(r.bodyBytes));
     } catch (_) {

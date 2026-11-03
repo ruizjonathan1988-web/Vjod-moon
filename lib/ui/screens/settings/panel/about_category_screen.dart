@@ -86,6 +86,7 @@ class _AboutCategoryScreen extends StatelessWidget {
                 onTap: () {},
               ),
               const _StartupTimelineTile(),
+              const _TimingsTile(),
               if (AppDistribution.supportsInAppUpdates)
                 const _CheckForUpdatesTile(),
               // The admin's own devices take each new version first.
@@ -312,6 +313,23 @@ class _CheckForUpdatesTileState extends State<_CheckForUpdatesTile> {
         zh: '查找最新版本的 VJOD',
       )),
       onTap: _checking ? null : _check,
+    );
+  }
+}
+
+/// VJOD 4.20: how fast each service answers on this device.
+class _TimingsTile extends StatelessWidget {
+  const _TimingsTile();
+
+  @override
+  Widget build(BuildContext context) {
+    final lines = VjodTimings.lines();
+    return _TvSettingsListTile(
+      leading: const Icon(Icons.speed_rounded),
+      title: const Text('Temps de réponse'),
+      subtitle: Text(lines.isEmpty ? 'Pas encore mesuré : utilise VJOD un moment.' : lines.join('\n')),
+      trailing: const SizedBox.shrink(),
+      onTap: () {},
     );
   }
 }

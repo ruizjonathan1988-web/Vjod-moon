@@ -24,6 +24,7 @@ import 'provider_catalog_access.dart' show currentProviderCatalog;
 import 'xtream_catalog.dart' show XtreamKind;
 import '../../../ui/navigation/destinations.dart';
 import 'tv_sources.dart';
+import '../../../util/vjod_timings.dart';
 
 @immutable
 class ReplayItem {
@@ -256,7 +257,7 @@ class MaTvReplay {
     if (s == null) return null;
     try {
       final uri = s.endpoint(path, {...query, if (_user.isNotEmpty) 'u': _user});
-      final r = await (_http?.get(uri) ?? http.get(uri)).timeout(_timeout);
+      final r = await VjodTimings.time('Ma TV', (_http?.get(uri) ?? http.get(uri)).timeout(_timeout), what: path);
       if (r.statusCode != 200) return null;
       return jsonDecode(utf8.decode(r.bodyBytes));
     } catch (_) {

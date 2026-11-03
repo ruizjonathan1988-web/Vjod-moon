@@ -125,6 +125,7 @@ import '../../../preference/detail_section_layout.dart';
 import '../detail/detail_buttons.dart';
 import '../playback/osd_buttons.dart';
 import '../syncplay/syncplay_screen.dart';
+import '../../../util/vjod_timings.dart';
 
 part 'panel/settings_panel_infra.dart';
 part 'panel/settings_search_field.dart';

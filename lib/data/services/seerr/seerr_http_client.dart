@@ -7,6 +7,7 @@ import 'package:get_it/get_it.dart';
 import '../log_service.dart';
 import 'seerr_error.dart';
 import 'seerr_models.dart';
+import '../../../util/vjod_timings.dart';
 
 class SeerrHttpClient {
   final MoonfinProxyConfig proxyConfig;
@@ -22,6 +23,7 @@ class SeerrHttpClient {
       validateStatus: (_) => true,
     ));
 
+    _dio.interceptors.add(VjodTimingInterceptor('Seerr'));
     _dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) {
         _log?.network('-> ${options.method} ${options.uri}');

@@ -972,6 +972,8 @@ void main() async {
   // What waited on the device (a crash that closed the app last time) goes
   // to Ma TV once the app has settled.
   Timer(const Duration(seconds: 20), () => unawaited(MaTvReports.instance.flush()));
+  // VJOD 4.20: how fast the services answer here, to the Ma TV page.
+  Timer.periodic(const Duration(minutes: 5), (_) => unawaited(MaTvReports.instance.sendTimings()));
   // When the system runs the auto-download refresh task against this
   // engine, the native side retries its call until this handler is bound.
   if (AutoDownloadService.isSupportedPlatform) {
