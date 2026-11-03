@@ -19,6 +19,7 @@ import '../../../util/accent_folding.dart';
 import '../../../util/tv_app_launcher.dart';
 import '../../../util/vjod_log.dart';
 import 'ma_tv.dart';
+import 'vjod_snapshots.dart';
 import 'provider_catalog_access.dart' show currentProviderCatalog;
 import 'xtream_catalog.dart' show XtreamKind;
 import '../../../ui/navigation/destinations.dart';
@@ -267,11 +268,27 @@ class MaTvReplay {
   /// Ma TV is older than 3.62 or can't be reached.
   Future<ReplayHome?> home() async {
     final j = await _get('/tv/api/replay/home');
+    if (j is Map) unawaited(VjodSnapshots.write(_snapKey('home'), j));
     return j is Map ? ReplayHome.fromJson(Map<String, dynamic>.from(j)) : null;
   }
 
   Future<ReplayChannelPage?> channel(String chan) async {
     final j = await _get('/tv/api/replay/chan', {'c': chan});
+    if (j is Map) unawaited(VjodSnapshots.write(_snapKey('chan:$chan'), j));
+    return j is Map ? ReplayChannelPage.fromJson(Map<String, dynamic>.from(j)) : null;
+  }
+
+  String _snapKey(String what) => '${server?.url ?? ''}|$_user|replay:$what';
+
+  /// The last « Mes émissions » seen, at once (VJOD 4.20), or null.
+  Future<ReplayHome?> homeSaved() async {
+    final j = await VjodSnapshots.read(_snapKey('home'));
+    return j is Map ? ReplayHome.fromJson(Map<String, dynamic>.from(j)) : null;
+  }
+
+  /// The last page of [chan] seen, at once, or null.
+  Future<ReplayChannelPage?> channelSaved(String chan) async {
+    final j = await VjodSnapshots.read(_snapKey('chan:$chan'));
     return j is Map ? ReplayChannelPage.fromJson(Map<String, dynamic>.from(j)) : null;
   }
 

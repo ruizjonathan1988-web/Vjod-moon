@@ -408,11 +408,19 @@ class _MaTvReplayMineScreenState extends State<MaTvReplayMineScreen> {
   @override
   void initState() {
     super.initState();
+    unawaited(_client.homeSaved().then((h) {
+      if (h != null && mounted && _loading) {
+        setState(() {
+          _home = h;
+          _loading = false;
+        });
+      }
+    }));
     unawaited(_load(markSeen: true));
   }
 
   Future<void> _load({bool markSeen = false}) async {
-    final h = await _client.home();
+    final h = await _client.home() ?? _home;
     // Seen once the « NOUVEAU » marks are on screen: next time, only what
     // aired since.
     if (markSeen) unawaited(_client.setPref(seen: true));
@@ -559,11 +567,19 @@ class _MaTvReplayChannelScreenState extends State<MaTvReplayChannelScreen> {
   @override
   void initState() {
     super.initState();
+    unawaited(_client.channelSaved(widget.chan).then((p) {
+      if (p != null && mounted && _loading) {
+        setState(() {
+          _page = p;
+          _loading = false;
+        });
+      }
+    }));
     unawaited(_load());
   }
 
   Future<void> _load() async {
-    final p = await _client.channel(widget.chan);
+    final p = await _client.channel(widget.chan) ?? _page;
     if (!mounted) return;
     setState(() {
       _page = p;
