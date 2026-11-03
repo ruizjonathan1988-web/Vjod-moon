@@ -937,6 +937,11 @@ class HomeViewModel extends ChangeNotifier {
       );
 
       _saveRowCache();
+      // The Replay row comes with « Continuer », whatever its form; without
+      // it, it still finds its place.
+      if (!showMergedResume && !_rows.any((r) => r.id == replayRowId)) {
+        unawaited(refreshReplay());
+      }
       unawaited(StartupTimeline.finish('Toutes les rangées chargées'));
       _topShelf.update(_rows);
       _watchNext.update(_rows);
@@ -1355,34 +1360,55 @@ class HomeViewModel extends ChangeNotifier {
     } catch (_) {
       return null;
     }
+    AggregatedItem replayCard(IptvProgress p) => AggregatedItem(
+      id: 'iptv-replay-${p.id}',
+      serverId: 'seerr',
+      rawData: {
+        'Name': p.name,
+        'Type': 'Folder',
+        'Overview': '',
+        'BackdropPath': p.poster,
+        vjodWhyKey: 'Replay · reste ${(p.duration - p.position).inMinutes.clamp(1, 999)} min',
+        'UserData': {'PlayedPercentage': p.fraction * 100},
+        iptvResumeKey: {'kind': 'replay', 'id': p.id, 'name': p.name, 'poster': p.poster},
+      },
+    );
     final cards = [
       for (final p in list)
-        AggregatedItem(
-          id: p.tmdb.isNotEmpty ? p.tmdb : 'iptv-${p.kind}-${p.id}',
-          serverId: 'seerr',
-          rawData: {
-            'Name': p.isSeries && p.season > 0
-                ? '${p.name} · S${p.season} É${p.episode}'
-                : p.name,
-            'Type': p.isSeries ? 'Series' : 'Movie',
-            'PosterPath': p.poster,
-            'SeerrMediaType': p.isSeries ? 'tv' : 'movie',
-            if (!p.done) 'UserData': {'PlayedPercentage': p.fraction * 100},
-            iptvResumeKey: {
-              'kind': p.kind,
-              'id': p.id,
-              'name': p.name,
-              'poster': p.poster,
-              'tmdb': p.tmdb,
-              'ext': p.ext,
+        if (p.kind == 'replay')
+          if (p.resumable) replayCard(p) else ...const <AggregatedItem>[]
+        else
+          AggregatedItem(
+            id: p.tmdb.isNotEmpty ? p.tmdb : 'iptv-${p.kind}-${p.id}',
+            serverId: 'seerr',
+            rawData: {
+              'Name': p.isSeries && p.season > 0
+                  ? '${p.name} · S${p.season} É${p.episode}'
+                  : p.name,
+              'Type': p.isSeries ? 'Series' : 'Movie',
+              'PosterPath': p.poster,
+              'SeerrMediaType': p.isSeries ? 'tv' : 'movie',
+              if (!p.done) 'UserData': {'PlayedPercentage': p.fraction * 100},
+              iptvResumeKey: {
+                'kind': p.kind,
+                'id': p.id,
+                'name': p.name,
+                'poster': p.poster,
+                'tmdb': p.tmdb,
+                'ext': p.ext,
+              },
             },
-          },
-        ),
+          ),
     ];
+    final replays = list.where((p) => p.kind == 'replay' && p.resumable).length;
     if (cards.isEmpty) return null;
     return _seerrRow(
       iptvResumeRowId,
-      'Reprendre (IPTV)',
+      replays == 0
+          ? 'Reprendre (IPTV)'
+          : replays == cards.length
+          ? 'Reprendre (replay)'
+          : 'Reprendre (IPTV et replay)',
       cards,
       totalCount: cards.length,
     );
@@ -1470,7 +1496,7 @@ class HomeViewModel extends ChangeNotifier {
     } else {
       var after = _rows.indexWhere((r) => r.id == iptvResumeRowId);
       if (after < 0) after = _rows.indexWhere((r) => r.rowType == HomeRowType.resume);
-      if (after < 0) return;
+      // No « Continuer » on this Home: first of the rows.
       _rows = List.of(_rows)..insert(after + 1, row);
     }
     notifyListeners();

@@ -334,11 +334,13 @@ class Destinations {
     required String url,
     String title = '',
     IptvWatch? watch,
+    bool adSkip = false,
   }) => Uri(
     path: providerPlayerPath,
     queryParameters: {
       'url': url,
       if (title.isNotEmpty) 'title': title,
+      if (adSkip) 'ads': '1',
       ...?watch?.toQuery(),
     },
   ).toString();

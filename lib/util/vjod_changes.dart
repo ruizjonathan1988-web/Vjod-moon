@@ -20,6 +20,10 @@ const vjodReleases = <VjodRelease>[
     'Page d\u2019une chaîne comme sur la maquette : « Hier soir » en grand avec son résumé, une rangée par émission, puis « Jour par jour ».',
     '« Mes émissions » : la chaîne et « NOUVEAU » sur chaque épisode, un bouton « Infos » ; au premier jour, « Suis tes émissions en un appui ». Sur la fiche : « Épisode suivant ».',
     'Sur l\u2019Accueil, « Mes émissions » dit combien de nouveaux épisodes et lesquels, et une chaîne épinglée le montre.',
+    'Un replay commencé revient dans « Reprendre » et repart où il s\u2019était arrêté, sur tous les appareils.',
+    'La meilleure source d\u2019abord : l\u2019épisode de ta bibliothèque s\u2019il y est, sinon le replay de la chaîne, sinon la diffusion enregistrée par ton fournisseur (« Passer la pub » saute 3 min), l\u2019appli de la chaîne en dernier. « Autres sources » sur la fiche pour choisir (dont la VOD du fournisseur et Seerr).',
+    '« Mes émissions » propose à suivre ce que tu as regardé en direct ces derniers jours (Ma TV 3.63).',
+    'La rangée « Replay » trouve sa place même sans « Continuer » sur l\u2019Accueil.',
   ]),
   VjodRelease('4.18', [
     'Replay des chaînes dans VJOD : une rangée « Replay » sur l\u2019Accueil avec « Mes émissions » et une tuile par chaîne (Arte, France 2, 3, 4, 5), jusqu\u2019à 3 semaines, sans passer par l\u2019IPTV.',

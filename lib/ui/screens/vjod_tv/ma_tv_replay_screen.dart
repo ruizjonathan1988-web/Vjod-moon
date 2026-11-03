@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../data/services/vjod/iptv_progress.dart' show IptvWatch;
 import '../../../data/services/vjod/ma_tv_replay.dart';
 import '../../../preference/user_preferences.dart';
 import '../../../util/platform_detection.dart';
@@ -20,21 +21,55 @@ const _ink = Color(0xFFEDEBE6);
 const _mute = Color(0xFFB8B4AC);
 const _bg = Color(0xFF0B0B0D);
 
-/// Plays [item]: in VJOD when the channel serves this device a readable
-/// stream, else in the channel's app (said in one line first).
+IptvWatch _watchOf(ReplayItem item) => IptvWatch(
+  kind: 'replay',
+  id: item.id,
+  name: item.show,
+  poster: item.image,
+);
+
+String _titleOf(ReplayItem item) =>
+    item.title.isEmpty || item.title == item.show ? item.show : '${item.show} · ${item.title}';
+
+/// Plays [item] from its best source: the episode in the library when it is
+/// there (no ads, kept), else the channel's replay in VJOD, else the IPTV
+/// recording of the broadcast (« Passer la pub »), the channel's app last.
+/// A replay keeps its place on Ma TV: it comes back in « Reprendre ».
 Future<void> playReplay(BuildContext context, ReplayItem item) async {
   final messenger = ScaffoldMessenger.maybeOf(context);
-  messenger?.showSnackBar(const SnackBar(content: Text('Ouverture…'), duration: Duration(seconds: 2)));
-  final play = await MaTvReplay().playback(item);
+  messenger?.showSnackBar(const SnackBar(content: Text('Ouverture…'), duration: Duration(seconds: 3)));
+  final lib = await ReplaySources.library(item).timeout(const Duration(seconds: 3), onTimeout: () => null);
   if (!context.mounted) return;
-  messenger?.hideCurrentSnackBar();
-  final title = item.title.isEmpty || item.title == item.show ? item.show : '${item.show} · ${item.title}';
-  if (play.inVjod) {
-    unawaited(context.push(Destinations.providerPlayer(url: play.url!, title: title)));
+  if (lib != null && lib.episode) {
+    messenger?.hideCurrentSnackBar();
+    unawaited(context.push(lib.route));
     return;
   }
+  final play = await MaTvReplay().playback(item);
+  if (!context.mounted) return;
+  if (play.inVjod) {
+    messenger?.hideCurrentSnackBar();
+    unawaited(context.push(Destinations.providerPlayer(url: play.url!, title: _titleOf(item), watch: _watchOf(item))));
+    return;
+  }
+  final iptv = await ReplaySources.iptv(item);
+  if (!context.mounted) return;
+  messenger?.hideCurrentSnackBar();
+  if (iptv != null) {
+    messenger?.showSnackBar(const SnackBar(
+      content: Text('Le replay de la chaîne ne se lit pas ici : la diffusion enregistrée par ton fournisseur prend le relais.'),
+      duration: Duration(seconds: 4),
+    ));
+    unawaited(context.push(Destinations.providerPlayer(url: '$iptv', title: _titleOf(item), watch: _watchOf(item), adSkip: true)));
+    return;
+  }
+  await _openApp(context, item, play.reason);
+}
+
+Future<void> _openApp(BuildContext context, ReplayItem item, String? reason) async {
+  final messenger = ScaffoldMessenger.maybeOf(context);
   messenger?.showSnackBar(SnackBar(
-    content: Text(play.reason == 'chiffré'
+    content: Text(reason == 'chiffré'
         ? 'Cet épisode est protégé : il s’ouvre dans l’appli de la chaîne.'
         : 'Lecture impossible ici : ouverture dans l’appli de la chaîne.'),
     duration: const Duration(seconds: 4),
@@ -42,6 +77,44 @@ Future<void> playReplay(BuildContext context, ReplayItem item) async {
   final opened = await MaTvReplay.openOfficial(item, tv: PlatformDetection.isTV);
   if (!opened) {
     messenger?.showSnackBar(const SnackBar(content: Text('Ni la vidéo ni l’appli de la chaîne n’ont pu s’ouvrir.')));
+  }
+}
+
+/// A replay picked up from « Reprendre »: the episode found again on Ma TV,
+/// then played from its source (the player goes back to the saved place).
+Future<void> resumeReplay(BuildContext context, String id) async {
+  final item = await MaTvReplay().item(id);
+  if (!context.mounted) return;
+  if (item == null) {
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      const SnackBar(content: Text('Cet épisode n’est plus au replay de la chaîne.')),
+    );
+    return;
+  }
+  await playReplay(context, item);
+}
+
+/// One source of « Autres sources » chosen by hand.
+Future<void> _useSource(BuildContext context, ReplayItem e, ReplaySource s) async {
+  switch (s.kind) {
+    case 'library' || 'vod' || 'seerr':
+      unawaited(context.push(s.route!));
+    case 'iptv':
+      unawaited(context.push(Destinations.providerPlayer(url: '${s.stream}', title: _titleOf(e), watch: _watchOf(e), adSkip: true)));
+    case 'app':
+      await _openApp(context, e, null);
+    default:
+      final play = await MaTvReplay().playback(e);
+      if (!context.mounted) return;
+      if (play.inVjod) {
+        unawaited(context.push(Destinations.providerPlayer(url: play.url!, title: _titleOf(e), watch: _watchOf(e))));
+      } else {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
+          content: Text(play.reason == 'chiffré'
+              ? 'Le replay de la chaîne est protégé pour cet épisode.'
+              : 'Le replay de la chaîne ne répond pas pour cet épisode.'),
+        ));
+      }
   }
 }
 
@@ -67,10 +140,11 @@ Widget _episodeCard(
   double width = 260,
   List<ReplayItem> siblings = const [],
   String chanName = '',
+  bool chanChip = false,
   bool infos = false,
   VoidCallback? afterChange,
 }) {
-  void sheet() => unawaited(showReplaySheet(context, e, siblings: siblings, afterChange: afterChange));
+  void sheet() => unawaited(showReplaySheet(context, e, siblings: siblings, chanName: chanName, afterChange: afterChange));
   final card = MediaCard(
     title: e.show,
     subtitle: '${e.dayLabel}${e.subtitle.isNotEmpty && e.subtitle != e.dayLabel ? ' · ${e.subtitle}' : ''}',
@@ -80,9 +154,9 @@ Widget _episodeCard(
     itemType: 'Episode',
     focusColor: _focusColor(),
     autofocus: autofocus,
-    overlayOccupiesTopLeft: chanName.isNotEmpty,
+    overlayOccupiesTopLeft: chanChip && chanName.isNotEmpty,
     imageOverlays: [
-      if (chanName.isNotEmpty) Positioned(top: 8, left: 8, child: _chip(chanName)),
+      if (chanChip && chanName.isNotEmpty) Positioned(top: 8, left: 8, child: _chip(chanName)),
       if (e.isNew) Positioned(top: 8, right: 8, child: _chip('NOUVEAU', bg: const Color(0xFFE5484D), fg: Colors.white)),
     ],
     onTap: () => unawaited(playReplay(context, e)),
@@ -113,12 +187,14 @@ Future<void> showReplaySheet(
   BuildContext context,
   ReplayItem e, {
   List<ReplayItem> siblings = const [],
+  String chanName = '',
   VoidCallback? afterChange,
 }) async {
   final client = MaTvReplay();
   var followed = e.followed;
   final next = nextEpisode(e, siblings);
-  final meta = [e.dayLabel, if (e.subtitle != e.dayLabel) e.subtitle].where((s) => s.isNotEmpty).join(' · ');
+  final meta = [chanName, e.dayLabel, if (e.subtitle != e.dayLabel) e.subtitle].where((s) => s.isNotEmpty).join(' · ');
+  final sources = ReplaySources.all(e, chanName: chanName);
   await showDialog<void>(
     context: context,
     builder: (ctx) => StatefulBuilder(
@@ -136,9 +212,58 @@ Future<void> showReplaySheet(
         ),
         content: SizedBox(
           width: 560,
-          child: e.description.isEmpty
-              ? const SizedBox.shrink()
-              : Text(e.description, maxLines: 7, overflow: TextOverflow.ellipsis, style: const TextStyle(color: _ink, fontSize: 15)),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (e.description.isNotEmpty)
+                  Text(e.description, maxLines: 7, overflow: TextOverflow.ellipsis, style: const TextStyle(color: _ink, fontSize: 15)),
+                const SizedBox(height: 16),
+                const Text('AUTRES SOURCES', style: TextStyle(color: _mute, fontSize: 12, letterSpacing: 1.5, fontWeight: FontWeight.w800)),
+                const Text('La meilleure est déjà choisie. Les autres, au cas où.', style: TextStyle(color: _mute, fontSize: 13)),
+                const SizedBox(height: 6),
+                FutureBuilder<List<ReplaySource>>(
+                  future: sources,
+                  builder: (_, snap) {
+                    final list = snap.data;
+                    if (list == null) {
+                      return const Padding(padding: EdgeInsets.all(10), child: LinearProgressIndicator());
+                    }
+                    return Column(
+                      children: [
+                        for (final src in list)
+                          ListTile(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            title: Row(
+                              children: [
+                                Flexible(child: Text(src.name, style: const TextStyle(color: _ink, fontWeight: FontWeight.w700))),
+                                if (src.tag.isNotEmpty) ...[
+                                  const SizedBox(width: 8),
+                                  Text(src.tag,
+                                      style: TextStyle(
+                                        color: src.tag == 'avec pub' ? const Color(0xFFF0C27A) : _mute,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                      )),
+                                ],
+                              ],
+                            ),
+                            subtitle: Text(src.detail, style: const TextStyle(color: _mute, fontSize: 12)),
+                            trailing: const Icon(Icons.chevron_right_rounded, color: _mute),
+                            onTap: () {
+                              Navigator.of(ctx).pop();
+                              unawaited(_useSource(context, e, src));
+                            },
+                          ),
+                      ],
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
         ),
         actions: [
           FilledButton.icon(
@@ -203,13 +328,14 @@ Widget _rowTitle(String title, {String count = '', bool followed = false}) => Pa
   ),
 );
 
-Widget _episodeRow(BuildContext context, List<ReplayItem> items, {bool autofocusFirst = false, VoidCallback? afterChange}) => SizedBox(
+Widget _episodeRow(BuildContext context, List<ReplayItem> items, {bool autofocusFirst = false, String chanName = '', VoidCallback? afterChange}) => SizedBox(
   height: 230,
   child: ListView.separated(
     scrollDirection: Axis.horizontal,
     itemCount: items.length,
     separatorBuilder: (_, _) => const SizedBox(width: 16),
-    itemBuilder: (context, i) => _episodeCard(context, items[i], autofocus: autofocusFirst && i == 0, siblings: items, afterChange: afterChange),
+    itemBuilder: (context, i) =>
+        _episodeCard(context, items[i], autofocus: autofocusFirst && i == 0, siblings: items, chanName: chanName, afterChange: afterChange),
   ),
 );
 
@@ -301,20 +427,32 @@ class _MaTvReplayMineScreenState extends State<MaTvReplayMineScreen> {
     return chan;
   }
 
+  static const _weekdays = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
+
+  /// « vu en direct lundi », else « à la une ».
+  String _why(ReplayItem e) {
+    final at = e.liveAt;
+    if (at == null) return 'à la une · ${e.dayLabel}';
+    final ago = DateTime.now().difference(DateTime(at.year, at.month, at.day)).inDays;
+    return 'vu en direct ${ago <= 0 ? 'aujourd\u2019hui' : ago == 1 ? 'hier' : _weekdays[at.weekday - 1]}';
+  }
+
   Widget _start(ReplayHome h) {
     final seen = <String>{};
     final shows = [
-      for (final e in h.featured)
+      for (final e in [...h.suggest, ...h.featured])
         if (seen.add(e.show)) e,
-    ];
+    ].take(14).toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text('Suis tes émissions en un appui', style: TextStyle(color: _ink, fontSize: 22, fontWeight: FontWeight.w800)),
         const SizedBox(height: 4),
-        const Text(
-          'Ce que les chaînes mettent à la une. Une émission suivie remonte ici à chaque nouvel épisode.',
-          style: TextStyle(color: _mute),
+        Text(
+          h.suggest.isNotEmpty
+              ? 'Ce que tu as regardé en direct ces derniers jours. Une émission suivie remonte ici à chaque nouvel épisode.'
+              : 'Ce que les chaînes mettent à la une. Une émission suivie remonte ici à chaque nouvel épisode.',
+          style: const TextStyle(color: _mute),
         ),
         const SizedBox(height: 14),
         for (var i = 0; i < shows.length; i++)
@@ -329,7 +467,7 @@ class _MaTvReplayMineScreenState extends State<MaTvReplayMineScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(shows[i].show, style: const TextStyle(color: _ink, fontSize: 17, fontWeight: FontWeight.w700)),
-                      Text('à la une · ${shows[i].dayLabel}', style: const TextStyle(color: _mute, fontSize: 13)),
+                      Text(_why(shows[i]), style: const TextStyle(color: _mute, fontSize: 13)),
                     ],
                   ),
                 ),
@@ -388,6 +526,7 @@ class _MaTvReplayMineScreenState extends State<MaTvReplayMineScreen> {
                     autofocus: i == 0,
                     siblings: mine,
                     chanName: _chanName(mine[i].chan),
+                    chanChip: true,
                     infos: true,
                     afterChange: _load,
                   ),
@@ -439,7 +578,8 @@ class _MaTvReplayChannelScreenState extends State<MaTvReplayChannelScreen> {
     return LayoutBuilder(
       builder: (context, box) {
         final wide = box.maxWidth > 700;
-        final picture = _episodeCard(context, prime, autofocus: true, width: wide ? 460 : box.maxWidth, siblings: siblings, afterChange: _load);
+        final picture = _episodeCard(context, prime,
+            autofocus: true, width: wide ? 460 : box.maxWidth, siblings: siblings, chanName: widget.name, afterChange: _load);
         final text = Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -460,7 +600,7 @@ class _MaTvReplayChannelScreenState extends State<MaTvReplayChannelScreen> {
                   label: const Text('Regarder'),
                 ),
                 OutlinedButton(
-                  onPressed: () => unawaited(showReplaySheet(context, prime, siblings: siblings, afterChange: _load)),
+                  onPressed: () => unawaited(showReplaySheet(context, prime, siblings: siblings, chanName: widget.name, afterChange: _load)),
                   child: const Text('Infos'),
                 ),
               ],
@@ -492,7 +632,7 @@ class _MaTvReplayChannelScreenState extends State<MaTvReplayChannelScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        _episodeRow(context, day.items, afterChange: _load),
+        _episodeRow(context, day.items, chanName: widget.name, afterChange: _load),
       ],
     );
   }
@@ -514,7 +654,8 @@ class _MaTvReplayChannelScreenState extends State<MaTvReplayChannelScreen> {
                 if (prime != null) ...[_prime(p, prime), const SizedBox(height: 28)],
                 for (final s in p.shows) ...[
                   _rowTitle(s.show, count: '${s.items.length} épisode${s.items.length > 1 ? 's' : ''}', followed: s.followed),
-                  _episodeRow(context, s.items, autofocusFirst: prime == null && s == p.shows.first, afterChange: _load),
+                  _episodeRow(context, s.items,
+                      autofocusFirst: prime == null && s == p.shows.first, chanName: widget.name, afterChange: _load),
                   const SizedBox(height: 18),
                 ],
                 if (p.days.isNotEmpty) _days(p),
