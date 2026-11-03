@@ -51,6 +51,7 @@ import '../../../data/services/trakt/trakt_client.dart';
 import '../../../data/services/vjod/vjod_collection_service.dart';
 import '../../../data/services/vjod/iptv_progress.dart';
 import '../../../data/services/vjod/ma_tv_replay.dart';
+import '../../../data/services/vjod/ma_tv_reports.dart';
 import '../../../data/services/vjod/vjod_collections.dart';
 import '../../../data/services/vjod/vjod_personalizer.dart';
 import '../../../data/services/tonight/evening_journal.dart';
@@ -1415,6 +1416,7 @@ class HomeViewModel extends ChangeNotifier {
   }
 
   static const replayRowId = 'vjod_replay';
+  bool _replayRetried = false;
 
   /// On a card of the Replay row: `kind` (`mine` or `chan`), `chan`, `name`.
   static const replayKey = 'VjodReplay';
@@ -1423,13 +1425,31 @@ class HomeViewModel extends ChangeNotifier {
   /// then a tile per channel with its new episodes, in this week's order.
   /// Nothing when Ma TV has no replay (older than 3.62, or none reachable).
   Future<HomeRow?> _loadReplayRow() async {
-    final ReplayHome? home;
     try {
-      home = await MaTvReplay().home().timeout(const Duration(seconds: 8), onTimeout: () => null);
-    } catch (_) {
+      return await _loadReplayRowOrFail();
+    } catch (e, st) {
+      // VJOD 4.21: never silent again, the Ma TV page says why.
+      MaTvReports.instance.report(
+        MaTvReport(kind: 'error', message: 'Replay : la rangée de l\u2019Accueil n\u2019a pas pu se faire : $e', stack: '$st'.split('\n').take(12).join('\n'), where: 'replay'),
+        key: 'replay|row|$e',
+      );
       return null;
     }
-    if (home == null || home.isEmpty) return null;
+  }
+
+  Future<HomeRow?> _loadReplayRowOrFail() async {
+    final client = MaTvReplay();
+    final home = await client.home().timeout(const Duration(seconds: 15), onTimeout: () => null);
+    if (home == null || home.isEmpty) {
+      final why = home == null
+          ? (client.lastError.isEmpty ? 'pas de réponse de Ma TV en 15 s' : client.lastError)
+          : 'Ma TV n\u2019a aucun épisode au replay';
+      MaTvReports.instance.report(
+        MaTvReport(kind: 'error', message: 'Replay : rien sur l\u2019Accueil, $why', where: 'replay'),
+        key: 'replay|empty|$why',
+      );
+      return null;
+    }
     final chans = await ReplayOrder.sort([for (final c in home.channels) if (c.count > 0) c]);
     final logos = await replayLogos(chans);
     final pins = await ReplayOrder.pins();
@@ -1483,6 +1503,12 @@ class HomeViewModel extends ChangeNotifier {
   Future<void> refreshReplay() async {
     final row = await _loadReplayRow();
     final index = _rows.indexWhere((r) => r.id == replayRowId);
+    if (row == null && index < 0 && !_replayRetried) {
+      // Just after launch Ma TV's address may still be on its way from
+      // Jellyfin: one more try a little later.
+      _replayRetried = true;
+      Timer(const Duration(seconds: 12), () => unawaited(refreshReplay()));
+    }
     if (row == null) {
       if (index >= 0) {
         _rows = List.of(_rows)..removeAt(index);

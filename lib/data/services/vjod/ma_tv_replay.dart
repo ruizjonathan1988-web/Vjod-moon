@@ -252,15 +252,31 @@ class MaTvReplay {
   TvSourcesServer? get server => _server ?? TvSourcesClient().server;
   String get _user => MaTvClient().user ?? '';
 
+  /// Why the last call came back empty (« Ma TV a répondu 404 », « pas de
+  /// réponse en 12 s »…), for the report the Home row sends.
+  String lastError = '';
+
   Future<Object?> _get(String path, [Map<String, String> query = const {}]) async {
     final s = server;
-    if (s == null) return null;
+    if (s == null) {
+      lastError = 'pas de serveur Ma TV réglé sur cet appareil';
+      return null;
+    }
     try {
       final uri = s.endpoint(path, {...query, if (_user.isNotEmpty) 'u': _user});
       final r = await VjodTimings.time('Ma TV', (_http?.get(uri) ?? http.get(uri)).timeout(_timeout), what: path);
-      if (r.statusCode != 200) return null;
+      if (r.statusCode != 200) {
+        final body = utf8.decode(r.bodyBytes, allowMalformed: true);
+        lastError = 'Ma TV a répondu ${r.statusCode} à $path${body.isEmpty ? '' : ' : ${body.length > 160 ? body.substring(0, 160) : body}'}';
+        return null;
+      }
+      lastError = '';
       return jsonDecode(utf8.decode(r.bodyBytes));
-    } catch (_) {
+    } on TimeoutException {
+      lastError = 'pas de réponse de Ma TV en ${_timeout.inSeconds} s à $path';
+      return null;
+    } catch (e) {
+      lastError = '$path : $e';
       return null;
     }
   }
