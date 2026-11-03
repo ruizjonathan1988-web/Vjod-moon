@@ -37,6 +37,7 @@ class _PlaybackCategoryScreen extends StatelessWidget {
                   ),
                 ],
               ),
+              if (VjodBackgroundPlayback.supported) const _VjodBackgroundTile(),
               _SectionHeader(l10n.settingsAudioAndSubtitlesSection),
               adaptiveListSection(
                 children: [
@@ -152,6 +153,51 @@ class _PlaybackCategoryScreen extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+
+/// « Écran éteint ou appli réduite » (VJOD 4.17): Ma TV channels and IPTV
+/// films play on, with a notification to pause or stop.
+class _VjodBackgroundTile extends StatefulWidget {
+  const _VjodBackgroundTile();
+
+  @override
+  State<_VjodBackgroundTile> createState() => _VjodBackgroundTileState();
+}
+
+class _VjodBackgroundTileState extends State<_VjodBackgroundTile> {
+  @override
+  Widget build(BuildContext context) {
+    final on = VjodBackgroundPlayback.enabled;
+    Future<void> set(bool v) async {
+      await VjodBackgroundPlayback.setEnabled(v);
+      if (mounted) setState(() {});
+    }
+
+    return adaptiveListSection(
+      children: [
+        _TvSettingsListTile(
+          leading: const Icon(Icons.headphones_rounded),
+          title: Text(vjodText(
+            context,
+            fr: 'Continuer écran éteint ou appli réduite',
+            en: 'Keep playing with the screen off or the app in the background',
+            ru: 'Играть с выключенным экраном или в фоне',
+            zh: '熄屏或后台时继续播放',
+          )),
+          subtitle: Text(vjodText(
+            context,
+            fr: 'Chaînes de Ma TV et films IPTV : le son continue, une notification permet de mettre en pause ou d\'arrêter',
+            en: 'Ma TV channels and IPTV films: the sound goes on, a notification pauses or stops it',
+            ru: 'Каналы Ma TV и IPTV-фильмы: звук продолжается, уведомление ставит на паузу',
+            zh: 'Ma TV 频道和 IPTV 影片：声音继续，可在通知中暂停或停止',
+          )),
+          trailing: Switch(value: on, onChanged: (v) => unawaited(set(v))),
+          onTap: () => unawaited(set(!on)),
+        ),
+      ],
     );
   }
 }

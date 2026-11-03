@@ -14,6 +14,7 @@ import 'package:get_it/get_it.dart';
 
 import '../../../data/services/vjod/ma_tv.dart';
 import '../../../platform/pip_service.dart';
+import '../../../data/services/vjod/background_playback.dart';
 import '../../../data/services/vjod/ma_tv_multiview.dart';
 import '../../../data/services/vjod/ma_tv_recordings.dart';
 import '../../../data/services/vjod/ma_tv_reports.dart';
@@ -185,6 +186,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     setImmersive(true);
     _screensaver(true);
     _startPip();
+    _startBackground();
     _engine = WebTvEngine.wanted
         ? (_apple = _attach(WebTvEngine()))
         : AppleTvEngine.wanted
@@ -393,6 +395,24 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     }));
   }
 
+  /// Screen off or app reduced: the channel plays on, with its notification.
+  void _startBackground() {
+    final ch = _list.isEmpty ? null : _channel;
+    unawaited(VjodBackgroundPlayback.start(
+      this,
+      title: ch == null ? 'VJOD' : '${ch.number}  ${ch.name}',
+      text: ch?.programAt(DateTime.now())?.title ?? 'TV en direct',
+      onCommand: (cmd) {
+        if (!mounted) return;
+        if (cmd == 'playPause') {
+          unawaited(_engine.playOrPause());
+        } else if (cmd == 'stop') {
+          Navigator.of(context).maybePop();
+        }
+      },
+    ));
+  }
+
   void _stopPip() {
     for (final s in _pipSubs) {
       unawaited(s.cancel());
@@ -405,6 +425,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
   @override
   void dispose() {
     _stopPip();
+    unawaited(VjodBackgroundPlayback.stop(this));
     _screensaver(false);
     for (final t in [_clock, _zapTimer, _bannerTimer, _watchdog, _summaryTimer, _numberTimer, _refreshTimer, _seekTimer, _freezeTimer, _sportsTimer, _flashTimer, _sportSoon]) {
       t?.cancel();
@@ -433,6 +454,14 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
   }
 
   void _tune({bool immediate = false}) {
+    if (_list.isNotEmpty) {
+      final ch = _channel;
+      unawaited(VjodBackgroundPlayback.update(
+        this,
+        title: '${ch.number}  ${ch.name}',
+        text: ch.programAt(DateTime.now())?.title ?? 'TV en direct',
+      ));
+    }
     if (_list.isEmpty) return;
     _replaying = null;
     _delay = Duration.zero;

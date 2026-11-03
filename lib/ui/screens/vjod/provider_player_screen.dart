@@ -35,6 +35,7 @@ import 'vod_engine.dart';
 import '../../../util/vjod_log.dart';
 import '../../../util/platform_detection.dart';
 import '../../../platform/pip_service.dart';
+import '../../../data/services/vjod/background_playback.dart';
 
 /// Where each film was left, for this run of the app, so leaving by mistake
 /// and coming back picks up there.
@@ -169,6 +170,20 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
     super.initState();
     unawaited(loadSupportNumber());
     _startPip();
+    // Screen off or app reduced: the film plays on, with its notification.
+    unawaited(VjodBackgroundPlayback.start(
+      this,
+      title: widget.title.isEmpty ? 'VJOD' : widget.title,
+      text: 'IPTV',
+      onCommand: (cmd) {
+        if (!mounted) return;
+        if (cmd == 'playPause') {
+          unawaited(_engine.playOrPause());
+        } else if (cmd == 'stop') {
+          Navigator.of(context).maybePop();
+        }
+      },
+    ));
     setImmersive(true);
     GetIt.instance<ScreensaverController>().setPlaybackActive(true);
     // In a browser, its own player; the apps keep ExoPlayer / mpv as before.
@@ -499,6 +514,7 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
 
   @override
   void dispose() {
+    unawaited(VjodBackgroundPlayback.stop(this));
     for (final s in _pipSubs) {
       unawaited(s.cancel());
     }
