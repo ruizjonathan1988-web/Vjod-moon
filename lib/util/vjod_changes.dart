@@ -17,6 +17,9 @@ class VjodRelease {
 const vjodReleases = <VjodRelease>[
   VjodRelease('4.19', [
     'La rangée « Replay » s\u2019affiche aussi quand « Continuer » regroupe les reprises et les épisodes suivants (elle manquait dans ce cas).',
+    'Page d\u2019une chaîne comme sur la maquette : « Hier soir » en grand avec son résumé, une rangée par émission, puis « Jour par jour ».',
+    '« Mes émissions » : la chaîne et « NOUVEAU » sur chaque épisode, un bouton « Infos » ; au premier jour, « Suis tes émissions en un appui ». Sur la fiche : « Épisode suivant ».',
+    'Sur l\u2019Accueil, « Mes émissions » dit combien de nouveaux épisodes et lesquels, et une chaîne épinglée le montre.',
   ]),
   VjodRelease('4.18', [
     'Replay des chaînes dans VJOD : une rangée « Replay » sur l\u2019Accueil avec « Mes émissions » et une tuile par chaîne (Arte, France 2, 3, 4, 5), jusqu\u2019à 3 semaines, sans passer par l\u2019IPTV.',

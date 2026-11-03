@@ -4513,6 +4513,7 @@ class _ContentRowsState extends State<_ContentRows>
       // The mock-up says what a row is for, not where it comes from.
       return switch (row.id) {
         HomeViewModel.forYouRowId => l10n.vjodForYouSubtitle,
+        HomeViewModel.replayRowId => 'Un appui : tes émissions · ou une chaîne pour explorer',
         'french_movies' => l10n.vjodFrenchSubtitle,
         HomeViewModel.vjodMoodRowId => l10n.localeName.startsWith('fr')
             ? 'Votre humeur colore les rangées jusqu\'à demain matin'

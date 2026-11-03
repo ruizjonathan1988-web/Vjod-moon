@@ -41,6 +41,9 @@ class ReplayItem {
   final bool featured;
   final bool followed;
 
+  /// Aired since this profile last opened « Mes émissions ».
+  final bool isNew;
+
   const ReplayItem({
     required this.id,
     required this.kind,
@@ -56,6 +59,7 @@ class ReplayItem {
     this.episode = 0,
     this.featured = false,
     this.followed = false,
+    this.isNew = false,
   });
 
   factory ReplayItem.fromJson(Map<String, dynamic> j) {
@@ -76,6 +80,7 @@ class ReplayItem {
       episode: n(j['episode']),
       featured: j['featured'] == true,
       followed: j['followed'] == true,
+      isNew: j['new'] == true,
     );
   }
 
@@ -141,12 +146,49 @@ class ReplayShow {
 }
 
 @immutable
+class ReplayDay {
+  final DateTime day;
+  final List<ReplayItem> items;
+  const ReplayDay({required this.day, this.items = const []});
+
+  /// « Aujourd\u2019hui », « Hier », then « Lun. 2 nov. ».
+  String label([DateTime? now]) {
+    final t = now ?? DateTime.now();
+    final today = DateTime(t.year, t.month, t.day);
+    final d = DateTime(day.year, day.month, day.day);
+    final ago = today.difference(d).inDays;
+    if (ago == 0) return 'Aujourd\u2019hui';
+    if (ago == 1) return 'Hier';
+    const wd = ['Lun.', 'Mar.', 'Mer.', 'Jeu.', 'Ven.', 'Sam.', 'Dim.'];
+    const mo = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+    return '${wd[d.weekday - 1]} ${d.day == 1 ? '1er' : d.day} ${mo[d.month - 1]}';
+  }
+}
+
+/// The episode of the same show aired just after [e] in [list] (any order),
+/// or null.
+ReplayItem? nextEpisode(ReplayItem e, Iterable<ReplayItem> list) {
+  final at = e.aired;
+  if (at == null) return null;
+  ReplayItem? best;
+  for (final x in list) {
+    final t = x.aired;
+    if (x.id == e.id || x.show != e.show || t == null || !t.isAfter(at)) continue;
+    if (best == null || t.isBefore(best.aired!)) best = x;
+  }
+  return best;
+}
+
+@immutable
 class ReplayChannelPage {
   final String chan;
   final String name;
   final ReplayItem? prime;
   final List<ReplayShow> shows;
-  const ReplayChannelPage({required this.chan, required this.name, this.prime, this.shows = const []});
+
+  /// Day by day, the latest first.
+  final List<ReplayDay> days;
+  const ReplayChannelPage({required this.chan, required this.name, this.prime, this.shows = const [], this.days = const []});
 
   factory ReplayChannelPage.fromJson(Map<String, dynamic> j) => ReplayChannelPage(
     chan: '${j['chan'] ?? ''}',
@@ -156,6 +198,11 @@ class ReplayChannelPage {
       for (final s in (j['shows'] as List? ?? const []))
         if (s is Map)
           ReplayShow(show: '${s['show']}', followed: s['followed'] == true, items: _items(s['items'])),
+    ],
+    days: [
+      for (final d in (j['days'] as List? ?? const []))
+        if (d is Map && DateTime.tryParse('${d['day']}') != null)
+          ReplayDay(day: DateTime.parse('${d['day']}'), items: _items(d['items'])),
     ],
   );
 }

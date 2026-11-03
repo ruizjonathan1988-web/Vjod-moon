@@ -147,4 +147,33 @@ void main() {
     expect(replayNameKey('france-2'), 'france2');
     expect(replayNameKey('ARTE FHD'), 'arte');
   });
+
+  test('page de chaîne : jour par jour, et l’épisode suivant', () {
+    final page = ReplayChannelPage.fromJson({
+      'chan': 'france-2',
+      'name': 'France 2',
+      'shows': [
+        {
+          'show': 'Envoyé spécial',
+          'items': [
+            {'id': 'b', 'show': 'Envoyé spécial', 'aired': DateTime(2026, 10, 29, 21).millisecondsSinceEpoch ~/ 1000},
+            {'id': 'a', 'show': 'Envoyé spécial', 'aired': DateTime(2026, 10, 22, 21).millisecondsSinceEpoch ~/ 1000, 'new': true},
+          ],
+        },
+      ],
+      'days': [
+        {'day': '2026-11-02', 'items': []},
+        {'day': '2026-11-01', 'items': []},
+        {'day': '2026-10-29', 'items': [{'id': 'b', 'show': 'Envoyé spécial'}]},
+        {'day': 'n’importe', 'items': []},
+      ],
+    });
+    expect(page.days, hasLength(3));
+    final now = DateTime(2026, 11, 2, 20);
+    expect(page.days.map((d) => d.label(now)), ['Aujourd’hui', 'Hier', 'Jeu. 29 oct.']);
+    final items = page.shows.single.items;
+    expect(items.last.isNew, isTrue);
+    expect(nextEpisode(items.last, items)?.id, 'b');
+    expect(nextEpisode(items.first, items), isNull);
+  });
 }

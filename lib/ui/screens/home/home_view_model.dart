@@ -1406,6 +1406,9 @@ class HomeViewModel extends ChangeNotifier {
     if (home == null || home.isEmpty) return null;
     final chans = await ReplayOrder.sort([for (final c in home.channels) if (c.count > 0) c]);
     final logos = await replayLogos(chans);
+    final pins = await ReplayOrder.pins();
+    final names = <String>{for (final e in home.mine) e.show}.take(3).join(', ');
+    String fresh(int n) => '$n nouveau${n > 1 ? 'x' : ''}';
     String imageOf(String chan) {
       for (final e in [...home!.mine, ...home.featured]) {
         if (e.chan == chan && e.image.isNotEmpty) return e.image;
@@ -1422,9 +1425,9 @@ class HomeViewModel extends ChangeNotifier {
           'Type': 'Folder',
           'Overview': '',
           'BackdropPath': mineImage,
-          vjodWhyKey: home.mineNew > 0
-              ? '${home.mineNew} nouveau${home.mineNew > 1 ? 'x' : ''}'
-              : (home.mine.isEmpty ? 'Choisis tes émissions' : 'À jour'),
+          vjodWhyKey: home.mine.isEmpty
+              ? 'Rien de suivi · choisis en un appui'
+              : [if (home.mineNew > 0) fresh(home.mineNew), names].join(' · '),
           replayKey: {'kind': 'mine'},
         },
       ),
@@ -1437,9 +1440,10 @@ class HomeViewModel extends ChangeNotifier {
             'Type': 'Folder',
             'Overview': '',
             'BackdropPath': logos[c.chan] ?? imageOf(c.chan),
-            vjodWhyKey: c.fresh > 0
-                ? '${c.fresh} nouveau${c.fresh > 1 ? 'x' : ''}'
-                : '${c.count} en replay',
+            vjodWhyKey: [
+              if (pins.contains(c.chan)) '● épinglée',
+              c.fresh > 0 ? fresh(c.fresh) : '${c.count} en replay',
+            ].join(' · '),
             replayKey: {'kind': 'chan', 'chan': c.chan, 'name': c.name},
           },
         ),
