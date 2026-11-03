@@ -20,6 +20,7 @@ import '../../../preference/user_preferences.dart';
 import '../../../util/vjod_build.dart';
 import '../../../util/vjod_log.dart';
 import 'tv_sources.dart';
+import '../../../util/vjod_timings.dart';
 
 /// One thing that went wrong, as Ma TV stores it (`/tv/api/report`).
 @immutable
@@ -266,6 +267,35 @@ class MaTvReports {
     } finally {
       _sending = false;
     }
+  }
+
+  int _timingsSent = -1;
+
+  /// VJOD 4.20: how fast each service answers on this device, for the Ma TV
+  /// page (Ma TV 3.65). Only when something was timed since the last send.
+  Future<void> sendTimings() async {
+    if (!_allowed || !VjodTimings.changedSince(_timingsSent)) return;
+    final server = serverOf();
+    if (server == null) return;
+    final mark = VjodTimings.mark();
+    final s = VjodTimings.summary();
+    if (s.isEmpty) return;
+    try {
+      final body = jsonEncode({
+        ...await _who(),
+        'services': {
+          for (final e in s.entries)
+            e.key: {'median': e.value.median, 'p90': e.value.p90, 'n': e.value.count, 'slow': e.value.slowest},
+        },
+      });
+      final uri = server.endpoint('/tv/api/timings');
+      final client = httpClient;
+      final res = await (client != null
+              ? client.post(uri, headers: {'Content-Type': 'application/json'}, body: body)
+              : http.post(uri, headers: {'Content-Type': 'application/json'}, body: body))
+          .timeout(const Duration(seconds: 10));
+      if (res.statusCode == 200) _timingsSent = mark;
+    } catch (_) {}
   }
 
   /// Which device, which VJOD, which profile: what the Ma TV page shows.

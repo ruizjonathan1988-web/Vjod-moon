@@ -15,6 +15,12 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.20', [
+    'Recherche plus rapide : les résultats arrivent dès qu\u2019on s\u2019arrête de taper, se filtrent à chaque lettre ajoutée, et une recherche déjà faite revient aussitôt ; la bibliothèque n\u2019attend plus Seerr.',
+    'Les listes s\u2019affichent tout de suite, même juste après avoir ouvert l\u2019appli : chaînes et catégories de Ma TV, replay, et première page de Films et Séries. Elles se mettent à jour d\u2019elles-mêmes.',
+    'Réglages → À propos → « Temps de réponse » : combien met Jellyfin, Ma TV, Seerr à répondre sur cet appareil. La page Ma TV les montre pour tous les appareils.',
+    'Le replay prend les mêmes couleurs que le reste de Ma TV.',
+  ]),
   VjodRelease('4.19', [
     'La rangée « Replay » s\u2019affiche aussi quand « Continuer » regroupe les reprises et les épisodes suivants (elle manquait dans ce cas).',
     'Page d\u2019une chaîne comme sur la maquette : « Hier soir » en grand avec son résumé, une rangée par émission, puis « Jour par jour ».',

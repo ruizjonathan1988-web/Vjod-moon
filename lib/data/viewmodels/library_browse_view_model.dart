@@ -13,6 +13,7 @@ import '../../util/parental_rating_severity.dart';
 import '../models/aggregated_item.dart';
 import '../utils/blocked_ratings.dart';
 import '../repositories/mdblist_repository.dart';
+import '../services/vjod/vjod_snapshots.dart';
 import '../services/plugin_sync_service.dart';
 import '../services/user_data_sync.dart';
 import '../services/user_ratings_api.dart';
@@ -540,19 +541,81 @@ class LibraryBrowseViewModel extends ChangeNotifier {
     _posterSize = _readScopedPosterSize();
   }
 
+  /// VJOD 4.20: the first page of this list as it was last seen, kept on
+  /// the device, so the grid comes up at once and the fresh page takes its
+  /// place. Only for a plain browse (no letter, no search, not a playlist).
+  String? get _savedKey {
+    if (isPlaylistBrowse || _letterFilter.isNotEmpty || _searchQuery.trim().isNotEmpty) return null;
+    return [
+      'lib',
+      _client.baseUrl,
+      _client.userId,
+      libraryId,
+      genreId,
+      studioName,
+      overrideName,
+      includeItemTypes?.join(','),
+      favoritesOnly,
+      _sortBy.name,
+      _sortDirection.name,
+      _playedFilter.name,
+      _likedFilter.name,
+      _seriesFilter.name,
+      _favoriteFilter,
+      _libraryFilter,
+      // a child's mode or blocked ratings never get a page saved without them
+      _prefs.get(UserPreferences.kidsModeEnabled),
+      _prefs.get(UserPreferences.blockedParentalRatings),
+    ].join('|');
+  }
+
+  Future<bool> _showSaved() async {
+    final key = _savedKey;
+    if (key == null) return false;
+    final j = await VjodSnapshots.read(key);
+    if (j is! Map || j['items'] is! List || _disposed) return false;
+    final items = [
+      for (final x in j['items'] as List)
+        if (x is Map && x['Id'] != null)
+          AggregatedItem(id: '${x['Id']}', serverId: _client.baseUrl, rawData: Map<String, dynamic>.from(x)),
+    ];
+    if (items.isEmpty) return false;
+    _items = items;
+    _totalCount = (j['total'] as num?)?.toInt() ?? items.length;
+    if ((j['name'] as String?)?.isNotEmpty ?? false) _libraryName = j['name'] as String;
+    _collectionType ??= j['type'] as String?;
+    _state = LibraryBrowseState.ready;
+    notifyListeners();
+    return true;
+  }
+
+  void _saveFirstPage() {
+    final key = _savedKey;
+    if (key == null || _items.isEmpty) return;
+    unawaited(VjodSnapshots.write(key, {
+      'items': [for (final i in _items.take(_firstPageSize)) i.rawData],
+      'total': _totalCount,
+      'name': _libraryName,
+      'type': _collectionType,
+    }));
+  }
+
   Future<void> load() async {
     // Any page walk still running belongs to the list we are about to drop.
     _pageWalkGeneration++;
-    _state = LibraryBrowseState.loading;
-    _items = const [];
-    _totalCount = 0;
     _filteredOutCount = 0;
     _fetchedCount = 0;
     _renderedItemIds.clear();
     _playlistCategoryMap.clear();
     _totalCountKnown = true;
     _hasMoreFromPageSize = false;
-    notifyListeners();
+    final shownSaved = await _showSaved();
+    if (!shownSaved) {
+      _state = LibraryBrowseState.loading;
+      _items = const [];
+      _totalCount = 0;
+      notifyListeners();
+    }
 
     try {
       // Independent of the library lookup, so let it run alongside instead of
@@ -615,10 +678,14 @@ class LibraryBrowseViewModel extends ChangeNotifier {
       await imageTypeSync;
       await _fetchPage(0);
       _state = LibraryBrowseState.ready;
+      _saveFirstPage();
     } catch (e) {
-      _error = e;
-      _isNetworkError = isNetworkException(e);
-      _state = LibraryBrowseState.error;
+      // The saved page stays up when the server can't be reached.
+      if (!shownSaved) {
+        _error = e;
+        _isNetworkError = isNetworkException(e);
+        _state = LibraryBrowseState.error;
+      }
     }
     notifyListeners();
     if (isGrouping || _prefs.get(UserPreferences.showAlphabeticalFilters)) {
@@ -984,10 +1051,10 @@ class LibraryBrowseViewModel extends ChangeNotifier {
     _totalCountKnown = totalFromServer != null;
     if (_totalCountKnown) {
       _totalCount = totalFromServer! + _directoryCount - _filteredOutCount;
-      _hasMoreFromPageSize = _items.length + filtered.length < _totalCount;
+      _hasMoreFromPageSize = (startIndex == 0 ? 0 : _items.length) + filtered.length < _totalCount;
     } else {
       _hasMoreFromPageSize = rawItems.length == pageSize;
-      final loadedCount = _items.length + filtered.length;
+      final loadedCount = (startIndex == 0 ? 0 : _items.length) + filtered.length;
       _totalCount = loadedCount + (_hasMoreFromPageSize ? 1 : 0);
     }
 

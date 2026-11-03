@@ -205,6 +205,28 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
   }
 
   Future<void> _load({bool fresh = false}) async {
+    // VJOD 4.20: the lists last seen come up at once, the fresh ones follow.
+    if (_cats.isEmpty && !fresh) {
+      final saved = await _client.categoriesSaved();
+      if (saved != null && saved.isNotEmpty && mounted && _cats.isEmpty) {
+        final cats = _localCats(saved);
+        final start = maTvStartCategory(cats, widget.kids ? '' : MaTvMemory.lastCategory);
+        final chans = await _savedChannelsOf(cats[start]);
+        if (mounted && _cats.isEmpty) {
+          final last = MaTvMemory.lastChannel;
+          final at = (chans ?? const <MaTvChannel>[]).indexWhere((c) => c.id == last);
+          setState(() {
+            _cats = cats;
+            _cat = start;
+            _column = maTvIsAction(cats[start]) ? 0 : _column;
+            _chans = chans ?? const [];
+            _chan = at >= 0 ? at : 0;
+            _loading = false;
+          });
+          _scrollTo(_chanScroll, _chan, MaTvChannelRow.height + 6);
+        }
+      }
+    }
     setState(() {
       _loading = _cats.isEmpty;
       _failed = false;
@@ -248,16 +270,39 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
     return _client.channels(c.id, fresh: fresh);
   }
 
+  Future<List<MaTvChannel>?> _savedChannelsOf(MaTvCategory c) async {
+    if (_isAction(c) || c.kind == 'fav' || c.kind == 'recent') return null;
+    return _client.channelsSaved(c.id);
+  }
+
   Future<void> _openCategory(int index, {bool fresh = false}) async {
     if (index < 0 || index >= _cats.length) return;
     final request = ++_chanRequest;
+    final wasShowing = _cat == index && _chans.isNotEmpty;
     setState(() {
       _cat = index;
-      _loadingChans = true;
+      _loadingChans = !wasShowing;
     });
+    // The list last seen at once, the fresh one in its place after.
+    if (!wasShowing && !fresh) {
+      final saved = await _savedChannelsOf(_cats[index]);
+      if (!mounted || request != _chanRequest) return;
+      if (saved != null && saved.isNotEmpty) {
+        final last = MaTvMemory.lastChannel;
+        final at = saved.indexWhere((c) => c.id == last);
+        setState(() {
+          _chans = saved;
+          _chan = at >= 0 ? at : 0;
+          _loadingChans = false;
+        });
+        _scrollTo(_chanScroll, _chan, MaTvChannelRow.height + 6);
+      }
+    }
+    final shownId = _chans.isNotEmpty ? _chans[_chan.clamp(0, _chans.length - 1)].id : null;
     final chans = await _channelsOf(_cats[index], fresh: fresh);
     if (!mounted || request != _chanRequest) return;
-    final last = MaTvMemory.lastChannel;
+    if (chans == null && _chans.isNotEmpty && !_loadingChans) return;
+    final last = shownId ?? MaTvMemory.lastChannel;
     final at = (chans ?? const <MaTvChannel>[]).indexWhere((c) => c.id == last);
     setState(() {
       _chans = chans ?? const [];

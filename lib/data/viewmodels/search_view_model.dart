@@ -114,7 +114,8 @@ class SearchViewModel extends ChangeNotifier {
 
   Timer? _debounceTimer;
 
-  static const _debounceMs = 600;
+  // VJOD: short, the results already there narrow down at each letter.
+  static const _debounceMs = 250;
   static const _resultLimit = 24;
   static const _globalFetchLimit = 240;
   // Some servers answer a people search far slower than everything else, so
@@ -123,6 +124,15 @@ class SearchViewModel extends ChangeNotifier {
   static const _peopleGrace = Duration(seconds: 1);
   static const _peopleTimeout = Duration(seconds: 10);
   static const _providerGrace = Duration(milliseconds: 1500);
+  // VJOD: the library's results don't wait for Seerr or the games longer
+  // than this; they come in after.
+  static const _sideGrace = Duration(milliseconds: 400);
+
+  // VJOD: the last searches, shown again at once (a letter erased, the
+  // screen opened again).
+  final _recent = <String, _Snapshot>{};
+  static const _recentMax = 30;
+  String _shownFor = '';
 
   // Counts searches, so people that answer late only fill in their own search.
   int _searchRun = 0;
@@ -181,18 +191,62 @@ class SearchViewModel extends ChangeNotifier {
       _seerrResults = const [];
       _gameResults = const [];
       _providerResults = const [];
+      _shownFor = '';
       _state = SearchState.idle;
       notifyListeners();
       return;
     }
 
-    _state = SearchState.loading;
+    final known = _recent[trimmed];
+    if (known != null) {
+      _show(known, trimmed);
+      _state = SearchState.ready;
+    } else {
+      _narrowTo(trimmed);
+      _state = SearchState.loading;
+    }
     notifyListeners();
 
     _debounceTimer = Timer(
-      const Duration(milliseconds: _debounceMs),
+      Duration(milliseconds: known != null ? _debounceMs * 2 : _debounceMs),
       () => _executeSearch(trimmed),
     );
+  }
+
+  void _show(_Snapshot s, String query) {
+    _results = s.results;
+    _seerrResults = s.seerr;
+    _gameResults = s.games;
+    _providerResults = s.provider;
+    _shownFor = query;
+  }
+
+  void _remember(String query) {
+    _recent.remove(query);
+    _recent[query] = _Snapshot(_results, _seerrResults, _gameResults, _providerResults);
+    while (_recent.length > _recentMax) {
+      _recent.remove(_recent.keys.first);
+    }
+    _shownFor = query;
+  }
+
+  /// A letter added: what is on screen keeps only what still matches, at
+  /// once, while the servers are asked.
+  void _narrowTo(String query) {
+    if (_shownFor.isEmpty || !query.startsWith(_shownFor)) return;
+    final words = foldForSearch(query).split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    bool ok(String? text) {
+      final t = foldForSearch(text ?? '');
+      return words.every(t.contains);
+    }
+    _results = [
+      for (final g in _results)
+        g.copyWith(items: [for (final i in g.items) if (ok(i.name) || ok(i.rawData['OriginalTitle'] as String?)) i]),
+    ];
+    _seerrResults = [for (final x in _seerrResults) if (ok(x.title ?? x.name) || ok(x.originalTitle ?? x.originalName)) x];
+    _gameResults = [for (final x in _gameResults) if (ok(x.game.title) || ok(x.game.fileName)) x];
+    _providerResults = [for (final x in _providerResults) if (ok(x.name)) x];
+    _shownFor = query;
   }
 
   void searchImmediate(String query) {
@@ -235,8 +289,14 @@ class SearchViewModel extends ChangeNotifier {
               Future.value(const <AggregatedItem>[]),
             )
           : await _buildGroupedGlobalResults(query, activeGroups);
-      final seerr = await seerrFuture;
-      final games = await gamesFuture;
+      final seerrLate = await seerrFuture
+          .then<List<SeerrDiscoverItem>?>((found) => found)
+          .timeout(_sideGrace, onTimeout: () => null);
+      final gamesLate = await gamesFuture
+          .then<List<GameSearchResult>?>((found) => found)
+          .timeout(_sideGrace, onTimeout: () => null);
+      final seerr = seerrLate ?? const <SeerrDiscoverItem>[];
+      final games = gamesLate ?? const <GameSearchResult>[];
       // The provider's first answer can mean downloading its whole
       // catalogue, so the rest of the results only wait a moment for it.
       final provider = await providerFuture
@@ -262,11 +322,37 @@ class SearchViewModel extends ChangeNotifier {
       _gameResults = games;
       _setCatalogResults(groups, provider ?? const [], seerr);
       _state = SearchState.ready;
+      _remember(query);
+      var lateProvider = provider ?? const <XtreamTitle>[];
+      var lateSeerr = seerr;
+      if (seerrLate == null) {
+        unawaited(
+          seerrFuture.then((found) {
+            if (found.isEmpty || run != _searchRun || query != _query) return;
+            lateSeerr = found;
+            _setCatalogResults(groups, lateProvider, lateSeerr);
+            _remember(query);
+            notifyListeners();
+          }),
+        );
+      }
+      if (gamesLate == null) {
+        unawaited(
+          gamesFuture.then((found) {
+            if (found.isEmpty || run != _searchRun || query != _query) return;
+            _gameResults = found;
+            _remember(query);
+            notifyListeners();
+          }),
+        );
+      }
       if (provider == null) {
         unawaited(
           providerFuture.then((found) {
             if (found.isEmpty || run != _searchRun || query != _query) return;
-            _setCatalogResults(groups, found, seerr);
+            lateProvider = found;
+            _setCatalogResults(groups, lateProvider, lateSeerr);
+            _remember(query);
             notifyListeners();
           }),
         );
@@ -276,6 +362,7 @@ class SearchViewModel extends ChangeNotifier {
           peopleFuture.then((found) {
             if (found.isEmpty || run != _searchRun || query != _query) return;
             _results = _withPeople(groups, found);
+            _remember(query);
             notifyListeners();
           }),
         );
@@ -492,4 +579,13 @@ class SearchViewModel extends ChangeNotifier {
     _searchRun++;
     super.dispose();
   }
+}
+
+/// What a search showed, to show it again at once.
+class _Snapshot {
+  final List<SearchResultGroup> results;
+  final List<SeerrDiscoverItem> seerr;
+  final List<GameSearchResult> games;
+  final List<XtreamTitle> provider;
+  const _Snapshot(this.results, this.seerr, this.games, this.provider);
 }
