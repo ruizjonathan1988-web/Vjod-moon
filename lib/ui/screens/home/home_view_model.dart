@@ -51,6 +51,7 @@ import '../../../data/services/trakt/trakt_client.dart';
 import '../../../data/services/vjod/vjod_collection_service.dart';
 import '../../../data/services/vjod/iptv_progress.dart';
 import '../../../data/services/vjod/ma_tv_replay.dart';
+import '../../../util/vjod_timings.dart';
 import '../../../data/services/vjod/ma_tv_reports.dart';
 import '../../../data/services/vjod/vjod_collections.dart';
 import '../../../data/services/vjod/vjod_personalizer.dart';
@@ -105,6 +106,9 @@ class HomeViewModel extends ChangeNotifier {
   /// empty, and tidied by [tidyHomeRows]. Kept until the rows or the
   /// session's requests change, so the screen's layout caches see the same
   /// rows from one frame to the next.
+  /// Whether the Replay row is built, shown or not (« À propos »).
+  bool get replayBuilt => _rows.any((r) => r.id == replayRowId);
+
   List<HomeRow> get rows {
     final visible = _emptySectionIds.isEmpty
         ? _rows
@@ -1429,6 +1433,7 @@ class HomeViewModel extends ChangeNotifier {
       return await _loadReplayRowOrFail();
     } catch (e, st) {
       // VJOD 4.21: never silent again, the Ma TV page says why.
+      ReplayTrace.note('erreur : $e');
       MaTvReports.instance.report(
         MaTvReport(kind: 'error', message: 'Replay : la rangée de l\u2019Accueil n\u2019a pas pu se faire : $e', stack: '$st'.split('\n').take(12).join('\n'), where: 'replay'),
         key: 'replay|row|$e',
@@ -1439,11 +1444,13 @@ class HomeViewModel extends ChangeNotifier {
 
   Future<HomeRow?> _loadReplayRowOrFail() async {
     final client = MaTvReplay();
+    ReplayTrace.note('demandé à Ma TV (${client.server == null ? 'aucune adresse' : 'adresse connue'})');
     final home = await client.home().timeout(const Duration(seconds: 15), onTimeout: () => null);
     if (home == null || home.isEmpty) {
       final why = home == null
           ? (client.lastError.isEmpty ? 'pas de réponse de Ma TV en 15 s' : client.lastError)
           : 'Ma TV n\u2019a aucun épisode au replay';
+      ReplayTrace.note('rien : $why');
       MaTvReports.instance.report(
         MaTvReport(kind: 'error', message: 'Replay : rien sur l\u2019Accueil, $why', where: 'replay'),
         key: 'replay|empty|$why',
@@ -1451,6 +1458,7 @@ class HomeViewModel extends ChangeNotifier {
       return null;
     }
     final chans = await ReplayOrder.sort([for (final c in home.channels) if (c.count > 0) c]);
+    ReplayTrace.note('reçu : ${home.channels.length} chaînes (${chans.length} avec du replay), ${home.mine.length} émissions suivies');
     final logos = await replayLogos(chans);
     final pins = await ReplayOrder.pins();
     final names = <String>{for (final e in home.mine) e.show}.take(3).join(', ');
@@ -1511,19 +1519,24 @@ class HomeViewModel extends ChangeNotifier {
     }
     if (row == null) {
       if (index >= 0) {
+        ReplayTrace.note('retirée de l\u2019Accueil (rien reçu)');
         _rows = List.of(_rows)..removeAt(index);
         notifyListeners();
+      } else {
+        ReplayTrace.note('pas posée (rien reçu)');
       }
       return;
     }
     if (index >= 0) {
       _rows = List.of(_rows);
       _rows[index] = row;
+      ReplayTrace.note('mise à jour, rangée ${index + 1} sur ${_rows.length}');
     } else {
       var after = _rows.indexWhere((r) => r.id == iptvResumeRowId);
       if (after < 0) after = _rows.indexWhere((r) => r.rowType == HomeRowType.resume);
       // No « Continuer » on this Home: first of the rows.
       _rows = List.of(_rows)..insert(after + 1, row);
+      ReplayTrace.note('posée, rangée ${after + 2} sur ${_rows.length} (${row.items.length} tuiles)');
     }
     notifyListeners();
   }
@@ -1915,6 +1928,7 @@ class HomeViewModel extends ChangeNotifier {
           _loadIptvResumeRow(),
           _loadReplayRow(),
         ).wait;
+        ReplayTrace.note(replay == null ? 'Continuer chargé, sans replay' : 'Continuer chargé avec le replay');
         return [
           row.copyWith(items: _prefs.filterContinueWatching(row.items)),
           ?iptv,

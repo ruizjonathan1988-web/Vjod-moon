@@ -15,6 +15,10 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.22', [
+    'Rangée « Replay » : elle ne disparaît plus sur un profil avec contrôle parental (le filtre d\u2019âge la prenait pour des films sans âge connu).',
+    'Réglages → À propos → « Rangée Replay » : ce que la rangée a fait depuis l\u2019ouverture de l\u2019appli, et si elle est sur l\u2019Accueil.',
+  ]),
   VjodRelease('4.21', [
     'Rangée « Replay » : si elle ne peut pas s\u2019afficher, VJOD réessaie un peu plus tard et envoie la raison à la page Ma TV (Signalements), au lieu de ne rien dire.',
   ]),
