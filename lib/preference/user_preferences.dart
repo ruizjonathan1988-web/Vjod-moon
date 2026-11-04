@@ -2680,9 +2680,10 @@ class UserPreferences extends ChangeNotifier {
     defaultValue: 'chapters',
   );
 
+  // VJOD 4.27: on by default, the pause tells what you're watching and when it ends.
   static final showDescriptionOnPause = Preference(
     key: 'showDescriptionOnPause',
-    defaultValue: false,
+    defaultValue: true,
   );
   static final osdLockEnabled = Preference(
     key: 'osdLockEnabled',

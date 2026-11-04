@@ -88,6 +88,15 @@ class _AboutCategoryScreen extends StatelessWidget {
               const _StartupTimelineTile(),
               const _TimingsTile(),
               const _ReplayTraceTile(),
+              // VJOD 4.27: the month at home, from Playback Reporting (admins).
+              if (GetIt.instance<UserRepository>().currentUser?.isAdministrator ?? false)
+                _TvSettingsListTile(
+                  leading: const Icon(Icons.insights_rounded),
+                  title: const Text('Le mois à la maison'),
+                  subtitle: const Text('Heures regardées par chacun, séries et films les plus vus'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const WatchMonthScreen())),
+                ),
               if (AppDistribution.supportsInAppUpdates)
                 const _CheckForUpdatesTile(),
               // The admin's own devices take each new version first.

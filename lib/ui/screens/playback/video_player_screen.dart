@@ -369,6 +369,10 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
   bool _wasPlayingBeforeScreenLock = false;
   LogicalKeyboardKey? _tvTemporarySpeedHoldKey;
   bool _tvTemporarySpeedHoldActive = false;
+
+  /// VJOD 4.27: a finger held on the picture plays at ×2 until it lifts.
+  bool _touchSpeedHoldActive = false;
+  double? _touchSpeedRestore;
   double? _tvTemporarySpeedRestoreSpeed;
 
   MediaSegment? _skipSegment;
@@ -3646,6 +3650,55 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
     } catch (_) {}
   }
 
+  Future<void> _startTouchSpeedHold() async {
+    if (_touchSpeedHoldActive || _isOsdLocked || _isCurrentPreroll) return;
+    if (_castService.activeKind != null || !_state.isPlaying) return;
+    if (_syncPlayManager?.state.enabled == true) return;
+    _touchSpeedRestore = _state.playbackSpeed;
+    setState(() => _touchSpeedHoldActive = true);
+    unawaited(HapticFeedback.selectionClick());
+    try {
+      await _manager.setPlaybackSpeed(_tvTemporarySpeed);
+    } catch (_) {}
+  }
+
+  void _endTouchSpeedHold() {
+    if (!_touchSpeedHoldActive) return;
+    final back = _touchSpeedRestore ?? 1.0;
+    _touchSpeedRestore = null;
+    if (mounted) setState(() => _touchSpeedHoldActive = false);
+    unawaited(_restoreTvTemporarySpeed(back));
+  }
+
+  Widget _buildTouchSpeedBadge() => Positioned(
+    top: 24,
+    left: 0,
+    right: 0,
+    child: IgnorePointer(
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 150),
+        opacity: _touchSpeedHoldActive ? 1 : 0,
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.7),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.fast_forward_rounded, color: Colors.white, size: 18),
+                SizedBox(width: 6),
+                Text('×2', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+
   Future<void> _restoreTvTemporarySpeed(double speed) async {
     try {
       await _manager.setPlaybackSpeed(speed);
@@ -4279,6 +4332,15 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
             onDoubleTap: PlatformDetection.useDesktopUi
                 ? null
                 : _handleDoubleTapGesture,
+            onLongPressStart: PlatformDetection.useMobileUi && !PlatformDetection.isTV
+                ? (_) => unawaited(_startTouchSpeedHold())
+                : null,
+            onLongPressEnd: PlatformDetection.useMobileUi && !PlatformDetection.isTV
+                ? (_) => _endTouchSpeedHold()
+                : null,
+            onLongPressCancel: PlatformDetection.useMobileUi && !PlatformDetection.isTV
+                ? _endTouchSpeedHold
+                : null,
             onVerticalDragStart: swipeGestures ? _onVerticalDragStart : null,
             onVerticalDragUpdate: swipeGestures ? _onVerticalDragUpdate : null,
             onVerticalDragEnd: swipeGestures ? _onVerticalDragEnd : null,
@@ -4359,6 +4421,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
                           child: ColoredBox(color: Colors.black),
                         ),
                       _buildPausedDescriptionOverlay(),
+                      _buildTouchSpeedBadge(),
                       if (_controlsVisible &&
                           !_isOsdLocked &&
                           !hideOsdForPreroll) ...[
@@ -4807,6 +4870,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
     final description = _currentItemDescription();
     if (description == null) return const SizedBox.shrink();
     final title = _currentItemTitle();
+    final episode = _currentEpisodeLine();
     return StreamBuilder<bool>(
       stream: _state.playingStream,
       initialData: _state.isPlaying,
@@ -4860,6 +4924,31 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
                                         height: 1.2,
                                       ),
                                     ),
+                                  if (episode.isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 4),
+                                      child: Text(
+                                        episode,
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          color: Colors.white.withValues(alpha: 0.85),
+                                          fontSize: AppTypography.fontSizeLg,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  if (_pauseEndLine() case final end?)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 4),
+                                      child: Text(
+                                        end,
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          color: Colors.white.withValues(alpha: 0.7),
+                                          fontSize: AppTypography.fontSizeMd,
+                                        ),
+                                      ),
+                                    ),
                                   if (title.isNotEmpty)
                                     const SizedBox(height: AppSpacing.spaceMd),
                                   Text(
@@ -4885,6 +4974,46 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen>
         );
       },
     );
+  }
+
+  /// « Saison 2 · Épisode 5 — Le titre » for an episode, else empty.
+  String _currentEpisodeLine() {
+    final item = _queue.currentItem;
+    int? season;
+    int? number;
+    String name = '';
+    String? series;
+    if (item is AggregatedItem) {
+      season = item.parentIndexNumber;
+      number = item.indexNumber;
+      name = item.name;
+      series = item.seriesName;
+    } else if (item is Map) {
+      season = (item['ParentIndexNumber'] as num?)?.toInt();
+      number = (item['IndexNumber'] as num?)?.toInt();
+      name = '${item['Name'] ?? ''}';
+      series = item['SeriesName'] as String?;
+    }
+    if (series == null || series.isEmpty) return '';
+    final where = [
+      if (season != null) 'Saison $season',
+      if (number != null) 'Épisode $number',
+    ].join(' · ');
+    final named = name.isNotEmpty && name != series ? name : '';
+    return [where, named].where((x) => x.isNotEmpty).join(' — ');
+  }
+
+  /// « Il reste 23 min · fin à 22 h 41 », or null when the length isn't known.
+  String? _pauseEndLine() {
+    final total = _state.duration;
+    final at = _activeBackend?.position ?? _state.position;
+    if (total <= Duration.zero || at >= total) return null;
+    final speed = _state.playbackSpeed <= 0 ? 1.0 : _state.playbackSpeed;
+    final left = Duration(milliseconds: ((total - at).inMilliseconds / speed).round());
+    final end = DateTime.now().add(left);
+    final mins = left.inMinutes;
+    final leftText = mins >= 60 ? '${mins ~/ 60} h ${(mins % 60).toString().padLeft(2, '0')}' : '${mins < 1 ? 1 : mins} min';
+    return 'Il reste $leftText · fin à ${end.hour} h ${end.minute.toString().padLeft(2, '0')}';
   }
 
   String _currentItemTitle() {
