@@ -15,6 +15,11 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.27', [
+    'En pause, VJOD dit ce que tu regardes : le titre, la saison et l\u2019épisode, le résumé, et à quelle heure ça finira.',
+    'Sur le téléphone, garde le doigt appuyé sur l\u2019image pour passer en vitesse ×2 ; lâche, et ça repart normalement (à la télécommande, c\u2019est la touche OK maintenue).',
+    'Réglages → À propos → « Le mois à la maison » : les heures regardées par chacun et les séries et films les plus vus des 30 derniers jours (administrateurs).',
+  ]),
   VjodRelease('4.26', [
     '« Chercher sur mes trackers » : ce que tu télécharges arrive directement dans ta bibliothèque Séries, dans le dossier de l\u2019émission, et Jellyfin le relit tout seul. Il faut Ma TV 3.68.',
   ]),
