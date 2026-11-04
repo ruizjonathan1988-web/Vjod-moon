@@ -11,6 +11,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../data/services/vjod/iptv_progress.dart' show IptvWatch;
 import '../../../data/services/vjod/ma_tv_replay.dart';
+import '../../../data/services/vjod/replay_keep.dart';
 import '../../../preference/user_preferences.dart';
 import '../../../util/platform_detection.dart';
 import '../../navigation/destinations.dart';
@@ -112,8 +113,12 @@ Future<void> resumeReplay(BuildContext context, String id) async {
 /// One source of « Autres sources » chosen by hand.
 Future<void> _useSource(BuildContext context, ReplayItem e, ReplaySource s) async {
   switch (s.kind) {
-    case 'library' || 'vod' || 'seerr':
+    case 'library' || 'vod':
       unawaited(context.push(s.route!));
+    case 'seerr':
+      await _keepWithSeerr(context, e, s);
+    case 'tracker':
+      await _keepFromTrackers(context, e);
     case 'iptv':
       unawaited(context.push(Destinations.providerPlayer(url: '${s.stream}', title: _titleOf(e), watch: _watchOf(e), adSkip: true)));
     case 'app':
@@ -130,6 +135,190 @@ Future<void> _useSource(BuildContext context, ReplayItem e, ReplaySource s) asyn
               : 'Le replay de la chaîne ne répond pas pour cet épisode.'),
         ));
       }
+  }
+}
+
+/// « Garder dans ma bibliothèque »: the show found in Seerr, its season
+/// asked for after a yes; not found, Seerr's search opens on its name.
+Future<void> _keepWithSeerr(BuildContext context, ReplayItem e, ReplaySource s) async {
+  final messenger = ScaffoldMessenger.maybeOf(context);
+  messenger?.showSnackBar(const SnackBar(content: Text('Recherche dans Seerr…'), duration: Duration(seconds: 3)));
+  final m = await ReplayKeep.seerrMatch(e);
+  if (!context.mounted) return;
+  messenger?.hideCurrentSnackBar();
+  if (m == null) {
+    messenger?.showSnackBar(const SnackBar(content: Text('Seerr ne la connaît pas sous ce nom : la recherche s’ouvre.')));
+    unawaited(context.push(s.route!));
+    return;
+  }
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text('Garder « ${m.name} » ?'),
+      content: Text('Seerr demande la saison ${m.season} à Sonarr. Elle arrivera dans ta bibliothèque, sans pub.'),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Annuler')),
+        FilledButton(autofocus: true, onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Demander')),
+      ],
+    ),
+  );
+  if (ok != true) return;
+  final said = await ReplayKeep.requestSeerr(m);
+  messenger?.showSnackBar(SnackBar(content: Text(said)));
+}
+
+/// « Chercher sur mes trackers »: what Prowlarr finds, the most shared
+/// first; one press, then a yes, sends it to the download.
+Future<void> _keepFromTrackers(BuildContext context, ReplayItem e) async {
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: const Color(0xFF141210),
+    builder: (ctx) => _TrackerSheet(item: e),
+  );
+}
+
+class _TrackerSheet extends StatefulWidget {
+  final ReplayItem item;
+  const _TrackerSheet({required this.item});
+
+  @override
+  State<_TrackerSheet> createState() => _TrackerSheetState();
+}
+
+class _TrackerSheetState extends State<_TrackerSheet> {
+  late final TextEditingController _query = TextEditingController(text: ReplayKeep.queryFor(widget.item));
+  TrackerSearch? _found;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_search());
+  }
+
+  @override
+  void dispose() {
+    _query.dispose();
+    super.dispose();
+  }
+
+  Future<void> _search() async {
+    setState(() => _busy = true);
+    final got = await ReplayKeep.search(_query.text.trim());
+    if (!mounted) return;
+    setState(() {
+      _found = got;
+      _busy = false;
+    });
+  }
+
+  Future<void> _pick(TrackerRelease r) async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (!(_found?.mayGrab ?? false)) {
+      messenger?.showSnackBar(const SnackBar(content: Text('Seul un administrateur de Jellyfin peut lancer un téléchargement.')));
+      return;
+    }
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Télécharger cette version ?'),
+        content: Text('${r.title}\n${r.detail}'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Annuler')),
+          FilledButton(autofocus: true, onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Télécharger')),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final said = await ReplayKeep.grab(r);
+    if (!mounted) return;
+    Navigator.of(context).pop();
+    messenger?.showSnackBar(SnackBar(content: Text(said)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final found = _found;
+    final h = MediaQuery.sizeOf(context).height * .8;
+    return SafeArea(
+      child: SizedBox(
+        height: h,
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(20, 16, 20, 12 + MediaQuery.viewInsetsOf(context).bottom),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text('Chercher sur mes trackers',
+                  style: TextStyle(color: _ink, fontSize: 20, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 4),
+              Text(
+                found != null && !found.mayGrab && found.error.isEmpty
+                    ? 'Tu peux regarder ce qui existe ; le téléchargement est réservé aux administrateurs.'
+                    : 'Rien ne part sans ton appui. Les plus partagés d’abord.',
+                style: const TextStyle(color: MaTvColors.mute, fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _query,
+                textInputAction: TextInputAction.search,
+                onSubmitted: (_) => unawaited(_search()),
+                style: const TextStyle(color: _ink),
+                decoration: InputDecoration(
+                  isDense: true,
+                  filled: true,
+                  fillColor: MaTvColors.row,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                  suffixIcon: IconButton(
+                    tooltip: 'Chercher',
+                    icon: const Icon(Icons.search_rounded, color: _ink),
+                    onPressed: _busy ? null : () => unawaited(_search()),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Expanded(
+                child: _busy
+                    ? const Center(child: CircularProgressIndicator())
+                    : found == null
+                    ? const SizedBox.shrink()
+                    : found.error.isNotEmpty
+                    ? Center(child: Text(found.error, textAlign: TextAlign.center, style: const TextStyle(color: MaTvColors.mute)))
+                    : found.results.isEmpty
+                    ? const Center(
+                        child: Text('Rien trouvé. Essaie sans le numéro d’épisode, ou avec la date.',
+                            textAlign: TextAlign.center, style: TextStyle(color: MaTvColors.mute)),
+                      )
+                    : ListView.separated(
+                        itemCount: found.results.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 6),
+                        itemBuilder: (ctx, i) {
+                          final r = found.results[i];
+                          return Material(
+                            color: MaTvColors.row,
+                            borderRadius: BorderRadius.circular(10),
+                            child: ListTile(
+                              autofocus: i == 0,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              focusColor: MaTvColors.rowOn,
+                              title: Text(r.title,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(color: _ink, fontSize: 14, fontWeight: FontWeight.w600)),
+                              subtitle: Text(r.detail, style: const TextStyle(color: MaTvColors.mute, fontSize: 12)),
+                              trailing: Icon(found.mayGrab ? Icons.download_rounded : Icons.lock_outline_rounded,
+                                  color: MaTvColors.mute),
+                              onTap: () => unawaited(_pick(r)),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
