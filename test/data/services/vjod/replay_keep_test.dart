@@ -47,4 +47,19 @@ void main() {
     final refused = MockClient((_) async => http.Response(jsonEncode({'error': 'réservé aux administrateurs de Jellyfin'}), 403));
     expect(await ReplayKeep.grab(const TrackerRelease(id: 'r1', title: 'x'), client: refused, server: _server), contains('administrateurs'));
   });
+
+  test('garder les prochains épisodes', () async {
+    final client = MockClient((req) async {
+      expect(req.url.path, '/iptv/tv/api/replay/keep');
+      final b = jsonDecode(req.body) as Map;
+      expect(b['show'], 'Ici tout commence');
+      return b['keep'] == true
+          ? http.Response(jsonEncode({'keep': ['ici tout commence']}), 200)
+          : http.Response(jsonEncode({'error': 'réservé aux administrateurs de Jellyfin'}), 403);
+    });
+    final r = MaTvReplay(httpClient: client, server: _server);
+    expect(await r.setKeep('Ici tout commence', true), isNull);
+    expect(await r.setKeep('Ici tout commence', false), contains('administrateurs'));
+    expect(ReplayItem.fromJson({'id': 'x', 'kind': 'iptv', 'chan': 'tf1', 'show': 'Ici tout commence', 'kept': true}).kept, isTrue);
+  });
 }
