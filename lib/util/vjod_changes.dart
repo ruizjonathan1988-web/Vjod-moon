@@ -15,6 +15,9 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.24', [
+    'Replay : les autres chaînes arrivent (TF1, M6, W9, TMC…), avec ce que ton fournisseur IPTV a enregistré ces derniers jours. Elles se regardent dans VJOD, avec la pub d\u2019origine et « Passer la pub ». Il faut Ma TV 3.66.',
+  ]),
   VjodRelease('4.23', [
     'Un seul « Continuer » : les films et séries IPTV et les replays commencés s\u2019y rangent avec ceux de la bibliothèque, du plus récent au plus ancien.',
     'Rangée « Replay » redessinée : tuiles basses et larges, « Mes émissions » en tête avec ses nouveaux épisodes, puis le vrai logo de chaque chaîne en entier, avec une pastille rouge quand il y a du nouveau.',
