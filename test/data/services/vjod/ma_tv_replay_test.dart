@@ -218,6 +218,7 @@ void main() {
           'chans': [{'chan': 'france-2', 'name': 'France 2', 'count': 120}],
         }),
         200,
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     });
     final p = await MaTvReplay(httpClient: client, server: _server).page();
