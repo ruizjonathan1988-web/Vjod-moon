@@ -395,9 +395,11 @@ class MaTvClient {
   /// A past programme (or the current one from its start), when the provider
   /// keeps it.
   Uri? replayUri(MaTvChannel channel, MaTvProgram program) {
-    final minutes = program.end.difference(program.start).inMinutes + 5;
+    // Two minutes ahead: guides and recordings are rarely to the minute
+    // (VJOD 4.32; the bar moves through the recording).
+    final minutes = program.end.difference(program.start).inMinutes + 7;
     return server?.endpoint('/tv/replay/${channel.id}.ts', {
-      'start': '${program.start.millisecondsSinceEpoch ~/ 1000}',
+      'start': '${program.start.millisecondsSinceEpoch ~/ 1000 - 120}',
       'dur': '${minutes.clamp(5, 600)}',
       if (MaTvDevice.capsSync.isNotEmpty) 'caps': MaTvDevice.capsSync,
     });
