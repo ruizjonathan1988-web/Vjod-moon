@@ -129,6 +129,47 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
   Timer? _noPicture;
   Duration _pos = Duration.zero;
   Duration _dur = Duration.zero;
+
+  // VJOD 4.32: a broadcast recorded by the IPTV provider comes as one long
+  // stream with no length (Ma TV's /tv/replay/). Its timeline is the
+  // programme's (start and length from the guide): a jump opens the stream
+  // again from that minute.
+  late final Uri? _cu = () {
+    final u = Uri.tryParse(widget.url);
+    if (u == null || !u.path.contains('/tv/replay/')) return null;
+    final start = int.tryParse(u.queryParameters['start'] ?? '');
+    final dur = int.tryParse(u.queryParameters['dur'] ?? '');
+    return start == null || dur == null || dur <= 0 ? null : u;
+  }();
+  Duration _cuOffset = Duration.zero;
+
+  Duration get _cuTotal => Duration(minutes: int.parse(_cu!.queryParameters['dur']!));
+
+  String get _playUrl {
+    final u = _cu;
+    if (u == null || _cuOffset == Duration.zero) return widget.url;
+    final start = int.parse(u.queryParameters['start']!) + _cuOffset.inSeconds;
+    final left = (_cuTotal - _cuOffset).inMinutes.clamp(5, 600);
+    return u.replace(queryParameters: {...u.queryParameters, 'start': '$start', 'dur': '$left'}).toString();
+  }
+
+  /// Every jump: in the file, or, for a recorded broadcast, from that minute.
+  void _seekTo(Duration target) {
+    if (_cu == null) {
+      unawaited(_engine.seek(target));
+      return;
+    }
+    final total = _cuTotal;
+    var to = target < Duration.zero ? Duration.zero : (target > total ? total : target);
+    to = Duration(minutes: to.inMinutes);
+    if (to == _cuOffset && (_pos - to).abs() < const Duration(minutes: 1)) return;
+    setState(() {
+      _cuOffset = to;
+      _pos = to;
+      _loading = true;
+    });
+    unawaited(_open());
+  }
   bool _playing = false;
   bool _buffering = false;
   bool _picture = false;
@@ -323,7 +364,7 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
       _skipFrom = from;
       _skipAt = DateTime.now();
     });
-    unawaited(_engine.seek(from + _introLen));
+    _seekTo(from + _introLen);
   }
 
   /// A seek by hand just after « Passer le générique »: the jump was too short
@@ -372,14 +413,14 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
         final step = p - _lastPos;
         if (_playing && step > Duration.zero && step < const Duration(seconds: 5)) _watched += step;
         _lastPos = p;
-        _pos = p;
+        _pos = _cu == null ? p : _cuOffset + p;
         if (_dur > Duration.zero && p > Duration.zero) _resumeAt[widget.url] = p;
         _checkVote();
         if (mounted) _checkNext();
         if (_controls && mounted) setState(() {});
       }),
       e.duration.listen((d) {
-        if (mounted) setState(() => _dur = d);
+        if (mounted) setState(() => _dur = _cu == null ? d : _cuTotal);
       }),
       e.playing.listen((p) {
         if (mounted) setState(() => _playing = p);
@@ -421,6 +462,7 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
     });
     await WidgetsBinding.instance.endOfFrame;
     if (!mounted || seq != _openSeq) return;
+    if (_cu != null && _dur == Duration.zero) _dur = _cuTotal;
     var from = _resumeAt[widget.url];
     if (from == null) {
       final saved = await _savedPlace();
@@ -434,11 +476,15 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
     try {
       // Each playback carries its own number, so Ma TV tells two devices
       // behind the same box apart: one seeking never cuts the other's film.
+      // A recorded broadcast picks up by opening the stream at that minute.
+      if (_cu != null && from != null && from > const Duration(minutes: 1) && _cuOffset == Duration.zero) {
+        _cuOffset = Duration(minutes: from.inMinutes);
+      }
       await _engine
           .open(
-            widget.url,
+            _playUrl,
             {'X-VJOD-Session': _session},
-            start: from != null && from > const Duration(minutes: 1)
+            start: _cu == null && from != null && from > const Duration(minutes: 1)
                 ? from - const Duration(seconds: 5)
                 : Duration.zero,
           )
@@ -599,7 +645,7 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
   void _seekBy(int seconds) {
     final to = _pos + Duration(seconds: seconds);
     final target = to < Duration.zero ? Duration.zero : (_dur > Duration.zero && to > _dur ? _dur : to);
-    unawaited(_engine.seek(target));
+    _seekTo(target);
     _learnIntro(target);
     _showControls();
   }
@@ -608,7 +654,7 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
   void _restart() {
     setState(() => _resumedFrom = null);
     _resumeAt.remove(widget.url);
-    unawaited(_engine.seek(Duration.zero));
+    _seekTo(Duration.zero);
     _showControls();
   }
 
@@ -771,7 +817,7 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
     _scrubTimer = null;
     final to = _scrubTo;
     if (to == null) return;
-    unawaited(_engine.seek(to));
+    _seekTo(to);
     if (mounted) setState(() => _scrubTo = null);
   }
 
@@ -1140,7 +1186,10 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
                                               .clamp(0.0, 1.0),
                                       onChanged: _dur == Duration.zero
                                           ? null
-                                          : (v) => unawaited(_engine.seek(_dur * v)),
+                                          : (v) => _cu == null
+                                              ? unawaited(_engine.seek(_dur * v))
+                                              : setState(() => _scrubTo = _dur * v),
+                                      onChangeEnd: _cu == null || _dur == Duration.zero ? null : (v) => _commitScrub(),
                                     ),
                                   ),
                                 ),

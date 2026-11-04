@@ -53,7 +53,16 @@ Future<void> playReplay(BuildContext context, ReplayItem item) async {
     return;
   }
   if (item.isIptv) {
-    // Ma TV 3.66: TF1, M6… come from the provider's catch-up only.
+    // VJOD 4.32: the provider's VOD first when it has the series (no ads,
+    // the whole season), its recording of the broadcast otherwise.
+    final vod = await ReplaySources.vod(item).timeout(const Duration(seconds: 8), onTimeout: () => null);
+    if (!context.mounted) return;
+    if (vod != null) {
+      messenger?.hideCurrentSnackBar();
+      messenger?.showSnackBar(const SnackBar(content: Text('Trouvé dans la VOD de ton fournisseur, sans pub.'), duration: Duration(seconds: 3)));
+      unawaited(context.push(vod));
+      return;
+    }
     final iptv = await ReplaySources.iptv(item);
     if (!context.mounted) return;
     messenger?.hideCurrentSnackBar();

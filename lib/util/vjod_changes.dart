@@ -15,6 +15,10 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.32', [
+    'Replay de TF1, M6… : la barre avance et recule enfin (VJOD rouvre l\u2019enregistrement à la minute choisie), le programme démarre deux minutes avant l\u2019heure du guide, et l\u2019heure est la bonne avec Ma TV 3.71.',
+    'Quand ton fournisseur a la série en VOD, VJOD l\u2019ouvre en premier : sans pub, toute la saison.',
+  ]),
   VjodRelease('4.31', [
     'L\u2019onglet Replay prend la forme de l\u2019appli France TV : la une en grand avec sa catégorie, « Notre sélection », les chaînes en direct, « À la une » numérotée, les catégories (Séries & fictions, Documentaires, Cinéma…), une rangée par catégorie avec les pastilles « Nouveau » et « Nouveaux épisodes », et « Nos chaînes » en bas.',
     'Un appui sur une catégorie montre toutes ses émissions. Il faut Ma TV 3.70.',

@@ -94,8 +94,8 @@ void main() {
     final p = MaTvProgram(title: 'JT', start: t0, end: t0.add(const Duration(minutes: 40)));
     final r = client.replayUri(ch, p)!;
     expect(r.path, '/iptv-checker/tv/replay/tf1.ts');
-    expect(r.queryParameters['start'], '${s(t0)}');
-    expect(r.queryParameters['dur'], '45');
+    expect(r.queryParameters['start'], '${s(t0) - 120}');   // deux minutes d'avance
+    expect(r.queryParameters['dur'], '47');
   });
 
   test('what the device tells the relay: codecs, picture ceiling, connection', () {
