@@ -48,6 +48,18 @@ Future<void> playReplay(BuildContext context, ReplayItem item) async {
     unawaited(context.push(lib.route));
     return;
   }
+  if (item.isIptv) {
+    // Ma TV 3.66: TF1, M6… come from the provider's catch-up only.
+    final iptv = await ReplaySources.iptv(item);
+    if (!context.mounted) return;
+    messenger?.hideCurrentSnackBar();
+    if (iptv == null) {
+      messenger?.showSnackBar(const SnackBar(content: Text('Ton fournisseur ne garde plus cette émission.')));
+      return;
+    }
+    unawaited(context.push(Destinations.providerPlayer(url: '$iptv', title: _titleOf(item), watch: _watchOf(item), adSkip: true)));
+    return;
+  }
   final play = await MaTvReplay().playback(item);
   if (!context.mounted) return;
   if (play.inVjod) {

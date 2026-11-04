@@ -198,4 +198,10 @@ void main() {
     expect(p.kind, 'replay');
     expect(p.resumable, isTrue);
   });
+
+  test('TF1, M6… : un épisode du rattrapage IPTV', () {
+    final e = ReplayItem.fromJson({'id': 'iptv-1', 'kind': 'iptv', 'chan': 'tf1', 'show': 'Koh-Lanta', 'aired': 1762200000, 'dur': 5400, 'src': 'tf1'});
+    expect(e.isIptv, isTrue);
+    expect(_arteItem.isIptv, isFalse);
+  });
 }

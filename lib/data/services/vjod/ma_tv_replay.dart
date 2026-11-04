@@ -55,6 +55,10 @@ class ReplayItem {
   /// When this profile watched the show live (a suggestion to follow).
   final DateTime? liveAt;
 
+  /// Recorded by the IPTV provider (Ma TV 3.66: TF1, M6…), read back by its
+  /// catch-up, with the ads of the broadcast.
+  bool get isIptv => kind == 'iptv';
+
   const ReplayItem({
     required this.id,
     required this.kind,
@@ -662,7 +666,9 @@ class ReplaySources {
       final key = replayNameKey(e.chan);
       final days = DateTime.now().difference(aired).inHours / 24;
       for (final c in all) {
-        if (replayNameKey(c.name) != key || c.replayDays <= 0 || days > c.replayDays) continue;
+        // An IPTV catch-up episode (Ma TV 3.66) names its channel by Ma TV's id.
+        final same = c.id == e.chan || replayNameKey(c.name) == key;
+        if (!same || c.replayDays <= 0 || days > c.replayDays) continue;
         final len = e.duration > Duration.zero ? e.duration : const Duration(minutes: 60);
         return client.replayUri(c, MaTvProgram(title: e.show, start: aired, end: aired.add(len)));
       }
@@ -707,7 +713,7 @@ class ReplaySources {
         ),
       if (vodRoute != null)
         ReplaySource(kind: 'vod', name: 'VOD de ton fournisseur', detail: 'Sans pub · la série, épisode à choisir', route: vodRoute),
-      ReplaySource(kind: 'vjod', name: 'Replay $name dans VJOD', detail: 'Sans pub · lecteur VJOD'),
+      if (!e.isIptv) ReplaySource(kind: 'vjod', name: 'Replay $name dans VJOD', detail: 'Sans pub · lecteur VJOD'),
       if (iptvUri != null)
         ReplaySource(
           kind: 'iptv',
@@ -716,7 +722,7 @@ class ReplaySources {
           detail: 'Diffusion d’origine · « Passer la pub » saute 3 min',
           stream: iptvUri,
         ),
-      ReplaySource(kind: 'app', name: appName(e), tag: 'en dernier', detail: 'S’ouvre sur l’épisode quand elle le permet'),
+      if (!e.isIptv) ReplaySource(kind: 'app', name: appName(e), tag: 'en dernier', detail: 'S’ouvre sur l’épisode quand elle le permet'),
       ReplaySource(kind: 'seerr', name: 'Demander (Seerr)', tag: 'à garder', detail: 'Ajouté à ta bibliothèque si la série est trouvée', route: Destinations.searchWith(e.show)),
     ];
   }
