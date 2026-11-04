@@ -52,6 +52,7 @@ import '../../../data/services/vjod/vjod_collection_service.dart';
 import '../../../data/services/vjod/iptv_progress.dart';
 import '../../../data/services/vjod/ma_tv_replay.dart';
 import '../../../util/vjod_timings.dart';
+import 'continue_merge.dart';
 import '../../../data/services/vjod/ma_tv_reports.dart';
 import '../../../data/services/vjod/vjod_collections.dart';
 import '../../../data/services/vjod/vjod_personalizer.dart';
@@ -129,9 +130,11 @@ class HomeViewModel extends ChangeNotifier {
     _tidyGateVersion = gateVersion;
     _tidyFilter = activeParentalFilter;
     // On a profile with ratings blocked, Seerr's titles wait for theirs.
+    // One « Continuer » for the library, IPTV and the replay (VJOD 4.23).
+    final folded = foldIntoContinue(visible, extraRowId: iptvResumeRowId);
     final allowed = gate == null || !activeParentalFilter.isActive
-        ? visible
-        : withAgeGate(visible, gate.allows);
+        ? folded
+        : withAgeGate(folded, gate.allows);
     return _tidyRows = tidyHomeRows(
       allowed,
       keptRowIds: const {
@@ -1374,7 +1377,7 @@ class HomeViewModel extends ChangeNotifier {
         'Overview': '',
         'BackdropPath': p.poster,
         vjodWhyKey: 'Replay · reste ${(p.duration - p.position).inMinutes.clamp(1, 999)} min',
-        'UserData': {'PlayedPercentage': p.fraction * 100},
+        'UserData': {'PlayedPercentage': p.fraction * 100, 'LastPlayedDate': p.at.toUtc().toIso8601String()},
         iptvResumeKey: {'kind': 'replay', 'id': p.id, 'name': p.name, 'poster': p.poster},
       },
     );
@@ -1393,7 +1396,10 @@ class HomeViewModel extends ChangeNotifier {
               'Type': p.isSeries ? 'Series' : 'Movie',
               'PosterPath': p.poster,
               'SeerrMediaType': p.isSeries ? 'tv' : 'movie',
-              if (!p.done) 'UserData': {'PlayedPercentage': p.fraction * 100},
+              'UserData': {
+                if (!p.done) 'PlayedPercentage': p.fraction * 100,
+                'LastPlayedDate': p.at.toUtc().toIso8601String(),
+              },
               iptvResumeKey: {
                 'kind': p.kind,
                 'id': p.id,
@@ -1424,6 +1430,15 @@ class HomeViewModel extends ChangeNotifier {
 
   /// On a card of the Replay row: `kind` (`mine` or `chan`), `chan`, `name`.
   static const replayKey = 'VjodReplay';
+
+  /// VJOD 4.23, for the row drawn like the mock-up: the channel's logo,
+  /// its new episodes, how many it has, whether it is pinned; on « Mes
+  /// émissions », the followed shows' names.
+  static const replayLogoKey = 'VjodReplayLogo';
+  static const replayFreshKey = 'VjodReplayFresh';
+  static const replayCountKey = 'VjodReplayCount';
+  static const replayPinnedKey = 'VjodReplayPinned';
+  static const replayNamesKey = 'VjodReplayNames';
 
   /// The channels' replay, in one row (VJOD 4.18): « Mes émissions » first,
   /// then a tile per channel with its new episodes, in this week's order.
@@ -1483,6 +1498,8 @@ class HomeViewModel extends ChangeNotifier {
               ? 'Rien de suivi · choisis en un appui'
               : [if (home.mineNew > 0) fresh(home.mineNew), names].join(' · '),
           replayKey: {'kind': 'mine'},
+          replayFreshKey: home.mineNew,
+          replayNamesKey: names,
         },
       ),
       for (final c in chans)
@@ -1499,6 +1516,10 @@ class HomeViewModel extends ChangeNotifier {
               c.fresh > 0 ? fresh(c.fresh) : '${c.count} en replay',
             ].join(' · '),
             replayKey: {'kind': 'chan', 'chan': c.chan, 'name': c.name},
+            replayLogoKey: logos[c.chan] ?? '',
+            replayFreshKey: c.fresh,
+            replayCountKey: c.count,
+            replayPinnedKey: pins.contains(c.chan),
           },
         ),
     ];

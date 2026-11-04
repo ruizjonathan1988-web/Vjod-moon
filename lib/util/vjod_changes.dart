@@ -15,6 +15,10 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.23', [
+    'Un seul « Continuer » : les films et séries IPTV et les replays commencés s\u2019y rangent avec ceux de la bibliothèque, du plus récent au plus ancien.',
+    'Rangée « Replay » redessinée : tuiles basses et larges, « Mes émissions » en tête avec ses nouveaux épisodes, puis le vrai logo de chaque chaîne en entier, avec une pastille rouge quand il y a du nouveau.',
+  ]),
   VjodRelease('4.22', [
     'Rangée « Replay » : elle ne disparaît plus sur un profil avec contrôle parental (le filtre d\u2019âge la prenait pour des films sans âge connu).',
     'Réglages → À propos → « Rangée Replay » : ce que la rangée a fait depuis l\u2019ouverture de l\u2019appli, et si elle est sur l\u2019Accueil.',
