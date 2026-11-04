@@ -110,6 +110,7 @@ import '../../../util/startup_timeline.dart';
 import '../../../data/services/vjod/provider_catalog_access.dart' show currentProviderCatalog;
 import '../../widgets/vjod/vjod_whats_new.dart';
 import '../vjod_tv/ma_tv_replay_screen.dart' show openReplayCard, resumeReplay;
+import '../vjod_tv/ma_tv_widgets.dart' show MaTvColors;
 import '../../../data/services/vjod/ma_tv_replay.dart' show ReplayOrder;
 
 Color get _homeBackground => AppColorScheme.background;
@@ -4922,6 +4923,8 @@ class _ContentRowsState extends State<_ContentRows>
                         rowIndex: rowIndex,
                         rows: rows,
                       );
+                    } else if (row.id == HomeViewModel.replayRowId && _vjodTheme) {
+                      rowChild = _buildReplayRow(row, rowIndex: rowIndex, rows: rows);
                     } else if (row.rowType == HomeRowType.libraryTilesSmall) {
                       rowChild = _buildLibraryButtonsRow(
                         row,
@@ -5197,6 +5200,157 @@ class _ContentRowsState extends State<_ContentRows>
 
   /// "Ce soir, plutôt…" as the mock-up's chips under the banner: one pill
   /// per mood, today's in red, the focused one in white.
+  /// VJOD 4.23: the Replay row as on the mock-up. Low wide tiles: « Mes
+  /// émissions » first, light, with its new episodes and the shows
+  /// followed; then each channel's own logo, whole, with a red badge when
+  /// something new came out.
+  Widget _buildReplayRow(
+    HomeRow row, {
+    required int rowIndex,
+    required List<HomeRow> rows,
+  }) {
+    final l10n = AppLocalizations.of(context);
+    final scale = _desktopUiScaleFactor();
+    final phone = PlatformDetection.useMobileUi;
+    final tileHeight = (phone ? 84.0 : 100.0) * scale;
+    final tileWidth = (phone ? 150.0 : 200.0) * scale;
+    final rowHeight = tileHeight + 22 * scale;
+    return _buildTitledRow(
+      key: _rowContainerKey(rowIndex),
+      title: _localizedRowTitle(row, l10n),
+      subtitle: _rowSubtitle(row, l10n),
+      rowIndex: rowIndex,
+      hasItems: row.items.isNotEmpty,
+      height: rowHeight,
+      child: LockedFocusRow<AggregatedItem>(
+        key: _rowKey(rowIndex),
+        items: row.items,
+        itemKey: _rowItemIdentity,
+        hubKey: _hubKeyForRow(row),
+        controller: _rowHorizontalController(rowIndex),
+        height: rowHeight,
+        itemExtent: tileWidth,
+        itemSpacing: 14 * scale,
+        leadingPadding: _isHomeRowsStyleV2() ? _kHomeRowLabelInset : 0,
+        clipBehavior: Clip.none,
+        padding: EdgeInsets.fromLTRB(_kHomeRowLabelInset, 12 * scale, 20, 8),
+        onIndexChanged: (_, item) => _onHomeRowTileFocused(item),
+        onFocusChange: (has) => _onRowFocusTracked(rowIndex, has),
+        onVerticalNavigation: (isUp) => _onRowVerticalNavigation(
+          rowIndex: rowIndex,
+          rows: rows,
+          isUp: isUp,
+        ),
+        onLeftEdge: _onRowLeftEdge,
+        onTap: (_, item) => _openReplay(context, item),
+        onLongPress: (_, item) => unawaited(_replayLongPress(context, item)),
+        itemBuilder: (ctx, item, idx, isFocused) => Align(
+          alignment: Alignment.topLeft,
+          child: MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: GestureDetector(
+              onTap: () => _openReplay(context, item),
+              onLongPress: () => unawaited(_replayLongPress(context, item)),
+              child: _replayTile(item, tileWidth, tileHeight, scale, isFocused),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _replayTile(AggregatedItem item, double w, double h, double scale, bool focused) {
+    final r = item.rawData[HomeViewModel.replayKey];
+    final mine = r is Map && r['kind'] == 'mine';
+    final fresh = (item.rawData[HomeViewModel.replayFreshKey] as num?)?.toInt() ?? 0;
+    final radius = BorderRadius.circular(12 * scale);
+    final ring = Border.all(color: focused ? vjodInk : Colors.transparent, width: 3 * scale);
+    final Widget body;
+    if (mine) {
+      final names = '${item.rawData[HomeViewModel.replayNamesKey] ?? ''}';
+      body = Container(
+        decoration: BoxDecoration(color: MaTvColors.ink, borderRadius: radius, border: ring),
+        padding: EdgeInsets.symmetric(horizontal: 14 * scale, vertical: 8 * scale),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Mes émissions',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: const Color(0xFF141210), fontSize: 19 * scale, fontWeight: FontWeight.w900)),
+            SizedBox(height: 2 * scale),
+            Text(
+              fresh > 0 ? '$fresh nouveau${fresh > 1 ? 'x' : ''} épisode${fresh > 1 ? 's' : ''}' : (names.isEmpty ? 'Suis tes émissions' : 'Rien de nouveau'),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: const Color(0xFF141210), fontSize: 13 * scale, fontWeight: FontWeight.w600),
+            ),
+            if (names.isNotEmpty)
+              Text(names,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: const Color(0xFF4A463F), fontSize: 11.5 * scale)),
+          ],
+        ),
+      );
+    } else {
+      final logo = '${item.rawData[HomeViewModel.replayLogoKey] ?? ''}';
+      final name = item.name;
+      final label = Center(
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 10 * scale),
+          child: Text(name,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: MaTvColors.ink, fontSize: 20 * scale, fontWeight: FontWeight.w900)),
+        ),
+      );
+      body = Container(
+        decoration: BoxDecoration(color: const Color(0xFF24252B), borderRadius: radius, border: ring),
+        padding: EdgeInsets.symmetric(horizontal: 18 * scale, vertical: 14 * scale),
+        child: logo.isEmpty
+            ? label
+            : Image.network(
+                logo,
+                fit: BoxFit.contain,
+                cacheWidth: (w * 2).round(),
+                semanticLabel: name,
+                errorBuilder: (_, _, _) => label,
+              ),
+      );
+    }
+    final pinned = item.rawData[HomeViewModel.replayPinnedKey] == true;
+    return SizedBox(
+      width: w,
+      height: h,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned.fill(child: AnimatedScale(scale: focused ? 1.04 : 1, duration: const Duration(milliseconds: 120), child: body)),
+          if (!mine && fresh > 0)
+            Positioned(
+              top: -8 * scale,
+              right: -8 * scale,
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 9 * scale, vertical: 3 * scale),
+                decoration: BoxDecoration(color: vjodRed, borderRadius: BorderRadius.circular(12 * scale)),
+                child: Text('$fresh',
+                    style: TextStyle(color: Colors.white, fontSize: 13 * scale, fontWeight: FontWeight.w700)),
+              ),
+            ),
+          if (pinned)
+            Positioned(
+              left: 8 * scale,
+              top: 6 * scale,
+              child: Icon(Icons.push_pin_rounded, size: 14 * scale, color: MaTvColors.mute),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildVjodMoodChipsRow(
     HomeRow row, {
     required int rowIndex,

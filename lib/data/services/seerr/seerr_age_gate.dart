@@ -161,7 +161,9 @@ List<HomeRow> withAgeGate(
 
 /// A tile that opens a page of VJOD rather than a title (VJOD 4.22: the
 /// replay's channels and « Mes émissions »): no rating to wait for.
-bool _isShortcut(AggregatedItem item) => item.rawData.containsKey('VjodReplay');
+bool _isShortcut(AggregatedItem item) =>
+    item.rawData.containsKey('VjodReplay') ||
+    (item.rawData['IptvResume'] is Map && (item.rawData['IptvResume'] as Map)['kind'] == 'replay');
 
 bool _passes(
   AggregatedItem item,
