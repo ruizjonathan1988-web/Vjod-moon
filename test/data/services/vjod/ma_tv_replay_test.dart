@@ -204,4 +204,27 @@ void main() {
     expect(e.isIptv, isTrue);
     expect(_arteItem.isIptv, isFalse);
   });
+
+  test('la page Replay façon France TV se lit', () async {
+    final client = MockClient((req) async {
+      expect(req.url.path, '/iptv/tv/api/replay/page');
+      return http.Response(
+        jsonEncode({
+          'hero': [{'id': 'h', 'kind': 'ftv', 'chan': 'france-2', 'show': 'Envoyé spécial', 'img': 'https://img/h.jpg'}],
+          'rows': [
+            {'id': 'mine', 'title': 'Mes émissions', 'items': [{'id': 'h', 'kind': 'ftv', 'chan': 'france-2', 'show': 'Envoyé spécial', 'new': true}]},
+            {'id': 'g:Séries et fictions', 'title': 'Séries et fictions', 'items': []},
+          ],
+          'chans': [{'chan': 'france-2', 'name': 'France 2', 'count': 120}],
+        }),
+        200,
+      );
+    });
+    final p = await MaTvReplay(httpClient: client, server: _server).page();
+    expect(p!.hero.single.show, 'Envoyé spécial');
+    expect(p.rows.map((r) => r.title), ['Mes émissions', 'Séries et fictions']);
+    expect(p.rows.first.items.single.isNew, isTrue);
+    expect(p.channels.single.name, 'France 2');
+    expect(p.isEmpty, isFalse);
+  });
 }

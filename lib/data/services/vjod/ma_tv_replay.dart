@@ -244,6 +244,39 @@ class ReplayPlayback {
   bool get inVjod => url != null;
 }
 
+/// VJOD 4.30: the Replay page, the France TV app's way (Ma TV 3.69): the
+/// « une », then rows (« Mes émissions », seen live, one per genre, the
+/// latest), one video per show.
+class ReplayRow {
+  final String id;
+  final String title;
+  final List<ReplayItem> items;
+  const ReplayRow({required this.id, required this.title, this.items = const []});
+}
+
+class ReplayPage {
+  final List<ReplayItem> hero;
+  final List<ReplayRow> rows;
+  final List<ReplayChannel> channels;
+  const ReplayPage({this.hero = const [], this.rows = const [], this.channels = const []});
+
+  bool get isEmpty => rows.every((r) => r.items.isEmpty);
+
+  factory ReplayPage.fromJson(Map<String, dynamic> j) => ReplayPage(
+    hero: _items(j['hero']),
+    rows: [
+      for (final r in (j['rows'] as List? ?? const []))
+        if (r is Map)
+          ReplayRow(id: '${r['id'] ?? ''}', title: '${r['title'] ?? ''}', items: _items(r['items'])),
+    ],
+    channels: [
+      for (final c in (j['chans'] as List? ?? const []))
+        if (c is Map)
+          ReplayChannel(chan: '${c['chan'] ?? ''}', name: '${c['name'] ?? c['chan'] ?? ''}', count: (c['count'] as num?)?.toInt() ?? 0),
+    ],
+  );
+}
+
 class MaTvReplay {
   MaTvReplay({http.Client? httpClient, TvSourcesServer? server}) : _http = httpClient, _server = server;
 
@@ -291,6 +324,19 @@ class MaTvReplay {
     final j = await _get('/tv/api/replay/home');
     if (j is Map) unawaited(VjodSnapshots.write(_snapKey('home'), j));
     return j is Map ? ReplayHome.fromJson(Map<String, dynamic>.from(j)) : null;
+  }
+
+  /// The Replay page; null when Ma TV is older than 3.69.
+  Future<ReplayPage?> page({bool kids = false}) async {
+    final j = await _get('/tv/api/replay/page', {if (kids) 'kids': '1'});
+    if (j is Map) unawaited(VjodSnapshots.write(_snapKey('page:$kids'), j));
+    return j is Map ? ReplayPage.fromJson(Map<String, dynamic>.from(j)) : null;
+  }
+
+  /// The last Replay page seen, at once, or null.
+  Future<ReplayPage?> pageSaved({bool kids = false}) async {
+    final j = await VjodSnapshots.read(_snapKey('page:$kids'));
+    return j is Map ? ReplayPage.fromJson(Map<String, dynamic>.from(j)) : null;
   }
 
   Future<ReplayChannelPage?> channel(String chan) async {
