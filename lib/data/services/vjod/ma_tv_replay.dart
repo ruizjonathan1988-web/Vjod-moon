@@ -76,7 +76,16 @@ class ReplayItem {
     this.followed = false,
     this.isNew = false,
     this.liveAt,
+    this.genre = '',
+    this.badge = '',
+    this.poster = '',
   });
+
+  /// VJOD 4.31 (Ma TV 3.70): its France TV category, « Nouveau » or
+  /// « Nouveaux épisodes », and a portrait picture when the channel has one.
+  final String genre;
+  final String badge;
+  final String poster;
 
   factory ReplayItem.fromJson(Map<String, dynamic> j) {
     final aired = (j['aired'] as num?)?.toInt() ?? 0;
@@ -98,6 +107,9 @@ class ReplayItem {
       followed: j['followed'] == true,
       isNew: j['new'] == true,
       liveAt: (j['live_at'] as num?) == null ? null : DateTime.fromMillisecondsSinceEpoch((j['live_at'] as num).toInt() * 1000),
+      genre: '${j['genre'] ?? ''}',
+      badge: '${j['badge'] ?? ''}',
+      poster: '${j['poster'] ?? ''}',
     );
   }
 
@@ -251,23 +263,44 @@ class ReplayRow {
   final String id;
   final String title;
   final List<ReplayItem> items;
-  const ReplayRow({required this.id, required this.title, this.items = const []});
+
+  /// `top` (numbered, « À la une »), `poster` (a category), or plain.
+  final String kind;
+  final String genre;
+  const ReplayRow({required this.id, required this.title, this.items = const [], this.kind = '', this.genre = ''});
 }
 
 class ReplayPage {
   final List<ReplayItem> hero;
   final List<ReplayRow> rows;
   final List<ReplayChannel> channels;
-  const ReplayPage({this.hero = const [], this.rows = const [], this.channels = const []});
+
+  /// « Notre sélection »: the channels' picks, with their words.
+  final List<ReplayItem> selection;
+
+  /// The categories with something in them, the household's first.
+  final List<String> categories;
+  const ReplayPage({this.hero = const [], this.rows = const [], this.channels = const [], this.selection = const [], this.categories = const []});
 
   bool get isEmpty => rows.every((r) => r.items.isEmpty);
 
   factory ReplayPage.fromJson(Map<String, dynamic> j) => ReplayPage(
     hero: _items(j['hero']),
+    selection: _items(j['selection']),
+    categories: [
+      for (final c in (j['categories'] as List? ?? const []))
+        if (c is Map && '${c['genre'] ?? ''}'.isNotEmpty) '${c['genre']}',
+    ],
     rows: [
       for (final r in (j['rows'] as List? ?? const []))
         if (r is Map)
-          ReplayRow(id: '${r['id'] ?? ''}', title: '${r['title'] ?? ''}', items: _items(r['items'])),
+          ReplayRow(
+            id: '${r['id'] ?? ''}',
+            title: '${r['title'] ?? ''}',
+            items: _items(r['items']),
+            kind: '${r['kind'] ?? ''}',
+            genre: '${r['genre'] ?? ''}',
+          ),
     ],
     channels: [
       for (final c in (j['chans'] as List? ?? const []))
@@ -331,6 +364,12 @@ class MaTvReplay {
     final j = await _get('/tv/api/replay/page', {if (kids) 'kids': '1'});
     if (j is Map) unawaited(VjodSnapshots.write(_snapKey('page:$kids'), j));
     return j is Map ? ReplayPage.fromJson(Map<String, dynamic>.from(j)) : null;
+  }
+
+  /// Every show of a category (Ma TV 3.70), one video each.
+  Future<List<ReplayItem>> category(String genre, {bool kids = false}) async {
+    final j = await _get('/tv/api/replay/category', {'g': genre, if (kids) 'kids': '1'});
+    return j is Map ? _items(j['items']) : const [];
   }
 
   /// The last Replay page seen, at once, or null.

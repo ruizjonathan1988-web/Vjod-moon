@@ -15,6 +15,10 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.31', [
+    'L\u2019onglet Replay prend la forme de l\u2019appli France TV : la une en grand avec sa catégorie, « Notre sélection », les chaînes en direct, « À la une » numérotée, les catégories (Séries & fictions, Documentaires, Cinéma…), une rangée par catégorie avec les pastilles « Nouveau » et « Nouveaux épisodes », et « Nos chaînes » en bas.',
+    'Un appui sur une catégorie montre toutes ses émissions. Il faut Ma TV 3.70.',
+  ]),
   VjodRelease('4.30', [
     'Le replay a son onglet, comme l\u2019appli France TV : les chaînes en haut, la une en grand, puis « Mes émissions », ce que vous avez vu en direct, une rangée par genre (séries, docs et magazines, dessins animés d\u2019abord) et les dernières diffusions.',
     'Une seule vidéo par émission, la plus récente, pour ne plus noyer ce que vous regardez.',

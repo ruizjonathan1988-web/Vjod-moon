@@ -210,7 +210,9 @@ void main() {
       expect(req.url.path, '/iptv/tv/api/replay/page');
       return http.Response(
         jsonEncode({
-          'hero': [{'id': 'h', 'kind': 'ftv', 'chan': 'france-2', 'show': 'Envoyé spécial', 'img': 'https://img/h.jpg'}],
+          'hero': [{'id': 'h', 'kind': 'ftv', 'chan': 'france-2', 'show': 'Envoyé spécial', 'img': 'https://img/h.jpg', 'genre': 'Société', 'badge': 'Nouveaux épisodes'}],
+          'selection': [{'id': 's', 'kind': 'ftv', 'chan': 'france-2', 'show': 'Les disparus', 'desc': 'Inspiré de faits réels.'}],
+          'categories': [{'genre': 'Séries & fictions', 'count': 40}],
           'rows': [
             {'id': 'mine', 'title': 'Mes émissions', 'items': [{'id': 'h', 'kind': 'ftv', 'chan': 'france-2', 'show': 'Envoyé spécial', 'new': true}]},
             {'id': 'g:Séries et fictions', 'title': 'Séries et fictions', 'items': []},
@@ -223,6 +225,10 @@ void main() {
     });
     final p = await MaTvReplay(httpClient: client, server: _server).page();
     expect(p!.hero.single.show, 'Envoyé spécial');
+    expect(p.hero.single.genre, 'Société');
+    expect(p.hero.single.badge, 'Nouveaux épisodes');
+    expect(p.selection.single.show, 'Les disparus');
+    expect(p.categories, ['Séries & fictions']);
     expect(p.rows.map((r) => r.title), ['Mes émissions', 'Séries et fictions']);
     expect(p.rows.first.items.single.isNew, isTrue);
     expect(p.channels.single.name, 'France 2');
