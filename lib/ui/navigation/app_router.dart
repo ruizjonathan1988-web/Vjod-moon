@@ -72,6 +72,8 @@ import '../screens/playback/photo_player_screen.dart';
 import '../screens/playback/still_watching_screen.dart';
 import '../screens/playback/trailer_player_screen.dart';
 import '../screens/vjod_tv/ma_tv_screen.dart';
+import '../screens/vjod_tv/ma_tv_replay_screen.dart' show MaTvReplayMineScreen;
+import '../../data/services/vjod/replay_alerts.dart';
 import '../screens/playback/video_player_screen.dart';
 import '../screens/playback/appletv_player_host_screen.dart';
 import '../screens/playback/appletv_livetv_player_host_screen.dart';
@@ -684,6 +686,11 @@ final appRouter = GoRouter(
         final itemId = state.pathParameters['itemId']!;
         return PhotoPlayerScreen(itemId: itemId);
       },
+    ),
+    // VJOD 4.28: where a « Nouvel épisode » notification lands.
+    GoRoute(
+      path: ReplayAlerts.route,
+      builder: (context, state) => const MaTvReplayMineScreen(),
     ),
     GoRoute(
       path: Destinations.providerPlayerPath,

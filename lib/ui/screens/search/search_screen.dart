@@ -15,6 +15,7 @@ import '../../../data/offline/connectivity_aware_media_server_client.dart';
 import '../../../data/repositories/multi_server_repository.dart';
 import '../../../data/repositories/search_repository.dart';
 import '../../../data/repositories/seerr_repository.dart';
+import '../home/home_view_model.dart';
 import '../../../data/services/recent_searches_store.dart';
 import '../../../data/services/remote_search_session.dart';
 import '../../../data/services/voice_search_controller.dart';
@@ -1100,7 +1101,7 @@ class _SearchScreenState extends State<SearchScreen>
   Widget _buildBody() {
     switch (_vm.state) {
       case SearchState.idle:
-        return const SizedBox.shrink();
+        return _buildIdeas();
       case SearchState.loading:
         if (_vm.results.isEmpty) {
           return const SkeletonLibraryGrid(
@@ -1135,6 +1136,63 @@ class _SearchScreenState extends State<SearchScreen>
           ),
         );
     }
+  }
+
+  /// VJOD 4.28: an empty search opens on ideas, the last searches and
+  /// titles of the Home, one press away.
+  Widget _buildIdeas() {
+    final ideas = <String>[];
+    final getIt = GetIt.instance;
+    if (getIt.isRegistered<HomeViewModel>()) {
+      const ids = {
+        HomeViewModel.forYouRowId,
+        HomeViewModel.top10MoviesRowId,
+        HomeViewModel.top10SeriesRowId,
+        HomeViewModel.frenchMoviesRowId,
+      };
+      for (final row in getIt<HomeViewModel>().rows) {
+        if (!ids.contains(row.id)) continue;
+        for (final item in row.items.take(5)) {
+          final name = item.name.trim();
+          if (name.isNotEmpty && !ideas.contains(name)) ideas.add(name);
+        }
+      }
+    }
+    final recent = _recentSearches.take(8).toList();
+    if (recent.isEmpty && ideas.isEmpty) return const SizedBox.shrink();
+    Widget section(String title, List<String> words, IconData icon) => Padding(
+      padding: const EdgeInsets.only(bottom: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title,
+              style: TextStyle(color: AppColorScheme.onSurface, fontSize: 17, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final w in words)
+                ActionChip(
+                  avatar: Icon(icon, size: 18),
+                  label: Text(w),
+                  onPressed: () => _onSearchSubmitted(w),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (recent.isNotEmpty) section('Tes dernières recherches', recent, Icons.history_rounded),
+          if (ideas.isNotEmpty) section('Des idées', ideas.take(16).toList(), Icons.lightbulb_outline_rounded),
+        ],
+      ),
+    );
   }
 
   int _currentTabItemCount() {

@@ -15,6 +15,13 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.28', [
+    '« Nouvel épisode » : sur le téléphone, une notification quand une émission que tu suis a un nouvel épisode au replay (la télé garde la pastille sur « Mes émissions »).',
+    'Films et séries IPTV : l\u2019épisode suivant suit les mêmes réglages que la bibliothèque (Réglages → Lecture) ; lecture automatique coupée, la carte attend ton appui.',
+    'Mode enfant : la rangée Replay ne montre plus que les chaînes jeunesse (France 4, Gulli, Tiji…), sans « Mes émissions ».',
+    'Sur la télé, « Qui regarde ? » au démarrage quand plusieurs profils sont enregistrés ; chacun garde son code PIN. Réglages → Compte pour le couper.',
+    'La recherche s\u2019ouvre sur des idées : tes dernières recherches et des titres de l\u2019Accueil, d\u2019un appui.',
+  ]),
   VjodRelease('4.27', [
     'En pause, VJOD dit ce que tu regardes : le titre, la saison et l\u2019épisode, le résumé, et à quelle heure ça finira.',
     'Sur le téléphone, garde le doigt appuyé sur l\u2019image pour passer en vitesse ×2 ; lâche, et ça repart normalement (à la télécommande, c\u2019est la touche Pause maintenue).',
