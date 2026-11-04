@@ -15,6 +15,9 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.33', [
+    'Fiche d\u2019un épisode du replay → « Garder les prochains épisodes » : chaque nouvel épisode de l\u2019émission est cherché sur tes trackers et rangé dans ta bibliothèque Séries ; VJOD le lit ensuite en premier, sans pub. Seulement ce qui passe à partir de maintenant, jamais le passé. Il faut Ma TV 3.72.',
+  ]),
   VjodRelease('4.32', [
     'Replay de TF1, M6… : la barre avance et recule enfin (VJOD rouvre l\u2019enregistrement à la minute choisie), le programme démarre deux minutes avant l\u2019heure du guide, et l\u2019heure est la bonne avec Ma TV 3.71.',
     'Quand ton fournisseur a la série en VOD, VJOD l\u2019ouvre en premier : sans pub, toute la saison.',

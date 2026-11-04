@@ -408,6 +408,7 @@ Future<void> showReplaySheet(
 }) async {
   final client = MaTvReplay();
   var followed = e.followed;
+  var kept = e.kept;
   final next = nextEpisode(e, siblings);
   final meta = [chanName, e.dayLabel, if (e.subtitle != e.dayLabel) e.subtitle].where((s) => s.isNotEmpty).join(' · ');
   final sources = ReplaySources.all(e, chanName: chanName);
@@ -500,6 +501,29 @@ Future<void> showReplaySheet(
               }
             },
             child: Text(followed ? '✓ Suivi' : '+ Suivre'),
+          ),
+          // VJOD 4.33: each new episode, from the trackers into the library
+          // (only those aired from now on; administrators).
+          OutlinedButton.icon(
+            onPressed: () async {
+              final why = await client.setKeep(e.show, !kept);
+              if (why == null) {
+                setState(() {
+                  kept = !kept;
+                  if (kept) followed = true;
+                });
+                afterChange?.call();
+                if (kept && context.mounted) {
+                  ScaffoldMessenger.maybeOf(context)?.showSnackBar(const SnackBar(
+                    content: Text('Les prochains épisodes arriveront dans ta bibliothèque, sans pub. Rien du passé n\u2019est téléchargé.'),
+                  ));
+                }
+              } else if (context.mounted) {
+                ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(content: Text(why)));
+              }
+            },
+            icon: Icon(kept ? Icons.check_rounded : Icons.download_for_offline_outlined),
+            label: Text(kept ? 'Gardée automatiquement' : 'Garder les prochains épisodes'),
           ),
           if (next != null)
             OutlinedButton(

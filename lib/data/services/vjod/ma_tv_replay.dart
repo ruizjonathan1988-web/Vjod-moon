@@ -79,7 +79,12 @@ class ReplayItem {
     this.genre = '',
     this.badge = '',
     this.poster = '',
+    this.kept = false,
   });
+
+  /// VJOD 4.33 (Ma TV 3.72): its next episodes go to the library by
+  /// themselves (« Garder les prochains épisodes »).
+  final bool kept;
 
   /// VJOD 4.31 (Ma TV 3.70): its France TV category, « Nouveau » or
   /// « Nouveaux épisodes », and a portrait picture when the channel has one.
@@ -110,6 +115,7 @@ class ReplayItem {
       genre: '${j['genre'] ?? ''}',
       badge: '${j['badge'] ?? ''}',
       poster: '${j['poster'] ?? ''}',
+      kept: j['kept'] == true,
     );
   }
 
@@ -407,6 +413,26 @@ class MaTvReplay {
   Future<List<ReplayItem>> search(String text) async {
     final j = await _get('/tv/api/replay/search', {'q': text});
     return j is Map ? _items(j['items']) : const [];
+  }
+
+  /// « Garder les prochains épisodes » on or off; null when done, else why
+  /// not, in French.
+  Future<String?> setKeep(String show, bool on) async {
+    final s = server;
+    if (s == null) return 'Ma TV n\u2019est pas réglée sur cet appareil.';
+    try {
+      final uri = s.endpoint('/tv/api/replay/keep');
+      final body = jsonEncode({'user': _user, 'show': show, 'keep': on});
+      final r = await (_http?.post(uri, headers: {'Content-Type': 'application/json'}, body: body) ??
+              http.post(uri, headers: {'Content-Type': 'application/json'}, body: body))
+          .timeout(_timeout);
+      if (r.statusCode == 200) return null;
+      if (r.statusCode == 404) return 'Il faut Ma TV 3.72 sur la seedbox.';
+      final j = jsonDecode(utf8.decode(r.bodyBytes, allowMalformed: true));
+      return j is Map && j['error'] != null ? '${j['error']}' : 'Ma TV a répondu ${r.statusCode}.';
+    } catch (e) {
+      return 'Impossible : $e';
+    }
   }
 
   /// « Suivre », « Pas pour nous », the news and weather shown again, or the
