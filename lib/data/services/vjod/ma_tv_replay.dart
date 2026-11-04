@@ -723,7 +723,8 @@ class ReplaySources {
           stream: iptvUri,
         ),
       if (!e.isIptv) ReplaySource(kind: 'app', name: appName(e), tag: 'en dernier', detail: 'S’ouvre sur l’épisode quand elle le permet'),
-      ReplaySource(kind: 'seerr', name: 'Demander (Seerr)', tag: 'à garder', detail: 'Ajouté à ta bibliothèque si la série est trouvée', route: Destinations.searchWith(e.show)),
+      ReplaySource(kind: 'seerr', name: 'Garder dans ma bibliothèque', tag: 'à garder', detail: 'Seerr demande la saison à Sonarr, qui la range sans pub', route: Destinations.searchWith(e.show)),
+      ReplaySource(kind: 'tracker', name: 'Chercher sur mes trackers', tag: 'à garder', detail: 'Prowlarr · tu choisis la version, rien ne part sans ton appui'),
     ];
   }
 }

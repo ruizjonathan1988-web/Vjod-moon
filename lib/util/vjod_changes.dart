@@ -15,6 +15,10 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.25', [
+    'Replay → fiche d\u2019un épisode → « Autres sources » → « Garder dans ma bibliothèque » : Seerr demande la saison à Sonarr, après ton accord.',
+    '« Chercher sur mes trackers » : ce que Prowlarr trouve pour l\u2019émission, les plus partagés d\u2019abord ; un appui puis « Télécharger » l\u2019envoie. Réservé aux administrateurs de Jellyfin, il faut Ma TV 3.67.',
+  ]),
   VjodRelease('4.24', [
     'Replay : les autres chaînes arrivent (TF1, M6, W9, TMC…), avec ce que ton fournisseur IPTV a enregistré ces derniers jours. Elles se regardent dans VJOD, avec la pub d\u2019origine et « Passer la pub ». Il faut Ma TV 3.66.',
   ]),
