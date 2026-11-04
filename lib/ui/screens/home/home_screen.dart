@@ -21,6 +21,7 @@ import 'package:server_core/server_core.dart' hide ImageType;
 import 'package:window_manager/window_manager.dart';
 
 import '../../../data/services/vjod/ma_tv_alerts.dart';
+import '../../../data/services/vjod/replay_alerts.dart';
 import '../../../data/services/vjod/provider_catalog_refresher.dart';
 import '../../../data/services/vjod/web_iptv.dart';
 import '../../../data/models/aggregated_item.dart';
@@ -236,6 +237,8 @@ class _HomeShellState extends State<_HomeShell>
     }
     // Alertes de Ma TV (nuit ratée, compte qui expire…), pour l'administrateur.
     MaTvAlerts.start();
+    // « Nouvel épisode » des émissions suivies, sur le téléphone (VJOD 4.28).
+    ReplayAlerts.start();
     // Once after an update: what the new VJOD version brings.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) unawaited(maybeShowVjodWhatsNew(context));

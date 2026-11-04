@@ -564,6 +564,13 @@ String replayNameKey(String s) {
 }
 
 /// The logo Ma TV already has for each replay channel, by its replay id.
+/// A children's channel, for Kids Mode (France 4 and Okoo, Gulli, Tiji,
+/// Canal J, Piwi+, Boomerang, Disney, Nickelodeon, Cartoon…).
+bool replayIsKidsChannel(String name) => RegExp(
+  r'france ?4|okoo|gulli|tiji|canal ?j\b|piwi|boomerang|disney|nick|cartoon|teletoon|baby|junior|kids?\b|enfant|jeunesse|ludo|zouzous',
+  caseSensitive: false,
+).hasMatch(name);
+
 Future<Map<String, String>> replayLogos(List<ReplayChannel> channels) async {
   final all = await MaTvClient().allChannels().timeout(const Duration(seconds: 6), onTimeout: () => null).catchError((_) => null);
   if (all == null) return const {};

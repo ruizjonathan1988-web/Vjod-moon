@@ -33,6 +33,8 @@ import '../../widgets/vjod/report_problem.dart';
 import '../vjod_tv/tv_engine.dart' show TvEngineChoice;
 import 'vod_engine.dart';
 import '../../../util/vjod_log.dart';
+import '../../../preference/user_preferences.dart';
+import '../../../preference/preference_constants.dart';
 import '../../../util/platform_detection.dart';
 import '../../../platform/pip_service.dart';
 import '../../../data/services/vjod/background_playback.dart';
@@ -158,6 +160,7 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
   bool _nextDismissed = false;
   bool _leaving = false;
   int _nextCount = 10;
+  bool _nextAuto = true;
   Timer? _nextTimer;
   final _nextFocus = FocusNode(debugLabel: 'provider_player_next');
 
@@ -224,16 +227,40 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
 
   /// In the last 40 seconds of an episode: « Épisode suivant » with a
   /// 10-second countdown (OK plays it now, BACK or « Annuler » stays).
+  /// VJOD 4.28: the same settings as the library's player (Réglages →
+  /// Lecture): « Épisode suivant » off shows nothing, autoplay off shows the
+  /// card without a countdown, and the countdown lasts as long as there.
+  ({bool show, bool auto, int seconds}) get _nextSettings {
+    final getIt = GetIt.instance;
+    if (!getIt.isRegistered<UserPreferences>()) return (show: true, auto: true, seconds: 10);
+    final p = getIt<UserPreferences>();
+    return (
+      show: p.get(UserPreferences.nextUpBehavior) != NextUpBehavior.disabled,
+      auto: p.get(UserPreferences.autoplayNextEpisode),
+      seconds: (p.get(UserPreferences.nextUpTimeout) / 1000).round().clamp(3, 30),
+    );
+  }
+
   void _checkNext() {
     if (_nextEp == null || _nextDismissed || _nextVisible || _leaving) return;
     if (_dur < const Duration(minutes: 5)) return;
     final remaining = _dur - _pos;
     if (remaining > const Duration(seconds: 40) || remaining <= Duration.zero) return;
+    final s = _nextSettings;
+    if (!s.show) {
+      _nextDismissed = true;
+      return;
+    }
     setState(() {
       _nextVisible = true;
-      _nextCount = 10;
+      _nextAuto = s.auto;
+      _nextCount = s.seconds;
     });
     _nextTimer?.cancel();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _nextVisible) _nextFocus.requestFocus();
+    });
+    if (!s.auto) return;
     _nextTimer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (!mounted) {
         t.cancel();
@@ -243,9 +270,6 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
       } else {
         setState(() => _nextCount--);
       }
-    });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _nextVisible) _nextFocus.requestFocus();
     });
   }
 
@@ -706,7 +730,7 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
                   focusNode: _nextFocus,
                   onPressed: _goNext,
                   icon: const Icon(Icons.skip_next_rounded),
-                  label: Text('Lire ($_nextCount s)'),
+                  label: Text(_nextAuto ? 'Lire ($_nextCount s)' : 'Lire'),
                 ),
                 const SizedBox(width: 10),
                 FilledButton.tonal(onPressed: _dismissNext, child: const Text('Annuler')),

@@ -1606,6 +1606,13 @@ class UserPreferences extends ChangeNotifier {
   /// Strips the app back to what a child needs and locks the way out behind a
   /// PIN. Scoped but deliberately not synced, so a parent handing over the TV
   /// doesn't put their phone in Kids Mode too.
+  /// VJOD 4.28: on the TV, ask « Qui regarde ? » at start when several
+  /// profiles are known on the server.
+  static final vjodWhoIsWatching = Preference(
+    key: 'vjod_who_is_watching',
+    defaultValue: true,
+  );
+
   static final kidsModeEnabled = Preference(
     key: 'pref_kids_mode',
     defaultValue: false,

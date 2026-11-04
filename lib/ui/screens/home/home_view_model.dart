@@ -53,6 +53,7 @@ import '../../../data/services/vjod/iptv_progress.dart';
 import '../../../data/services/vjod/ma_tv_replay.dart';
 import '../../../util/vjod_timings.dart';
 import 'continue_merge.dart';
+import '../../../data/services/vjod/replay_alerts.dart';
 import '../../../data/services/vjod/ma_tv_reports.dart';
 import '../../../data/services/vjod/vjod_collections.dart';
 import '../../../data/services/vjod/vjod_personalizer.dart';
@@ -1472,7 +1473,17 @@ class HomeViewModel extends ChangeNotifier {
       );
       return null;
     }
-    final chans = await ReplayOrder.sort([for (final c in home.channels) if (c.count > 0) c]);
+    unawaited(ReplayAlerts.note(home));
+    // Kids Mode (VJOD 4.28): the children's channels only, no « Mes émissions ».
+    final kids = _prefs.get(UserPreferences.kidsModeEnabled);
+    final chans = await ReplayOrder.sort([
+      for (final c in home.channels)
+        if (c.count > 0 && (!kids || replayIsKidsChannel(c.name))) c,
+    ]);
+    if (kids && chans.isEmpty) {
+      ReplayTrace.note('mode enfant : aucune chaîne jeunesse au replay');
+      return null;
+    }
     ReplayTrace.note('reçu : ${home.channels.length} chaînes (${chans.length} avec du replay), ${home.mine.length} émissions suivies');
     final logos = await replayLogos(chans);
     final pins = await ReplayOrder.pins();
@@ -1486,7 +1497,7 @@ class HomeViewModel extends ChangeNotifier {
     }
     final mineImage = home.mine.isNotEmpty ? home.mine.first.image : (home.featured.isNotEmpty ? home.featured.first.image : '');
     final cards = [
-      AggregatedItem(
+      if (!kids) AggregatedItem(
         id: 'replay-mine',
         serverId: 'seerr',
         rawData: {
