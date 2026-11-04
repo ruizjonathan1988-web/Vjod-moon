@@ -113,20 +113,22 @@ class ReplayKeep {
   }
 
   /// Sends [r] to the download; the answer to show, in French.
-  static Future<String> grab(TrackerRelease r, {http.Client? client, TvSourcesServer? server}) async {
+  static Future<String> grab(TrackerRelease r, {String show = '', http.Client? client, TvSourcesServer? server}) async {
     final s = server ?? TvSourcesClient().server;
     if (s == null) return 'Ma TV n’est pas réglée sur cet appareil.';
     try {
       final uri = s.endpoint('/tv/api/fetch/grab');
-      final body = jsonEncode({'id': r.id});
+      final body = jsonEncode({'id': r.id, if (show.isNotEmpty) 'show': show});
       final res = await (client?.post(uri, headers: {'Content-Type': 'application/json'}, body: body) ??
               http.post(uri, headers: {'Content-Type': 'application/json'}, body: body))
           .timeout(const Duration(seconds: 40));
       final j = jsonDecode(utf8.decode(res.bodyBytes, allowMalformed: true));
       if (res.statusCode == 200 && j is Map && j['ok'] == true) {
-        return j['via'] == 'qbittorrent'
-            ? 'Envoyé à qBittorrent (catégorie « vjod »).'
-            : 'Envoyé au téléchargement par Prowlarr.';
+        return switch (j['via']) {
+          'library' => 'Téléchargement lancé : il arrivera dans ta bibliothèque Séries, dans « ${show.isEmpty ? 'son dossier' : show} ».',
+          'qbittorrent' => 'Envoyé à qBittorrent (catégorie « vjod »).',
+          _ => 'Envoyé au téléchargement par Prowlarr.',
+        };
       }
       return j is Map && j['error'] != null ? '${j['error']}' : 'Ma TV a répondu ${res.statusCode}.';
     } catch (e) {

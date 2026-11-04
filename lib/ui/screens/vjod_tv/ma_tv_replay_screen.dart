@@ -231,7 +231,7 @@ class _TrackerSheetState extends State<_TrackerSheet> {
       ),
     );
     if (ok != true || !mounted) return;
-    final said = await ReplayKeep.grab(r);
+    final said = await ReplayKeep.grab(r, show: widget.item.show);
     if (!mounted) return;
     Navigator.of(context).pop();
     messenger?.showSnackBar(SnackBar(content: Text(said)));

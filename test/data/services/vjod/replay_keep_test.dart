@@ -32,13 +32,13 @@ void main() {
           200,
         );
       }
-      expect(jsonDecode(req.body), {'id': 'r1'});
-      return http.Response(jsonEncode({'ok': true, 'via': 'qbittorrent'}), 200);
+      expect(jsonDecode(req.body), {'id': 'r1', 'show': 'Capital'});
+      return http.Response(jsonEncode({'ok': true, 'via': 'library'}), 200);
     });
     final found = await ReplayKeep.search('Capital', client: client, server: _server);
     expect(found.mayGrab, isTrue);
     expect(found.results.single.detail, '2,5 Go · 40 sources · Tracker A · il y a 1 j');
-    expect(await ReplayKeep.grab(found.results.single, client: client, server: _server), contains('qBittorrent'));
+    expect(await ReplayKeep.grab(found.results.single, show: 'Capital', client: client, server: _server), contains('bibliothèque Séries'));
   });
 
   test('Ma TV trop ancienne, ou profil non administrateur', () async {
