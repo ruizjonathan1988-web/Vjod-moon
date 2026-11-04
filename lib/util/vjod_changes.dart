@@ -15,6 +15,9 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.29', [
+    'La recherche trouve aussi les émissions au replay (à partir de 3 lettres) : elles apparaissent avec les chaînes, un appui ouvre la fiche de l\u2019épisode.',
+  ]),
   VjodRelease('4.28', [
     '« Nouvel épisode » : sur le téléphone, une notification quand une émission que tu suis a un nouvel épisode au replay (la télé garde la pastille sur « Mes émissions »).',
     'Films et séries IPTV : l\u2019épisode suivant suit les mêmes réglages que la bibliothèque (Réglages → Lecture) ; lecture automatique coupée, la carte attend ton appui.',
