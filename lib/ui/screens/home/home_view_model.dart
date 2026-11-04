@@ -1499,7 +1499,7 @@ class HomeViewModel extends ChangeNotifier {
     final names = <String>{for (final e in home.mine) e.show}.take(3).join(', ');
     String fresh(int n) => '$n nouveau${n > 1 ? 'x' : ''}';
     String imageOf(String chan) {
-      for (final e in [...home!.mine, ...home.featured]) {
+      for (final e in [...home.mine, ...home.featured]) {
         if (e.chan == chan && e.image.isNotEmpty) return e.image;
       }
       return '';

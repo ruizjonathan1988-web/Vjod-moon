@@ -934,7 +934,7 @@ class _MaTvReplayPageScreenState extends State<MaTvReplayPageScreen> {
   ReplayPage? _page;
   bool _loading = true;
   Map<String, String> _logos = const {};
-  List<MaTvChannel> _live = const [];
+  List<MaTvChannel> _liveChans = const [];
   int _hero = 0;
   Timer? _heroTimer;
 
@@ -978,7 +978,7 @@ class _MaTvReplayPageScreenState extends State<MaTvReplayPageScreen> {
       if (all == null || !mounted) return;
       final want = {for (final c in p.channels) replayNameKey(c.name)};
       final seen = <String>{};
-      setState(() => _live = [
+      setState(() => _liveChans = [
             for (final c in all)
               if (want.contains(replayNameKey(c.name)) && seen.add(replayNameKey(c.name))) c,
           ]);
@@ -1151,10 +1151,10 @@ class _MaTvReplayPageScreenState extends State<MaTvReplayPageScreen> {
     height: 170,
     child: ListView.separated(
       scrollDirection: Axis.horizontal,
-      itemCount: _live.length,
+      itemCount: _liveChans.length,
       separatorBuilder: (_, _) => const SizedBox(width: 16),
       itemBuilder: (context, i) {
-        final c = _live[i];
+        final c = _liveChans[i];
         final now = c.now;
         final progress = now == null ? 0.0 : now.progressAt(DateTime.now());
         return SizedBox(
@@ -1166,7 +1166,7 @@ class _MaTvReplayPageScreenState extends State<MaTvReplayPageScreen> {
             child: InkWell(
               focusColor: MaTvColors.rowOn,
               onTap: () => unawaited(Navigator.of(context, rootNavigator: true).push<void>(maTvRoute(
-                (_) => MaTvPlayerScreen(channels: _live, startIndex: i, categoryId: 'replay', categoryLabel: 'En direct'),
+                (_) => MaTvPlayerScreen(channels: _liveChans, startIndex: i, categoryId: 'replay', categoryLabel: 'En direct'),
               ))),
               child: Padding(
                 padding: const EdgeInsets.all(14),
@@ -1273,7 +1273,7 @@ class _MaTvReplayPageScreenState extends State<MaTvReplayPageScreen> {
               if (hero != null) _heroCard(hero),
               for (final r in mine) _section(r.title, _strip(r.items)),
               if (p.selection.isNotEmpty) _section('Notre sélection', _strip(p.selection, width: 320, words: true)),
-              if (_live.isNotEmpty) _section('En direct', _liveRow(), dot: true),
+              if (_liveChans.isNotEmpty) _section('En direct', _liveRow(), dot: true),
               if (top10 != null && top10.items.isNotEmpty) _section('À la une', _strip(top10.items, numbered: true, width: 220)),
               if (p.categories.isNotEmpty) _section('Catégories', _categories(p.categories)),
               for (final r in others)
