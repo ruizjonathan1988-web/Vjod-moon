@@ -1427,6 +1427,9 @@ class HomeViewModel extends ChangeNotifier {
   }
 
   static const replayRowId = 'vjod_replay';
+
+  /// Off since VJOD 4.30 (the Replay tab).
+  static final replayRowOnHome = false;
   bool _replayRetried = false;
 
   /// On a card of the Replay row: `kind` (`mine` or `chan`), `chan`, `name`.
@@ -1445,6 +1448,12 @@ class HomeViewModel extends ChangeNotifier {
   /// then a tile per channel with its new episodes, in this week's order.
   /// Nothing when Ma TV has no replay (older than 3.62, or none reachable).
   Future<HomeRow?> _loadReplayRow() async {
+    // VJOD 4.30: the replay has its own tab now; the Home keeps « Continuer »
+    // (replays started are in it).
+    if (!replayRowOnHome) {
+      ReplayTrace.note('rangée retirée de l\u2019Accueil : le replay a son onglet');
+      return null;
+    }
     try {
       return await _loadReplayRowOrFail();
     } catch (e, st) {

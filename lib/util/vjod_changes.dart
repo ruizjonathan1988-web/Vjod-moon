@@ -15,6 +15,11 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.30', [
+    'Le replay a son onglet, comme l\u2019appli France TV : les chaînes en haut, la une en grand, puis « Mes émissions », ce que vous avez vu en direct, une rangée par genre (séries, docs et magazines, dessins animés d\u2019abord) et les dernières diffusions.',
+    'Une seule vidéo par émission, la plus récente, pour ne plus noyer ce que vous regardez.',
+    'L\u2019Accueil ne montre plus les tuiles des chaînes : les replays commencés restent dans « Continuer ». Il faut Ma TV 3.69.',
+  ]),
   VjodRelease('4.29', [
     'La recherche trouve aussi les émissions au replay (à partir de 3 lettres) : elles apparaissent avec les chaînes, un appui ouvre la fiche de l\u2019épisode.',
   ]),

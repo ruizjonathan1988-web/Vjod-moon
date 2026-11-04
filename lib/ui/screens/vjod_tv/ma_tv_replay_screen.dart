@@ -16,6 +16,7 @@ import '../../../preference/user_preferences.dart';
 import '../../../util/platform_detection.dart';
 import '../../navigation/destinations.dart';
 import '../../widgets/media_card.dart';
+import '../../widgets/navigation_layout.dart';
 import 'ma_tv_widgets.dart';
 
 // The palette of the rest of Ma TV.
@@ -892,4 +893,223 @@ void openReplayCard(BuildContext context, Map<dynamic, dynamic> r, {VoidCallback
       ? const MaTvReplayMineScreen()
       : MaTvReplayChannelScreen(chan: '${r['chan'] ?? ''}', name: '${r['name'] ?? ''}');
   unawaited(Navigator.of(context, rootNavigator: true).push(maTvRoute<void>((_) => screen)).then((_) => onClosed?.call()));
+}
+
+/// VJOD 4.30: the « Replay » tab, the France TV app's way. The channels in
+/// a strip at the top, the « une » in big, then a row each: « Mes
+/// émissions », seen live, one per genre (the household's first), the
+/// latest. One video per show; a press plays, a long press opens the sheet.
+class MaTvReplayPageScreen extends StatefulWidget {
+  const MaTvReplayPageScreen({super.key});
+
+  @override
+  State<MaTvReplayPageScreen> createState() => _MaTvReplayPageScreenState();
+}
+
+class _MaTvReplayPageScreenState extends State<MaTvReplayPageScreen> {
+  final _client = MaTvReplay();
+  ReplayPage? _page;
+  bool _loading = true;
+  Map<String, String> _logos = const {};
+  int _hero = 0;
+  Timer? _heroTimer;
+
+  bool get _kids {
+    final getIt = GetIt.instance;
+    return getIt.isRegistered<UserPreferences>() && getIt<UserPreferences>().get(UserPreferences.kidsModeEnabled);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_client.pageSaved(kids: _kids).then((p) {
+      if (p != null && mounted && _loading) setState(() => _page = p);
+    }));
+    unawaited(_load());
+    _heroTimer = Timer.periodic(const Duration(seconds: 8), (_) {
+      final n = _page?.hero.length ?? 0;
+      if (n > 1 && mounted) setState(() => _hero = (_hero + 1) % n);
+    });
+  }
+
+  @override
+  void dispose() {
+    _heroTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    final p = await _client.page(kids: _kids) ?? _page;
+    if (!mounted) return;
+    setState(() {
+      _page = p;
+      _loading = false;
+    });
+    if (p != null && p.channels.isNotEmpty) {
+      final logos = await replayLogos(p.channels);
+      if (mounted) setState(() => _logos = logos);
+    }
+  }
+
+  String _chanName(String chan) {
+    for (final c in _page?.channels ?? const <ReplayChannel>[]) {
+      if (c.chan == chan) return c.name;
+    }
+    return chan;
+  }
+
+  Widget _channels(ReplayPage p) => SizedBox(
+    height: 64,
+    child: ListView.separated(
+      scrollDirection: Axis.horizontal,
+      itemCount: p.channels.length,
+      separatorBuilder: (_, _) => const SizedBox(width: 10),
+      itemBuilder: (context, i) {
+        final c = p.channels[i];
+        final logo = _logos[c.chan] ?? '';
+        return Material(
+          color: const Color(0xFF24252B),
+          borderRadius: BorderRadius.circular(12),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            focusColor: MaTvColors.rowOn,
+            onTap: () {
+              unawaited(ReplayOrder.noteOpen(c.chan));
+              unawaited(Navigator.of(context, rootNavigator: true)
+                  .push(maTvRoute<void>((_) => MaTvReplayChannelScreen(chan: c.chan, name: c.name))));
+            },
+            child: Container(
+              width: 112,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              alignment: Alignment.center,
+              child: logo.isEmpty
+                  ? Text(c.name, textAlign: TextAlign.center, maxLines: 2, style: const TextStyle(color: _ink, fontWeight: FontWeight.w800))
+                  : Image.network(logo, fit: BoxFit.contain, semanticLabel: c.name,
+                      errorBuilder: (_, _, _) => Text(c.name, textAlign: TextAlign.center, style: const TextStyle(color: _ink, fontWeight: FontWeight.w800))),
+            ),
+          ),
+        );
+      },
+    ),
+  );
+
+  Widget _heroCard(ReplayItem e) {
+    final w = MediaQuery.sizeOf(context).width;
+    final h = (w * (PlatformDetection.useMobileUi ? .56 : .34)).clamp(180.0, 420.0);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: SizedBox(
+        height: h,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (e.image.isNotEmpty) Image.network(e.image, fit: BoxFit.cover, errorBuilder: (_, _, _) => const ColoredBox(color: Color(0xFF24252B))),
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                  colors: [Color(0xEE0B0B0D), Color(0x000B0B0D)],
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  _chip(_chanName(e.chan)),
+                  const SizedBox(height: 10),
+                  Text(e.show, maxLines: 2, overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: _ink, fontSize: 30, fontWeight: FontWeight.w900, height: 1.1)),
+                  if (e.title.isNotEmpty && e.title != e.show)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(e.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: _mute, fontSize: 16)),
+                    ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      FilledButton.icon(
+                        autofocus: true,
+                        onPressed: () => unawaited(playReplay(context, e)),
+                        icon: const Icon(Icons.play_arrow_rounded),
+                        label: const Text('Regarder'),
+                      ),
+                      const SizedBox(width: 10),
+                      FilledButton.tonalIcon(
+                        onPressed: () => unawaited(showReplaySheet(context, e, chanName: _chanName(e.chan), afterChange: _load)),
+                        icon: const Icon(Icons.info_outline_rounded),
+                        label: const Text('Infos'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _row(ReplayRow r) => Padding(
+    padding: const EdgeInsets.only(top: 26),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _rowTitle(r.title, count: r.id == 'mine' && r.items.any((e) => e.isNew) ? '${r.items.where((e) => e.isNew).length} nouveaux' : ''),
+        SizedBox(
+          height: 230,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: r.items.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 16),
+            itemBuilder: (context, i) => _episodeCard(context, r.items[i],
+                chanName: _chanName(r.items[i].chan), chanChip: true, afterChange: _load),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final p = _page;
+    final isMobile = PlatformDetection.useMobileUi;
+    final side = isMobile ? 16.0 : 48.0;
+    final top = MediaQuery.paddingOf(context).top + (isMobile ? 64.0 : 96.0);
+    final Widget body;
+    if (p == null) {
+      body = Center(
+        child: _loading
+            ? const CircularProgressIndicator()
+            : const Padding(
+                padding: EdgeInsets.all(24),
+                child: Text('Le replay arrive avec Ma TV 3.69 sur la seedbox.', textAlign: TextAlign.center, style: TextStyle(color: _mute)),
+              ),
+      );
+    } else {
+      final hero = p.hero.isEmpty ? null : p.hero[_hero % p.hero.length];
+      body = RefreshIndicator(
+        onRefresh: _load,
+        child: FocusTraversalGroup(
+          child: ListView(
+            padding: EdgeInsets.fromLTRB(side, top, side, 40),
+            children: [
+              if (p.channels.isNotEmpty) _channels(p),
+              if (hero != null) ...[const SizedBox(height: 18), _heroCard(hero)],
+              for (final r in p.rows)
+                if (r.items.isNotEmpty) _row(r),
+            ],
+          ),
+        ),
+      );
+    }
+    return Scaffold(
+      backgroundColor: _bg,
+      body: NavigationLayout(activeRoute: Destinations.replay, child: body),
+    );
+  }
 }

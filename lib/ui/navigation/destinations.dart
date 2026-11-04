@@ -84,6 +84,9 @@ class Destinations {
     queryParameters: {'kind': tv ? 'tv' : 'movie', 'library': ?library},
   ).toString();
   static const explorer = '/explorer';
+
+  /// VJOD 4.30: the Replay tab.
+  static const replay = '/replay';
   static const providerSeriesPath = '/provider-series';
   static const tv = '/tv';
   /// Kids Mode's TV: Ma TV's Jeunesse channels only.
