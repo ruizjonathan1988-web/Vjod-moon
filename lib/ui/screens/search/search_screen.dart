@@ -16,6 +16,8 @@ import '../../../data/repositories/multi_server_repository.dart';
 import '../../../data/repositories/search_repository.dart';
 import '../../../data/repositories/seerr_repository.dart';
 import '../home/home_view_model.dart';
+import '../vjod_tv/ma_tv_replay_screen.dart' show showReplaySheet;
+import '../../../data/services/vjod/ma_tv_replay.dart' show MaTvReplay, ReplayItem;
 import '../../../data/services/recent_searches_store.dart';
 import '../../../data/services/remote_search_session.dart';
 import '../../../data/services/voice_search_controller.dart';
@@ -192,6 +194,7 @@ class _SearchScreenState extends State<SearchScreen>
 
   void _onViewModelChanged() {
     final query = _searchController.text.trim();
+    _searchReplay(_vm.query.trim());
     final tabKeys = _tabKeys;
     final keptTab = _selectedTab < _shownTabKeys.length
         ? tabKeys.indexOf(_shownTabKeys[_selectedTab])
@@ -393,7 +396,25 @@ class _SearchScreenState extends State<SearchScreen>
     return searchChannelHits(all, q);
   }
 
-  bool get _hasChannels => _channelHits.isNotEmpty;
+  bool get _hasChannels => _channelHits.isNotEmpty || _replayHits.isNotEmpty;
+
+  // VJOD 4.29: the channels' replay answers too, in the same row as the
+  // channels (« Chaînes et replay »).
+  List<ReplayItem> _replayHits = const [];
+  String _replayQuery = '';
+
+  void _searchReplay(String q) {
+    if (q == _replayQuery) return;
+    _replayQuery = q;
+    if (q.length < 3 || _userPreferences.get(UserPreferences.kidsModeEnabled)) {
+      if (_replayHits.isNotEmpty) setState(() => _replayHits = const []);
+      return;
+    }
+    unawaited(MaTvReplay().search(q).then((found) {
+      if (!mounted || _replayQuery != q) return;
+      setState(() => _replayHits = found.take(12).toList());
+    }).catchError((Object _) {}));
+  }
 
   int get _tabCount {
     final hasContent =
@@ -1220,7 +1241,8 @@ class _SearchScreenState extends State<SearchScreen>
         _vm.seerrResults.length +
         _vm.gameResults.length +
         _vm.providerResults.length +
-        _channelHits.length;
+        _channelHits.length +
+        _replayHits.length;
     // VJOD names the tabs the mock-up's way: "À demander · 5".
     final vjod =
         ThemeRegistry.active.id == ThemeRegistry.vjodId ||
@@ -1411,7 +1433,8 @@ class _SearchScreenState extends State<SearchScreen>
     final hasGames = _vm.gameResults.isNotEmpty;
     final hasProvider = _hasProvider;
     final channels = _channelHits;
-    final ch = channels.isEmpty ? 0 : 1;
+    final replays = _replayHits;
+    final ch = channels.isEmpty && replays.isEmpty ? 0 : 1;
     _allRowIds = [
       if (ch == 1) 'channels',
       for (final g in groups) g.itemTypes.first,
@@ -1421,7 +1444,7 @@ class _SearchScreenState extends State<SearchScreen>
     ];
     // Library groups come first, then the Seerr and Games rows when present.
     final rowLens = <int>[
-      if (ch == 1) channels.length,
+      if (ch == 1) channels.length + replays.length,
       for (final g in groups) g.items.length,
       if (hasProvider) _vm.providerResults.length,
       if (hasSeerr) _vm.seerrResults.length,
@@ -1434,7 +1457,11 @@ class _SearchScreenState extends State<SearchScreen>
       rows.add(
         LibraryRow(
           key: _allRowKey(0),
-          title: vjodText(context, fr: 'Chaînes en direct', en: 'Live channels', ru: 'Каналы в эфире', zh: '直播频道'),
+          title: replays.isEmpty
+              ? vjodText(context, fr: 'Chaînes en direct', en: 'Live channels', ru: 'Каналы в эфире', zh: '直播频道')
+              : channels.isEmpty
+              ? 'Au replay'
+              : 'Chaînes et replay',
           rowHeight: cardWidth / (16 / 9) + 56,
           children: [
             for (var c = 0; c < channels.length; c++)
@@ -1452,6 +1479,20 @@ class _SearchScreenState extends State<SearchScreen>
                 focusNode: _allCardNode(0, c),
                 onKeyEvent: (node, event) => _onAllCardKey(0, c, rowLens, event),
                 onTap: () => _openChannel(channels, c),
+              ),
+            for (var i = 0; i < replays.length; i++)
+              MediaCard(
+                title: replays[i].show,
+                subtitle: ['Replay', replays[i].dayLabel].where((x) => x.isNotEmpty).join(' · '),
+                imageUrl: replays[i].image.isEmpty ? null : replays[i].image,
+                width: cardWidth,
+                aspectRatio: 16 / 9,
+                itemType: 'Episode',
+                focusColor: focusColor,
+                cardFocusExpansion: cardFocusExpansion,
+                focusNode: _allCardNode(0, channels.length + i),
+                onKeyEvent: (node, event) => _onAllCardKey(0, channels.length + i, rowLens, event),
+                onTap: () => unawaited(showReplaySheet(context, replays[i])),
               ),
           ],
         ),
