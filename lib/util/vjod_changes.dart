@@ -15,6 +15,9 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.26', [
+    '« Chercher sur mes trackers » : ce que tu télécharges arrive directement dans ta bibliothèque Séries, dans le dossier de l\u2019émission, et Jellyfin le relit tout seul. Il faut Ma TV 3.68.',
+  ]),
   VjodRelease('4.25', [
     'Replay → fiche d\u2019un épisode → « Autres sources » → « Garder dans ma bibliothèque » : Seerr demande la saison à Sonarr, après ton accord.',
     '« Chercher sur mes trackers » : ce que Prowlarr trouve pour l\u2019émission, les plus partagés d\u2019abord ; un appui puis « Télécharger » l\u2019envoie. Réservé aux administrateurs de Jellyfin, il faut Ma TV 3.67.',
