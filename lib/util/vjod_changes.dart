@@ -15,6 +15,9 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.34', [
+    'Replay : une barre sous chaque vignette montre où tu t\u2019étais arrêté, pleine quand l\u2019épisode est fini.',
+  ]),
   VjodRelease('4.33', [
     'Fiche d\u2019un épisode du replay → « Garder les prochains épisodes » : chaque nouvel épisode de l\u2019émission est cherché sur tes trackers et rangé dans ta bibliothèque Séries ; VJOD le lit ensuite en premier, sans pub. Seulement ce qui passe à partir de maintenant, jamais le passé. Il faut Ma TV 3.72.',
   ]),
