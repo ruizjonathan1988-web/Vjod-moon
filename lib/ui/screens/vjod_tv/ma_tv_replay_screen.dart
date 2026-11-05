@@ -9,7 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../data/services/vjod/iptv_progress.dart' show IptvWatch;
+import '../../../data/services/vjod/iptv_progress.dart' show IptvWatch, IptvProgressStore;
 import '../../../data/services/vjod/ma_tv_replay.dart';
 import '../../../data/services/vjod/replay_keep.dart';
 import '../../../preference/user_preferences.dart';
@@ -34,6 +34,30 @@ IptvWatch _watchOf(ReplayItem item) => IptvWatch(
   name: item.show,
   poster: item.image,
 );
+
+/// VJOD 4.34: where each replay episode was left (Ma TV keeps it), for the
+/// bar under its picture; refreshed when a place is saved.
+final replayProgress = ValueNotifier<Map<String, double>>(const {});
+bool _replayProgressListening = false;
+
+Future<void> loadReplayProgress() async {
+  if (!_replayProgressListening) {
+    _replayProgressListening = true;
+    IptvProgressStore.revision.stream.listen((_) => unawaited(loadReplayProgress()));
+  }
+  final list = await IptvProgressStore.list();
+  replayProgress.value = {
+    for (final p in list)
+      if (p.kind == 'replay') p.id: p.done ? 100.0 : (p.fraction * 100).clamp(0.0, 100.0),
+  };
+}
+
+/// [card] with the episode's place, when it was started.
+Widget _withProgress(ReplayItem e, MediaCard Function(double? pct) card) =>
+    ValueListenableBuilder<Map<String, double>>(
+      valueListenable: replayProgress,
+      builder: (_, map, _) => card(map[e.id]),
+    );
 
 String _titleOf(ReplayItem item) =>
     item.title.isEmpty || item.title == item.show ? item.show : '${item.show} · ${item.title}';
@@ -361,7 +385,8 @@ Widget _episodeCard(
   VoidCallback? afterChange,
 }) {
   void sheet() => unawaited(showReplaySheet(context, e, siblings: siblings, chanName: chanName, afterChange: afterChange));
-  final card = MediaCard(
+  final card = _withProgress(e, (pct) => MediaCard(
+    playedPercentage: pct,
     title: e.show,
     subtitle: '${e.dayLabel}${e.subtitle.isNotEmpty && e.subtitle != e.dayLabel ? ' · ${e.subtitle}' : ''}',
     imageUrl: e.image.isEmpty ? null : e.image,
@@ -377,7 +402,7 @@ Widget _episodeCard(
     ],
     onTap: () => unawaited(playReplay(context, e)),
     onLongPress: sheet,
-  );
+  ));
   if (!infos) return card;
   return SizedBox(
     width: width,
@@ -645,6 +670,7 @@ class _MaTvReplayMineScreenState extends State<MaTvReplayMineScreen> {
   @override
   void initState() {
     super.initState();
+    unawaited(loadReplayProgress());
     unawaited(_client.homeSaved().then((h) {
       if (h != null && mounted && _loading) {
         setState(() {
@@ -804,6 +830,7 @@ class _MaTvReplayChannelScreenState extends State<MaTvReplayChannelScreen> {
   @override
   void initState() {
     super.initState();
+    unawaited(loadReplayProgress());
     unawaited(_client.channelSaved(widget.chan).then((p) {
       if (p != null && mounted && _loading) {
         setState(() {
@@ -983,6 +1010,7 @@ class _MaTvReplayPageScreenState extends State<MaTvReplayPageScreen> {
       if (p != null && mounted && _loading) setState(() => _page = p);
     }));
     unawaited(_load());
+    unawaited(loadReplayProgress());
     _heroTimer = Timer.periodic(const Duration(seconds: 8), (_) {
       final n = _page?.hero.length ?? 0;
       if (n > 1 && mounted) setState(() => _hero = (_hero + 1) % n);
@@ -1134,7 +1162,8 @@ class _MaTvReplayPageScreenState extends State<MaTvReplayPageScreen> {
   Widget _tile(ReplayItem e, {bool portrait = false, double width = 260, int? rank, String? words}) {
     final img = portrait && e.poster.isNotEmpty ? e.poster : e.image;
     final ratio = portrait && e.poster.isNotEmpty ? 3 / 4 : 16 / 9;
-    final card = MediaCard(
+    final card = _withProgress(e, (pct) => MediaCard(
+      playedPercentage: pct,
       title: e.show,
       subtitle: words ?? (e.subtitle.isNotEmpty ? e.subtitle : e.dayLabel),
       imageUrl: img.isEmpty ? null : img,
@@ -1150,7 +1179,7 @@ class _MaTvReplayPageScreenState extends State<MaTvReplayPageScreen> {
       ],
       onTap: () => unawaited(playReplay(context, e)),
       onLongPress: () => unawaited(showReplaySheet(context, e, chanName: _chanName(e.chan), afterChange: _load)),
-    );
+    ));
     if (rank == null) return card;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1355,6 +1384,7 @@ class _ReplayCategoryScreenState extends State<_ReplayCategoryScreen> {
   @override
   void initState() {
     super.initState();
+    unawaited(loadReplayProgress());
     unawaited(MaTvReplay().category(widget.genre, kids: widget.kids).then((l) {
       if (mounted) setState(() => _items = l);
     }));
