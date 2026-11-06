@@ -15,6 +15,11 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.37', [
+    'Aura, le jeu de cinéma, arrive dans VJOD. À activer profil par profil dans Réglages → L\u2019essentiel → Aura : un bouton jaune en haut ouvre la course contre Pop, tes cartes du soir, ce qu\u2019on te propose et l\u2019aura de la maison.',
+    'Sur la fiche d\u2019un film ou d\u2019une série, « Proposer à… » l\u2019envoie à quelqu\u2019un de la maison, avec un mot si tu veux. Ton aura grandit quand il le regarde (+1), quand il l\u2019aime (+2), et quand plusieurs l\u2019aiment (+3).',
+    'VJOD voit tout seul si ce qu\u2019on t\u2019a proposé a été regardé ou mis en favori.',
+  ]),
   VjodRelease('4.36', [
     'Aura, le jeu de cinéma, peut ouvrir dans VJOD n\u2019importe quel film qu\u2019il te propose : sur ton serveur, en VOD chez ton fournisseur ou à demander. VJOD ouvre sa fiche, avec le bouton qui convient.',
   ]),

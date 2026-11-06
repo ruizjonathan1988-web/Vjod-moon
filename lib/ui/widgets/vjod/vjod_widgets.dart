@@ -375,6 +375,9 @@ class VjodNavBar extends StatelessWidget {
   final Widget? leading;
   final double scale;
 
+  /// Just before the avatar: Aura's Pop button, when the profile plays.
+  final Widget? beforeAvatar;
+
   /// What the search can find, written in the bar so people see they can
   /// look for an actor or a channel too. The short one is for tight bars.
   final String? searchHint;
@@ -390,6 +393,7 @@ class VjodNavBar extends StatelessWidget {
     this.avatarFocusNode,
     this.leading,
     this.scale = 1,
+    this.beforeAvatar,
     this.searchHint,
     this.searchHintShort,
   });
@@ -458,6 +462,10 @@ class VjodNavBar extends StatelessWidget {
               scale: scale,
             ),
           SizedBox(width: 16 * scale),
+          if (beforeAvatar != null) ...[
+            beforeAvatar!,
+            SizedBox(width: 12 * scale),
+          ],
           VjodRoundButton(
             size: 44 * scale,
             background: vjodRed,

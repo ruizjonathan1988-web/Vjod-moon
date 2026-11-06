@@ -136,6 +136,8 @@ import '../../../util/audio_track_logic.dart';
 import '../../../util/artwork_request_size.dart';
 import '../../../util/platform_detection.dart';
 import 'detail_layout_metrics.dart';
+import '../../widgets/vjod/aura_drawer.dart' show showAuraPropose;
+import '../../../data/services/vjod/aura/aura_service.dart' show vjodAuraOn;
 
 const _textShadows = [Shadow(blurRadius: 4, color: Colors.black54)];
 
@@ -7461,6 +7463,21 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
             icon: Icons.thumb_down_alt_outlined,
             onPressed: () => _markNotForMe(context, target),
           ),
+      if ((item.type == 'Movie' || item.type == 'Series') &&
+          vjodAuraOn() &&
+          shows(DetailButton.auraPropose))
+        DetailButton.auraPropose: _DetailActionButton(
+          label: 'Proposer à…',
+          icon: Icons.auto_awesome_rounded,
+          onPressed: () => showAuraPropose(
+            context,
+            title: item.name,
+            year: item.productionYear,
+            tmdbId: int.tryParse(item.tmdbId ?? ''),
+            jellyfinId: viewModel.isSeerrOnly ? null : item.id,
+            series: item.type == 'Series',
+          ),
+        ),
       if (!isBook && shows(DetailButton.playlist))
         DetailButton.playlist: _DetailActionButton(
           label: l10n.addToPlaylist,
@@ -7699,6 +7716,7 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
               DetailButton.trailer,
               DetailButton.favorite,
               DetailButton.seerrWatchlist,
+              DetailButton.auraPropose,
               DetailButton.seerrRequest,
               DetailButton.seerrRequest4k,
             ]
@@ -7707,6 +7725,7 @@ class DetailActionButtonsState extends State<DetailActionButtons> {
               DetailButton.trailer,
               DetailButton.favorite,
               DetailButton.seerrWatchlist,
+              DetailButton.auraPropose,
               DetailButton.personalRating,
               DetailButton.notForMe,
               DetailButton.seerrRequest,
