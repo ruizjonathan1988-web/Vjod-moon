@@ -15,6 +15,9 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.35', [
+    'Version web : les onglets (Ma TV, Films, Séries, Replay) et les vidéos ne tournent plus sans fin. Depuis 4.20, le navigateur attendait des listes gardées qu\u2019il ne peut pas lire.',
+  ]),
   VjodRelease('4.34', [
     'Replay : une barre sous chaque vignette montre où tu t\u2019étais arrêté, pleine quand l\u2019épisode est fini.',
   ]),

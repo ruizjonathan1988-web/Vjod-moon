@@ -20,6 +20,7 @@ void main() {
     MaTvClient.forgetCache();
   });
   tearDown(() {
+    VjodSnapshots.webForTests = null;
     VjodSnapshots.directoryForTests = null;
     dir.deleteSync(recursive: true);
   });
@@ -29,6 +30,22 @@ void main() {
     VjodSnapshots.clearMemory();
     expect(await VjodSnapshots.read('k'), {'a': 1});
     expect(await VjodSnapshots.read('autre'), isNull);
+  });
+
+  test('navigateur : pas de fichier, la liste reste en mémoire et rien ne plante (VJOD 4.35)', () async {
+    VjodSnapshots.webForTests = true;
+    await VjodSnapshots.write('w', {'a': 2});
+    expect(await VjodSnapshots.read('w'), {'a': 2});
+    expect(await VjodSnapshots.read('jamais vue'), isNull);
+    expect(dir.listSync(), isEmpty);
+  });
+
+  test('dossier inaccessible : la lecture répond « rien » au lieu de planter', () async {
+    final f = File('${dir.path}/fichier')..writeAsStringSync('x');
+    VjodSnapshots.directoryForTests = Directory('${f.path}/sous');
+    await VjodSnapshots.write('z', {'a': 3});
+    VjodSnapshots.clearMemory();
+    expect(await VjodSnapshots.read('z'), isNull);
   });
 
   test('chaînes : la dernière liste revient aussitôt, sans le programme fini', () async {
