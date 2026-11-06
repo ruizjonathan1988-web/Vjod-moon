@@ -84,6 +84,9 @@ class Destinations {
     queryParameters: {'kind': tv ? 'tv' : 'movie', 'library': ?library},
   ).toString();
   static const explorer = '/explorer';
+
+  /// VJOD 4.30: the Replay tab.
+  static const replay = '/replay';
   static const providerSeriesPath = '/provider-series';
   static const tv = '/tv';
   /// Kids Mode's TV: Ma TV's Jeunesse channels only.
@@ -334,11 +337,13 @@ class Destinations {
     required String url,
     String title = '',
     IptvWatch? watch,
+    bool adSkip = false,
   }) => Uri(
     path: providerPlayerPath,
     queryParameters: {
       'url': url,
       if (title.isNotEmpty) 'title': title,
+      if (adSkip) 'ads': '1',
       ...?watch?.toQuery(),
     },
   ).toString();

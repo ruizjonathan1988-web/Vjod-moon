@@ -1,7 +1,7 @@
 # VJOD — règles du dépôt
 
 - Réponses, commits, descriptions de PR et textes de l'appli en français.
-- Rien n'est poussé sur `main`, `matv`, `perso` ou `perso-wip` sans l'accord écrit de Xavier. Jamais de force-push ni de suppression de branche.
+- Jamais de force-push ni de suppression de branche.
 - Chaque changement sur sa branche (depuis `matv`), PR vers `matv`, tests ajoutés à la liste de `.github/workflows/perso-check.yml`, « Verif perso » verte avant toute fusion.
 
 ## Numéro de version (depuis VJOD 4.1)

@@ -86,8 +86,24 @@ class _AboutCategoryScreen extends StatelessWidget {
                 onTap: () {},
               ),
               const _StartupTimelineTile(),
+              const _TimingsTile(),
+              const _ReplayTraceTile(),
+              // VJOD 4.27: the month at home, from Playback Reporting (admins).
+              if (GetIt.instance<UserRepository>().currentUser?.isAdministrator ?? false)
+                _TvSettingsListTile(
+                  leading: const Icon(Icons.insights_rounded),
+                  title: const Text('Le mois à la maison'),
+                  subtitle: const Text('Heures regardées par chacun, séries et films les plus vus'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const WatchMonthScreen())),
+                ),
               if (AppDistribution.supportsInAppUpdates)
                 const _CheckForUpdatesTile(),
+              // The admin's own devices take each new version first.
+              if (AppDistribution.supportsInAppUpdates &&
+                  AppUpdateService.isPersoBuild &&
+                  (GetIt.instance<UserRepository>().currentUser?.isAdministrator ?? false))
+                const _TrialChannelTile(),
               const _ReportProblemTile(),
               _TvSettingsListTile(
                 leading: const Icon(Icons.code),
@@ -188,66 +204,85 @@ class _ReportProblemTile extends StatefulWidget {
 }
 
 class _ReportProblemTileState extends State<_ReportProblemTile> {
-  String? _number;
-
   @override
   void initState() {
     super.initState();
-    unawaited(_load());
-  }
-
-  Future<void> _load() async {
-    final server = TvSourcesClient().server;
-    if (server == null) return;
-    try {
-      final r = await http
-          .get(server.endpoint('/tv/api/support'))
-          .timeout(const Duration(seconds: 6));
-      if (r.statusCode != 200) return;
-      final json = jsonDecode(utf8.decode(r.bodyBytes));
-      final n = json is Map ? (json['whatsapp'] ?? '').toString() : '';
-      if (n.isNotEmpty && mounted) setState(() => _number = n);
-    } catch (_) {}
+    unawaited(loadSupportNumber());
   }
 
   @override
   Widget build(BuildContext context) {
-    final number = _number;
-    if (number == null) return const SizedBox.shrink();
+    return ValueListenableBuilder<String?>(
+      valueListenable: vjodSupportNumber,
+      builder: (context, number, _) {
+        if (number == null) return const SizedBox.shrink();
+        return _TvSettingsListTile(
+          leading: const Icon(Icons.chat_rounded),
+          title: Text(vjodText(
+            context,
+            fr: 'Signaler un problème',
+            en: 'Report a problem',
+            ru: 'Сообщить о проблеме',
+            zh: '报告问题',
+          )),
+          subtitle: Text(vjodText(
+            context,
+            fr: 'Par WhatsApp, avec la version, l\'appareil et le dernier souci déjà indiqués',
+            en: 'On WhatsApp, with the version, device and last problem already filled in',
+            ru: 'В WhatsApp, версия, устройство и последняя проблема уже указаны',
+            zh: '通过 WhatsApp，已附上版本、设备和最近的问题',
+          )),
+          onTap: () => unawaited(openReportProblem(context)),
+        );
+      },
+    );
+  }
+}
+
+/// « Versions d'essai » on this device: each new build arrives here first,
+/// the household's devices get it once validated on the Ma TV page.
+class _TrialChannelTile extends StatefulWidget {
+  const _TrialChannelTile();
+
+  @override
+  State<_TrialChannelTile> createState() => _TrialChannelTileState();
+}
+
+class _TrialChannelTileState extends State<_TrialChannelTile> {
+  AppUpdateService get _updates => GetIt.instance<AppUpdateService>();
+
+  @override
+  Widget build(BuildContext context) {
+    final on = _updates.betaChannel;
     return _TvSettingsListTile(
-      leading: const Icon(Icons.chat_rounded),
+      leading: const Icon(Icons.science_outlined),
       title: Text(vjodText(
         context,
-        fr: 'Signaler un problème',
-        en: 'Report a problem',
-        ru: 'Сообщить о проблеме',
-        zh: '报告问题',
+        fr: 'Versions d\'essai sur cet appareil',
+        en: 'Trial versions on this device',
+        ru: 'Тестовые версии на этом устройстве',
+        zh: '在此设备上接收测试版',
       )),
       subtitle: Text(vjodText(
         context,
-        fr: 'Par WhatsApp, avec la version et l\'appareil déjà indiqués',
-        en: 'On WhatsApp, with the version and device already filled in',
-        ru: 'В WhatsApp, версия и устройство уже указаны',
-        zh: '通过 WhatsApp，已附上版本和设备信息',
+        fr: on
+            ? 'Chaque nouvelle version arrive ici d\'abord ; les autres appareils la reçoivent quand tu la valides sur la page Ma TV'
+            : 'Les autres appareils : seulement les versions validées',
+        en: on
+            ? 'Each new version comes here first; the other devices get it once you validate it on the Ma TV page'
+            : 'Validated versions only',
+        ru: on ? 'Новые версии сначала приходят сюда' : 'Только проверенные версии',
+        zh: on ? '新版本先到这里' : '仅接收已验证的版本',
       )),
-      onTap: () {
-        final info = GetIt.instance<DeviceInfo>();
-        final text = [
-          vjodText(context,
-              fr: 'Problème sur VJOD :', en: 'Problem with VJOD:', ru: 'Проблема с VJOD:', zh: 'VJOD 问题：'),
-          '',
-          '',
-          '— VJOD ${_AboutCategoryScreen.vjodVersion(context)}',
-          '— ${PlatformDetection.isTV ? 'TV' : 'Mobile'} · ${info.name}',
-        ].join('\n');
-        unawaited(showQrOrLaunch(
-          context,
-          url: 'https://wa.me/$number?text=${Uri.encodeComponent(text)}',
-          title: vjodText(context,
-              fr: 'Signaler un problème', en: 'Report a problem', ru: 'Сообщить о проблеме', zh: '报告问题'),
-        ));
-      },
+      trailing: Switch(value: on, onChanged: (v) => unawaited(_set(v))),
+      onTap: () => unawaited(_set(!on)),
     );
+  }
+
+  Future<void> _set(bool v) async {
+    await _updates.setBetaChannel(v);
+    if (mounted) setState(() {});
+    if (v && mounted) await checkAndShowUpdateResult(context);
   }
 }
 
@@ -288,6 +323,53 @@ class _CheckForUpdatesTileState extends State<_CheckForUpdatesTile> {
         zh: '查找最新版本的 VJOD',
       )),
       onTap: _checking ? null : _check,
+    );
+  }
+}
+
+/// VJOD 4.20: how fast each service answers on this device.
+class _TimingsTile extends StatelessWidget {
+  const _TimingsTile();
+
+  @override
+  Widget build(BuildContext context) {
+    final lines = VjodTimings.lines();
+    return _TvSettingsListTile(
+      leading: const Icon(Icons.speed_rounded),
+      title: const Text('Temps de réponse'),
+      subtitle: Text(lines.isEmpty ? 'Pas encore mesuré : utilise VJOD un moment.' : lines.join('\n')),
+      trailing: const SizedBox.shrink(),
+      onTap: () {},
+    );
+  }
+}
+
+/// VJOD 4.22: what the Home's Replay row did on this device, and whether it
+/// is on the Home right now.
+class _ReplayTraceTile extends StatelessWidget {
+  const _ReplayTraceTile();
+
+  @override
+  Widget build(BuildContext context) {
+    final getIt = GetIt.instance;
+    String now = 'Accueil pas encore ouvert';
+    if (getIt.isRegistered<HomeViewModel>()) {
+      final rows = getIt<HomeViewModel>().rows;
+      final i = rows.indexWhere((r) => r.id == HomeViewModel.replayRowId);
+      final vm = getIt<HomeViewModel>();
+      now = i < 0
+          ? (vm.replayBuilt
+                ? 'Prête mais cachée par un filtre de l\u2019Accueil'
+                : 'Absente de l\u2019Accueil en ce moment (${rows.length} rangées)')
+          : 'Sur l\u2019Accueil : rangée ${i + 1} sur ${rows.length}, ${rows[i].items.length} tuiles';
+    }
+    final lines = ReplayTrace.lines();
+    return _TvSettingsListTile(
+      leading: const Icon(Icons.replay_rounded),
+      title: const Text('Rangée Replay'),
+      subtitle: Text([now, if (lines.isEmpty) 'Pas encore demandée depuis le lancement.' else ...lines].join('\n')),
+      trailing: const SizedBox.shrink(),
+      onTap: () {},
     );
   }
 }

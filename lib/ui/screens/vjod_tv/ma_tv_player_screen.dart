@@ -13,8 +13,11 @@ import 'package:flutter/services.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../data/services/vjod/ma_tv.dart';
+import '../../../platform/pip_service.dart';
+import '../../../data/services/vjod/background_playback.dart';
 import '../../../data/services/vjod/ma_tv_multiview.dart';
 import '../../../data/services/vjod/ma_tv_recordings.dart';
+import '../../../data/services/vjod/ma_tv_reports.dart';
 import '../../../data/services/vjod/ma_tv_sports.dart';
 import '../../../data/services/vjod/tv_sources.dart';
 import '../../../util/focus/dpad_keys.dart';
@@ -23,6 +26,7 @@ import '../../../util/system_ui.dart';
 import '../../../util/vjod_text.dart';
 import '../../screensaver/screensaver_controller.dart';
 import '../../widgets/live_tv/tv_sources_panel.dart';
+import '../../widgets/vjod/report_problem.dart';
 import 'ma_tv_guide.dart';
 import 'ma_tv_multiview_screen.dart';
 import 'ma_tv_recordings_screen.dart';
@@ -152,11 +156,24 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
   MaTvProgram? _replaying;
 
   MaTvChannel get _channel => _list[_index.clamp(0, _list.length - 1)];
+
+  /// The picture never came: Ma TV hears which channel, with which player,
+  /// and what the screen said.
+  void _reportFailure() {
+    final ch = _channel;
+    MaTvReports.instance.play(
+      _status ?? 'Pas d’image',
+      channel: '${ch.number} ${ch.name}',
+      player: _engine.runtimeType.toString().replaceAll('TvEngine', ''),
+      source: _replaying != null ? 'replay' : (_delay > Duration.zero ? 'différé' : 'direct'),
+    );
+  }
   bool get _touch => !PlatformDetection.isTV;
 
   @override
   void initState() {
     super.initState();
+    unawaited(loadSupportNumber());
     _list = List.of(widget.channels);
     _index = widget.startIndex.clamp(0, _list.isEmpty ? 0 : _list.length - 1);
     _catId = widget.categoryId;
@@ -168,6 +185,8 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     if (!widget.kids) unawaited(MaTvMultiview.resolve().then((_) {}));
     setImmersive(true);
     _screensaver(true);
+    _startPip();
+    _startBackground();
     _engine = WebTvEngine.wanted
         ? (_apple = _attach(WebTvEngine()))
         : AppleTvEngine.wanted
@@ -328,6 +347,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
         .toList();
     if (rest.isEmpty) {
       setState(() => _status = '${_t('Ça saccade', 'Stuttering', 'Подтормаживает', '卡顿')} ($why) ${_t('et aucune autre source à essayer', 'and no other source to try', 'и других источников нет', '且没有其他片源可试')}');
+      _reportFailure();
       _showBanner(time: const Duration(seconds: 6));
       return;
     }
@@ -346,8 +366,66 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     if (getIt.isRegistered<ScreensaverController>()) getIt<ScreensaverController>().setPlaybackActive(on);
   }
 
+  // ------------------------------------------------------- image dans l'image
+  /// On a phone or tablet, leaving the app (home, another app) keeps the
+  /// channel in a small window; back in VJOD, the player is as it was.
+  PipService? _pip;
+  bool _inPip = false;
+  final List<StreamSubscription<Object?>> _pipSubs = [];
+
+  void _startPip() {
+    if (!PlatformDetection.isAndroid || PlatformDetection.isTV) return;
+    if (!GetIt.instance.isRegistered<PipService>()) return;
+    final pip = _pip = GetIt.instance<PipService>();
+    unawaited(pip.enableAutoPiP(true, owner: this));
+    _pipSubs.add(pip.onPiPChanged.listen((on) {
+      if (!mounted) return;
+      setState(() {
+        _inPip = on;
+        // Panels and banners would only clutter the small window.
+        if (on) {
+          _overlay = _Overlay.none;
+          _banner = false;
+        }
+      });
+      if (!on) _showBanner();
+    }));
+    _pipSubs.add(pip.onPiPAction.listen((action) {
+      if (action == 'playPause') unawaited(_engine.playOrPause());
+    }));
+  }
+
+  /// Screen off or app reduced: the channel plays on, with its notification.
+  void _startBackground() {
+    final ch = _list.isEmpty ? null : _channel;
+    unawaited(VjodBackgroundPlayback.start(
+      this,
+      title: ch == null ? 'VJOD' : '${ch.number}  ${ch.name}',
+      text: ch?.programAt(DateTime.now())?.title ?? 'TV en direct',
+      onCommand: (cmd) {
+        if (!mounted) return;
+        if (cmd == 'playPause') {
+          unawaited(_engine.playOrPause());
+        } else if (cmd == 'stop') {
+          Navigator.of(context).maybePop();
+        }
+      },
+    ));
+  }
+
+  void _stopPip() {
+    for (final s in _pipSubs) {
+      unawaited(s.cancel());
+    }
+    _pipSubs.clear();
+    final pip = _pip;
+    if (pip != null) unawaited(pip.enableAutoPiP(false, owner: this));
+  }
+
   @override
   void dispose() {
+    _stopPip();
+    unawaited(VjodBackgroundPlayback.stop(this));
     _screensaver(false);
     for (final t in [_clock, _zapTimer, _bannerTimer, _watchdog, _summaryTimer, _numberTimer, _refreshTimer, _seekTimer, _freezeTimer, _sportsTimer, _flashTimer, _sportSoon]) {
       t?.cancel();
@@ -376,6 +454,14 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
   }
 
   void _tune({bool immediate = false}) {
+    if (_list.isNotEmpty) {
+      final ch = _channel;
+      unawaited(VjodBackgroundPlayback.update(
+        this,
+        title: '${ch.number}  ${ch.name}',
+        text: ch.programAt(DateTime.now())?.title ?? 'TV en direct',
+      ));
+    }
     if (_list.isEmpty) return;
     _replaying = null;
     _delay = Duration.zero;
@@ -461,6 +547,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
           _status = _t('Pas d’image pour cette lecture · Retour pour revenir au direct', 'No picture for this playback · Back to return to live', 'Нет картинки · Назад — вернуться в эфир', '此次播放无画面 · 按返回回到直播');
           _failed = true;
         });
+        _reportFailure();
         _showBanner(time: const Duration(seconds: 12));
       } else {
         unawaited(_nextSource());
@@ -501,6 +588,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
             _status = _t('Pas d’image pour cette lecture · Retour pour revenir au direct', 'No picture for this playback · Back to return to live', 'Нет картинки · Назад — вернуться в эфир', '此次播放无画面 · 按返回回到直播');
             _failed = true;
           });
+          _reportFailure();
           _showBanner(time: const Duration(seconds: 12));
         }());
       }
@@ -521,6 +609,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
           _status = _t('La chaîne ne répond pas', 'The channel isn’t responding', 'Канал не отвечает', '频道无响应');
           _failed = true;
         });
+        _reportFailure();
         _showBanner(time: const Duration(seconds: 12));
         return;
       }
@@ -537,6 +626,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
           _status = _t('Aucune source ne répond · MENU puis Sources pour en choisir une', 'No source responds · MENU then Sources to pick one', 'Ни один источник не отвечает · МЕНЮ, затем Источники', '所有片源均无响应 · 按菜单再选片源');
           _failed = true;
         });
+        _reportFailure();
         _showBanner(time: const Duration(seconds: 12));
         return;
       }
@@ -800,6 +890,9 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
         ),
       if (!widget.kids) (icon: Icons.tune_rounded, label: _t('Sources', 'Sources', 'Источники', '片源'), action: _GuideAction.sources),
       (icon: Icons.list_rounded, label: _t('Liste des chaînes', 'Channel list', 'Список каналов', '频道列表'), action: _GuideAction.list),
+      // To the admin by WhatsApp, with the channel and what went wrong.
+      if (!widget.kids && vjodSupportNumber.value != null)
+        (icon: Icons.chat_rounded, label: _t('Signaler un problème', 'Report a problem', 'Сообщить о проблеме', '报告问题'), action: _GuideAction.report),
     ];
   }
 
@@ -841,6 +934,9 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
         setState(() => _overlay = _Overlay.sources);
       case _GuideAction.list:
         _openList();
+      case _GuideAction.report:
+        final ch = _channel;
+        unawaited(openReportProblem(context, what: '${_t('Chaîne', 'Channel', 'Канал', '频道')} ${ch.number} ${ch.name}${_failed && _status != null ? ' · ${_status!}' : ''}'));
       case _GuideAction.grid:
         await _openGrid();
       case _GuideAction.multiview:
@@ -1361,6 +1457,13 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
 
   @override
   Widget build(BuildContext context) {
+    if (_inPip) {
+      // The small window: the picture alone.
+      return ColoredBox(
+        color: Colors.black,
+        child: KeyedSubtree(key: ValueKey(_engine.name), child: _engine.view()),
+      );
+    }
     final ch = _list.isEmpty ? null : _channel;
     final sport = _sport;
     return PopScope(
@@ -1611,4 +1714,4 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
 }
 
 /// What an entry of the player's menu does.
-enum _GuideAction { live, fromStart, record, replay, favorite, grid, multiview, quality, engine, sources, list }
+enum _GuideAction { live, fromStart, record, replay, favorite, grid, multiview, quality, engine, sources, list, report }

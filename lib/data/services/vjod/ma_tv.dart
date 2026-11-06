@@ -19,13 +19,16 @@ import 'package:http/http.dart' as http;
 import 'package:server_core/server_core.dart';
 
 import '../../../auth/repositories/session_repository.dart';
+import 'channel_search.dart';
 import '../../../preference/seerr_preferences.dart';
 import '../../../util/platform_detection.dart';
 import 'jellyfin_vjod_config.dart';
 import 'ma_tv_alerts.dart';
+import 'vjod_snapshots.dart';
 import 'ma_tv_sports.dart';
 import 'tv_sources.dart';
 import '../../../util/vjod_log.dart';
+import '../../../util/vjod_timings.dart';
 
 class MaTvCategory {
   final String id;
@@ -217,7 +220,7 @@ class MaTvClient {
     if (s == null) return null;
     try {
       final uri = s.endpoint(path, query);
-      final r = await (_http?.get(uri) ?? http.get(uri)).timeout(timeout);
+      final r = await VjodTimings.time('Ma TV', (_http?.get(uri) ?? http.get(uri)).timeout(timeout), what: path);
       if (r.statusCode != 200) return null;
       return jsonDecode(utf8.decode(r.bodyBytes));
     } catch (_) {
@@ -258,12 +261,58 @@ class MaTvClient {
     }
     final json = await _get('/tv/api/cats');
     if (json is! Map || json['cats'] is! List) return c?.cats;
-    final cats = [
-      for (final x in json['cats'] as List)
-        if (x is Map) MaTvCategory.fromJson(Map<String, dynamic>.from(x)),
-    ];
+    final cats = _catsOf(json);
     _catCache = (at: DateTime.now(), cats: cats);
+    unawaited(VjodSnapshots.write(_snapKey('cats'), json));
     return cats;
+  }
+
+  static List<MaTvCategory> _catsOf(Map<dynamic, dynamic> json) => [
+    for (final x in json['cats'] as List)
+      if (x is Map) MaTvCategory.fromJson(Map<String, dynamic>.from(x)),
+  ];
+
+  String _snapKey(String what) => '${server?.url ?? ''}|${user ?? ''}|$what';
+
+  /// The categories last seen, at once (this session, else saved on the
+  /// device); null when there are none yet. [categories] brings them up to
+  /// date.
+  Future<List<MaTvCategory>?> categoriesSaved() async {
+    final c = _catCache;
+    if (c != null) return c.cats;
+    final j = await VjodSnapshots.read(_snapKey('cats'));
+    return j is Map && j['cats'] is List ? _catsOf(j) : null;
+  }
+
+  /// The channels of [category] last seen, at once; what was on then is
+  /// dropped once it has ended.
+  Future<List<MaTvChannel>?> channelsSaved(String category) async {
+    final c = _chanCache[category];
+    if (c != null) return c.chans;
+    final j = await VjodSnapshots.read(_snapKey('chans:$category'));
+    if (j is! Map || j['chans'] is! List) return null;
+    final now = DateTime.now();
+    return [
+      for (final x in j['chans'] as List)
+        if (x is Map) _fresh(MaTvChannel.fromJson(Map<String, dynamic>.from(x)), now),
+    ];
+  }
+
+  static MaTvChannel _fresh(MaTvChannel c, DateTime now) {
+    final n = c.now;
+    if (n == null || n.end.isAfter(now)) return c;
+    final next = c.next;
+    return MaTvChannel(
+      id: c.id,
+      number: c.number,
+      name: c.name,
+      logo: c.logo,
+      theme: c.theme,
+      country: c.country,
+      quality: c.quality,
+      replayDays: c.replayDays,
+      now: next != null && next.start.isBefore(now) && next.end.isAfter(now) ? next : null,
+    );
   }
 
   /// The channels of [category] (`all`, `t:Sport`, `c:FR`…), with now/next.
@@ -282,6 +331,7 @@ class MaTvClient {
         if (x is Map) MaTvChannel.fromJson(Map<String, dynamic>.from(x)),
     ];
     _chanCache[category] = (at: DateTime.now(), chans: chans);
+    unawaited(VjodSnapshots.write(_snapKey('chans:$category'), json));
     return chans;
   }
 
@@ -345,9 +395,11 @@ class MaTvClient {
   /// A past programme (or the current one from its start), when the provider
   /// keeps it.
   Uri? replayUri(MaTvChannel channel, MaTvProgram program) {
-    final minutes = program.end.difference(program.start).inMinutes + 5;
+    // Two minutes ahead: guides and recordings are rarely to the minute
+    // (VJOD 4.32; the bar moves through the recording).
+    final minutes = program.end.difference(program.start).inMinutes + 7;
     return server?.endpoint('/tv/replay/${channel.id}.ts', {
-      'start': '${program.start.millisecondsSinceEpoch ~/ 1000}',
+      'start': '${program.start.millisecondsSinceEpoch ~/ 1000 - 120}',
       'dur': '${minutes.clamp(5, 600)}',
       if (MaTvDevice.capsSync.isNotEmpty) 'caps': MaTvDevice.capsSync,
     });
@@ -533,6 +585,35 @@ class MaTvMemory {
     final list = [id, ...p.maTvRecent.where((x) => x != id)];
     await p.setMaTvRecent(list);
     await p.setMaTvLastChannel(id);
-    if (category.isNotEmpty) await p.setMaTvLastCategory(category);
+    // Rechercher, Sports and Enregistrements aren't lists to come back to.
+    if (category.isNotEmpty && !const {'search', 'sports', 'rec'}.contains(category)) {
+      await p.setMaTvLastCategory(category);
+    }
   }
+}
+
+
+/// The channels a search finds (the home search, VJOD 4.15): those whose
+/// name or number match first, then those airing a matching programme now or
+/// next. At most [limit]; nothing for a single letter.
+List<MaTvChannel> searchChannelHits(List<MaTvChannel> all, String query, {int limit = 12}) {
+  final q = normalizeChannelQuery(query);
+  if (q.length < 2 && int.tryParse(q) == null) return const [];
+  final byName = <MaTvChannel>[];
+  final byShow = <MaTvChannel>[];
+  for (final c in all) {
+    if (channelMatchesQuery(query, name: c.name, number: '${c.number}')) {
+      byName.add(c);
+    } else if (channelMatchesQuery(query, name: '', programTitles: [?c.now?.title, ?c.next?.title]) && q.length >= 3) {
+      byShow.add(c);
+    }
+  }
+  // An exact name (« TF1 ») or number (« 1 ») first.
+  int exact(MaTvChannel c) =>
+      normalizeChannelQuery(c.name) == q || '${c.number}' == q ? 0 : 1;
+  byName.sort((a, b) {
+    final e = exact(a) - exact(b);
+    return e != 0 ? e : a.number.compareTo(b.number);
+  });
+  return [...byName, ...byShow].take(limit).toList();
 }

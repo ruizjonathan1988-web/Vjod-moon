@@ -122,6 +122,21 @@ void main() {
     });
   });
 
+  test('les tuiles du replay restent avec le contrôle parental', () {
+    final rows = withAgeGate([
+      HomeRow(
+        id: 'vjod_replay',
+        title: 'Replay',
+        rowType: HomeRowType.pluginDynamic,
+        items: [
+          AggregatedItem(id: 'replay-mine', serverId: 'seerr', rawData: {'Name': 'Mes émissions', 'VjodReplay': {'kind': 'mine'}}),
+          AggregatedItem(id: 'replay-arte', serverId: 'seerr', rawData: {'Name': 'Arte', 'VjodReplay': {'kind': 'chan'}}),
+        ],
+      ),
+    ], (_, _) => false);
+    expect(rows.single.items.map((i) => i.id), ['replay-mine', 'replay-arte']);
+  });
+
   group('SeerrAgeGate', () {
     test('looks a title up once and lets it through when it may', () async {
       var lookups = 0;

@@ -440,6 +440,37 @@ class MainActivity : AudioServiceActivity(), GamepadsCompatibleActivity {
                 else -> result.notImplemented()
             }
         }
+        val vjodBackground = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "vjod/background")
+        VjodPlaybackService.onCommand = { cmd ->
+            runOnUiThread { vjodBackground.invokeMethod("command", cmd) }
+        }
+        vjodBackground.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "start" -> {
+                    try {
+                        VjodPlaybackService.start(
+                            this,
+                            call.argument<String>("title") ?: "VJOD",
+                            call.argument<String>("text") ?: "",
+                            call.argument<Boolean>("playing") ?: true,
+                        )
+                        result.success(true)
+                    } catch (e: Exception) {
+                        // Android refuses a foreground service started from the
+                        // background: the sound then stops as before.
+                        result.success(false)
+                    }
+                }
+                "stop" -> {
+                    try {
+                        VjodPlaybackService.stop(this)
+                    } catch (_: Exception) {
+                    }
+                    result.success(true)
+                }
+                else -> result.notImplemented()
+            }
+        }
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             PersoApkInstaller.CHANNEL,
@@ -454,6 +485,8 @@ class MainActivity : AudioServiceActivity(), GamepadsCompatibleActivity {
                     }
                 }
                 "lastUpdateTime" -> result.success(PersoApkInstaller.lastUpdateTime(this))
+                "canInstall" -> result.success(PersoApkInstaller.canInstall(this))
+                "openInstallSettings" -> result.success(PersoApkInstaller.openInstallSettings(this))
                 else -> result.notImplemented()
             }
         }

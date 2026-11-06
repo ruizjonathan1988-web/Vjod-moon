@@ -9,6 +9,9 @@ import 'package:jellyfin_preference/jellyfin_preference.dart';
 import 'package:server_core/server_core.dart';
 
 import '../../../auth/repositories/server_repository.dart';
+import '../../../auth/repositories/server_user_repository.dart';
+import '../../../preference/user_preferences.dart';
+import '../../../util/platform_detection.dart';
 import '../../../auth/repositories/session_repository.dart';
 import '../../../auth/store/authentication_preferences.dart';
 import '../../../auth/store/credential_store.dart';
@@ -159,7 +162,15 @@ class _StartupScreenState extends State<StartupScreen>
       pinEnabledForAutoLoginUser = pinUtil.isPinEnabled;
     }
 
-    final restored = (authPrefs.shouldAlwaysAuthenticate || pinEnabledForAutoLoginUser)
+    // VJOD 4.28: « Qui regarde ? » on the TV when the household has several
+    // profiles on this server; each keeps its PIN if it has one.
+    final askWho = PlatformDetection.isTV &&
+        GetIt.instance<UserPreferences>().get(UserPreferences.vjodWhoIsWatching) &&
+        targetServerId != null &&
+        GetIt.instance<ServerUserRepository>().getStoredServerUsers(targetServerId).length >= 2;
+    if (askWho) StartupTimeline.mark('Qui regarde ?');
+
+    final restored = (askWho || authPrefs.shouldAlwaysAuthenticate || pinEnabledForAutoLoginUser)
         ? false
         : await session.restoreSession();
 

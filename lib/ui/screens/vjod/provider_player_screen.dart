@@ -19,6 +19,7 @@ import '../../../data/services/seerr/taste_profile.dart';
 import '../../../data/services/vjod/iptv_learning.dart';
 import '../../../data/services/vjod/iptv_next.dart';
 import '../../../data/services/vjod/iptv_progress.dart';
+import '../../../data/services/vjod/ma_tv_reports.dart';
 import '../../../data/services/vjod/provider_catalog_access.dart';
 import '../../../data/services/vjod/vjod_votes.dart';
 import '../../../preference/seerr_preferences.dart';
@@ -28,10 +29,15 @@ import '../../../util/system_ui.dart';
 import '../../navigation/destinations.dart';
 import '../../screensaver/screensaver_controller.dart';
 import '../../widgets/vjod/iptv_cast_sheet.dart';
+import '../../widgets/vjod/report_problem.dart';
 import '../vjod_tv/tv_engine.dart' show TvEngineChoice;
 import 'vod_engine.dart';
 import '../../../util/vjod_log.dart';
+import '../../../preference/user_preferences.dart';
+import '../../../preference/preference_constants.dart';
 import '../../../util/platform_detection.dart';
+import '../../../platform/pip_service.dart';
+import '../../../data/services/vjod/background_playback.dart';
 
 /// Where each film was left, for this run of the app, so leaving by mistake
 /// and coming back picks up there.
@@ -86,7 +92,11 @@ class ProviderPlayerScreen extends StatefulWidget {
   /// to learn from it. Null for a playback that keeps nothing.
   final IptvWatch? watch;
 
-  const ProviderPlayerScreen({super.key, required this.url, this.title = '', this.watch});
+  /// A channel's broadcast recorded by the IPTV provider: it may open on the
+  /// end of the programme before or on ads, « Passer la pub » jumps 3 min.
+  final bool adSkip;
+
+  const ProviderPlayerScreen({super.key, required this.url, this.title = '', this.watch, this.adSkip = false});
 
   @override
   State<ProviderPlayerScreen> createState() => _ProviderPlayerScreenState();
@@ -119,6 +129,47 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
   Timer? _noPicture;
   Duration _pos = Duration.zero;
   Duration _dur = Duration.zero;
+
+  // VJOD 4.32: a broadcast recorded by the IPTV provider comes as one long
+  // stream with no length (Ma TV's /tv/replay/). Its timeline is the
+  // programme's (start and length from the guide): a jump opens the stream
+  // again from that minute.
+  late final Uri? _cu = () {
+    final u = Uri.tryParse(widget.url);
+    if (u == null || !u.path.contains('/tv/replay/')) return null;
+    final start = int.tryParse(u.queryParameters['start'] ?? '');
+    final dur = int.tryParse(u.queryParameters['dur'] ?? '');
+    return start == null || dur == null || dur <= 0 ? null : u;
+  }();
+  Duration _cuOffset = Duration.zero;
+
+  Duration get _cuTotal => Duration(minutes: int.parse(_cu!.queryParameters['dur']!));
+
+  String get _playUrl {
+    final u = _cu;
+    if (u == null || _cuOffset == Duration.zero) return widget.url;
+    final start = int.parse(u.queryParameters['start']!) + _cuOffset.inSeconds;
+    final left = (_cuTotal - _cuOffset).inMinutes.clamp(5, 600);
+    return u.replace(queryParameters: {...u.queryParameters, 'start': '$start', 'dur': '$left'}).toString();
+  }
+
+  /// Every jump: in the file, or, for a recorded broadcast, from that minute.
+  void _seekTo(Duration target) {
+    if (_cu == null) {
+      unawaited(_engine.seek(target));
+      return;
+    }
+    final total = _cuTotal;
+    var to = target < Duration.zero ? Duration.zero : (target > total ? total : target);
+    to = Duration(minutes: to.inMinutes);
+    if (to == _cuOffset && (_pos - to).abs() < const Duration(minutes: 1)) return;
+    setState(() {
+      _cuOffset = to;
+      _pos = to;
+      _loading = true;
+    });
+    unawaited(_open());
+  }
   bool _playing = false;
   bool _buffering = false;
   bool _picture = false;
@@ -150,6 +201,7 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
   bool _nextDismissed = false;
   bool _leaving = false;
   int _nextCount = 10;
+  bool _nextAuto = true;
   Timer? _nextTimer;
   final _nextFocus = FocusNode(debugLabel: 'provider_player_next');
 
@@ -164,6 +216,22 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
   @override
   void initState() {
     super.initState();
+    unawaited(loadSupportNumber());
+    _startPip();
+    // Screen off or app reduced: the film plays on, with its notification.
+    unawaited(VjodBackgroundPlayback.start(
+      this,
+      title: widget.title.isEmpty ? 'VJOD' : widget.title,
+      text: 'IPTV',
+      onCommand: (cmd) {
+        if (!mounted) return;
+        if (cmd == 'playPause') {
+          unawaited(_engine.playOrPause());
+        } else if (cmd == 'stop') {
+          Navigator.of(context).maybePop();
+        }
+      },
+    ));
     setImmersive(true);
     GetIt.instance<ScreensaverController>().setPlaybackActive(true);
     // In a browser, its own player; the apps keep ExoPlayer / mpv as before.
@@ -200,16 +268,40 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
 
   /// In the last 40 seconds of an episode: « Épisode suivant » with a
   /// 10-second countdown (OK plays it now, BACK or « Annuler » stays).
+  /// VJOD 4.28: the same settings as the library's player (Réglages →
+  /// Lecture): « Épisode suivant » off shows nothing, autoplay off shows the
+  /// card without a countdown, and the countdown lasts as long as there.
+  ({bool show, bool auto, int seconds}) get _nextSettings {
+    final getIt = GetIt.instance;
+    if (!getIt.isRegistered<UserPreferences>()) return (show: true, auto: true, seconds: 10);
+    final p = getIt<UserPreferences>();
+    return (
+      show: p.get(UserPreferences.nextUpBehavior) != NextUpBehavior.disabled,
+      auto: p.get(UserPreferences.autoplayNextEpisode),
+      seconds: (p.get(UserPreferences.nextUpTimeout) / 1000).round().clamp(3, 30),
+    );
+  }
+
   void _checkNext() {
     if (_nextEp == null || _nextDismissed || _nextVisible || _leaving) return;
     if (_dur < const Duration(minutes: 5)) return;
     final remaining = _dur - _pos;
     if (remaining > const Duration(seconds: 40) || remaining <= Duration.zero) return;
+    final s = _nextSettings;
+    if (!s.show) {
+      _nextDismissed = true;
+      return;
+    }
     setState(() {
       _nextVisible = true;
-      _nextCount = 10;
+      _nextAuto = s.auto;
+      _nextCount = s.seconds;
     });
     _nextTimer?.cancel();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _nextVisible) _nextFocus.requestFocus();
+    });
+    if (!s.auto) return;
     _nextTimer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (!mounted) {
         t.cancel();
@@ -219,9 +311,6 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
       } else {
         setState(() => _nextCount--);
       }
-    });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _nextVisible) _nextFocus.requestFocus();
     });
   }
 
@@ -266,13 +355,16 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
       (widget.watch?.isSeries ?? false) && _skipFrom == null &&
       _pos > const Duration(seconds: 2) && _pos < const Duration(minutes: 6);
 
+  /// « Passer la pub »: in a recorded broadcast's first 20 minutes.
+  bool get _canSkipAds => widget.adSkip && _pos < const Duration(minutes: 20);
+
   void _skipIntro() {
     final from = _pos;
     setState(() {
       _skipFrom = from;
       _skipAt = DateTime.now();
     });
-    unawaited(_engine.seek(from + _introLen));
+    _seekTo(from + _introLen);
   }
 
   /// A seek by hand just after « Passer le générique »: the jump was too short
@@ -321,14 +413,14 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
         final step = p - _lastPos;
         if (_playing && step > Duration.zero && step < const Duration(seconds: 5)) _watched += step;
         _lastPos = p;
-        _pos = p;
+        _pos = _cu == null ? p : _cuOffset + p;
         if (_dur > Duration.zero && p > Duration.zero) _resumeAt[widget.url] = p;
         _checkVote();
         if (mounted) _checkNext();
         if (_controls && mounted) setState(() {});
       }),
       e.duration.listen((d) {
-        if (mounted) setState(() => _dur = d);
+        if (mounted) setState(() => _dur = _cu == null ? d : _cuTotal);
       }),
       e.playing.listen((p) {
         if (mounted) setState(() => _playing = p);
@@ -352,7 +444,7 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
         if (!mounted || _picture) return;
         if (_fallBack()) return;
         // The web engine's messages are already a full French sentence.
-        setState(() => _error = _engine is WebVodEngine ? msg : 'Lecture impossible : $msg');
+        _failWith(_engine is WebVodEngine ? msg : 'Lecture impossible : $msg');
       }),
     ]);
   }
@@ -366,10 +458,11 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
     _noPicture = Timer(_engine is ExoVodEngine ? const Duration(seconds: 25) : _openTimeout, () {
       if (!mounted || seq != _openSeq || _picture) return;
       if (_fallBack()) return;
-      setState(() => _error = 'Aucune source n\'a répondu à temps. Réessaie dans un moment.');
+      _failWith('Aucune source n\'a répondu à temps. Réessaie dans un moment.');
     });
     await WidgetsBinding.instance.endOfFrame;
     if (!mounted || seq != _openSeq) return;
+    if (_cu != null && _dur == Duration.zero) _dur = _cuTotal;
     var from = _resumeAt[widget.url];
     if (from == null) {
       final saved = await _savedPlace();
@@ -383,11 +476,15 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
     try {
       // Each playback carries its own number, so Ma TV tells two devices
       // behind the same box apart: one seeking never cuts the other's film.
+      // A recorded broadcast picks up by opening the stream at that minute.
+      if (_cu != null && from != null && from > const Duration(minutes: 1) && _cuOffset == Duration.zero) {
+        _cuOffset = Duration(minutes: from.inMinutes);
+      }
       await _engine
           .open(
-            widget.url,
+            _playUrl,
             {'X-VJOD-Session': _session},
-            start: from != null && from > const Duration(minutes: 1)
+            start: _cu == null && from != null && from > const Duration(minutes: 1)
                 ? from - const Duration(seconds: 5)
                 : Duration.zero,
           )
@@ -397,10 +494,30 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
     } catch (e) {
       if (!mounted || seq != _openSeq) return;
       if (_fallBack()) return;
-      setState(() => _error = e is TimeoutException
+      _failWith(e is TimeoutException
           ? 'Aucune source n\'a répondu à temps. Réessaie dans un moment.'
           : 'Lecture impossible : $e');
     }
+  }
+
+  /// Shows [message] in place of the picture and tells Ma TV which title
+  /// would not play, with which player.
+  /// The « Signaler un problème » button of the error screen: OK on the
+  /// remote reaches it at once.
+  final _reportFocus = FocusNode(debugLabel: 'ProviderPlayerReport');
+
+  void _failWith(String message) {
+    setState(() => _error = message);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _error != null && vjodSupportNumber.value != null) _reportFocus.requestFocus();
+    });
+    MaTvReports.instance.play(
+      message,
+      where: 'iptv',
+      title: widget.title,
+      player: _engine.runtimeType.toString().replaceAll('VodEngine', ''),
+      source: widget.url,
+    );
   }
 
   /// ExoPlayer brought no picture: once more (Ma TV may still be looking for
@@ -450,12 +567,41 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
     if (sub != null) unawaited(_engine.setSubtitle(sub));
   }
 
+  /// Phone or tablet: leaving the app keeps the film in a small window.
+  PipService? _pip;
+  bool _inPip = false;
+  final List<StreamSubscription<Object?>> _pipSubs = [];
+
+  void _startPip() {
+    if (kIsWeb || !PlatformDetection.isAndroid || PlatformDetection.isTV) return;
+    if (!GetIt.instance.isRegistered<PipService>()) return;
+    final pip = _pip = GetIt.instance<PipService>();
+    unawaited(pip.enableAutoPiP(true, owner: this));
+    _pipSubs.add(pip.onPiPChanged.listen((on) {
+      if (!mounted) return;
+      setState(() {
+        _inPip = on;
+        if (on) _controls = false;
+      });
+    }));
+    _pipSubs.add(pip.onPiPAction.listen((action) {
+      if (action == 'playPause') unawaited(_engine.playOrPause());
+    }));
+  }
+
   @override
   void dispose() {
+    unawaited(VjodBackgroundPlayback.stop(this));
+    for (final s in _pipSubs) {
+      unawaited(s.cancel());
+    }
+    final pip = _pip;
+    if (pip != null) unawaited(pip.enableAutoPiP(false, owner: this));
     for (final s in _subs) {
       s.cancel();
     }
     _hideTimer?.cancel();
+    _reportFocus.dispose();
     _noPicture?.cancel();
     _saveTimer?.cancel();
     _voteTimer?.cancel();
@@ -464,7 +610,8 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
     final w = widget.watch;
     if (w != null) {
       _savePlace();
-      unawaited(IptvLearning.record(
+      // A channel's replay teaches nothing about films and series.
+      if (!w.isReplay) unawaited(IptvLearning.record(
         watch: w,
         startedAt: _startedAt,
         position: _pos,
@@ -498,7 +645,7 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
   void _seekBy(int seconds) {
     final to = _pos + Duration(seconds: seconds);
     final target = to < Duration.zero ? Duration.zero : (_dur > Duration.zero && to > _dur ? _dur : to);
-    unawaited(_engine.seek(target));
+    _seekTo(target);
     _learnIntro(target);
     _showControls();
   }
@@ -507,13 +654,13 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
   void _restart() {
     setState(() => _resumedFrom = null);
     _resumeAt.remove(widget.url);
-    unawaited(_engine.seek(Duration.zero));
+    _seekTo(Duration.zero);
     _showControls();
   }
 
   String? get _voteKey {
     final w = widget.watch;
-    if (w == null || w.isSeries) return null;
+    if (w == null || w.kind != 'movie') return null;
     return w.tmdb.isEmpty ? 'iptv:movie:${w.id}' : 'movie:${w.tmdb}';
   }
 
@@ -629,7 +776,7 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
                   focusNode: _nextFocus,
                   onPressed: _goNext,
                   icon: const Icon(Icons.skip_next_rounded),
-                  label: Text('Lire ($_nextCount s)'),
+                  label: Text(_nextAuto ? 'Lire ($_nextCount s)' : 'Lire'),
                 ),
                 const SizedBox(width: 10),
                 FilledButton.tonal(onPressed: _dismissNext, child: const Text('Annuler')),
@@ -670,7 +817,7 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
     _scrubTimer = null;
     final to = _scrubTo;
     if (to == null) return;
-    unawaited(_engine.seek(to));
+    _seekTo(to);
     if (mounted) setState(() => _scrubTo = null);
   }
 
@@ -900,6 +1047,12 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
 
   @override
   Widget build(BuildContext context) {
+    if (_inPip) {
+      return ColoredBox(
+        color: Colors.black,
+        child: KeyedSubtree(key: ValueKey(_engine), child: _engine.view(scale: _subScale, raised: _subRaised)),
+      );
+    }
     final audio = _engine.audio.where((a) => a.id == _engine.audioId).firstOrNull;
     final audioName = audio == null ? '' : trackLanguageName(audio.language, null);
     final sub = _engine.subtitles.where((s) => s.id == _engine.subtitleId).firstOrNull;
@@ -924,8 +1077,31 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
                 Center(
                   child: Padding(
                     padding: const EdgeInsets.all(32),
-                    child: Text(_error!, textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.white, fontSize: 20)),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(_error!, textAlign: TextAlign.center,
+                            style: const TextStyle(color: Colors.white, fontSize: 20)),
+                        // To the admin by WhatsApp, with the title and the error.
+                        ValueListenableBuilder<String?>(
+                          valueListenable: vjodSupportNumber,
+                          builder: (context, number, _) => number == null
+                              ? const SizedBox.shrink()
+                              : Padding(
+                                  padding: const EdgeInsets.only(top: 20),
+                                  child: FilledButton.tonalIcon(
+                                    focusNode: _reportFocus,
+                                    onPressed: () => unawaited(openReportProblem(
+                                      context,
+                                      what: '${widget.title.isEmpty ? 'Film ou épisode IPTV' : widget.title} · ${_error ?? ''}',
+                                    )),
+                                    icon: const Icon(Icons.chat_rounded),
+                                    label: const Text('Signaler un problème'),
+                                  ),
+                                ),
+                        ),
+                      ],
+                    ),
                   ),
                 )
               else if (_loading || _buffering)
@@ -1010,7 +1186,10 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
                                               .clamp(0.0, 1.0),
                                       onChanged: _dur == Duration.zero
                                           ? null
-                                          : (v) => unawaited(_engine.seek(_dur * v)),
+                                          : (v) => _cu == null
+                                              ? unawaited(_engine.seek(_dur * v))
+                                              : setState(() => _scrubTo = _dur * v),
+                                      onChangeEnd: _cu == null || _dur == Duration.zero ? null : (v) => _commitScrub(),
                                     ),
                                   ),
                                 ),
@@ -1025,6 +1204,8 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
                             children: [
                               if (_canSkipIntro)
                                 _button(Icons.fast_forward_rounded, 'Passer le générique', _skipIntro),
+                              if (_canSkipAds)
+                                _button(Icons.fast_forward_rounded, 'Passer la pub', () => _seekBy(180)),
                               _button(Icons.replay_10_rounded, '−10 s', () => _seekBy(-10)),
                               _button(_playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
                                   _playing ? 'Pause' : 'Lecture', () => unawaited(_engine.playOrPause()),

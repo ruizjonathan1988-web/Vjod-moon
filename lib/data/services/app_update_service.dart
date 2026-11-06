@@ -72,6 +72,21 @@ class AppUpdateService {
       '/repos/ruizjonathan1988-web/Vjod-moon/releases/tags/perso-latest';
   static const _persoChannel = MethodChannel('org.moonfin.androidtv/perso_update');
 
+  /// The trial channel: each new build reaches the devices set to it first
+  /// (perso-beta); the others get it once the admin validates it on the Ma TV
+  /// page, which copies it to perso-latest.
+  static const _persoBetaReleasePath =
+      '/repos/ruizjonathan1988-web/Vjod-moon/releases/tags/perso-beta';
+  static const betaChannelKey = 'vjod_update_beta_channel';
+
+  /// Whether this device takes the trial versions (set per device).
+  bool get betaChannel => _store.getBool(betaChannelKey) ?? false;
+  Future<void> setBetaChannel(bool on) async {
+    await _store.setBool(betaChannelKey, on);
+    // Look again at once on the other channel.
+    await _store.setInt(_lastCheckMsKey, 0);
+  }
+
   /// VJOD on the Mac looks on its own release (mac-latest), whose notes
   /// name the commit it was built from.
   static const _persoMacReleasePath =
@@ -177,13 +192,18 @@ class AppUpdateService {
 
     await _store.setInt(_lastCheckMsKey, now.millisecondsSinceEpoch);
 
-    final release = await _fetchLatestRelease(
+    final trial = isPersoBuild && !_isPersoMac && betaChannel;
+    var release = await _fetchLatestRelease(
       _isPersoMac
           ? _persoMacReleasePath
+          : trial
+          ? _persoBetaReleasePath
           : isPersoBuild
           ? _persoReleasePath
           : _latestReleasePath,
     );
+    // No trial release yet: the validated one.
+    if (release == null && trial) release = await _fetchLatestRelease(_persoReleasePath);
     if (release == null) {
       return const DesktopUpdateCheckResult(
         status: DesktopUpdateCheckStatus.checkFailed,

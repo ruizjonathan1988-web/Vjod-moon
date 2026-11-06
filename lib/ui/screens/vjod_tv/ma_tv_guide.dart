@@ -79,7 +79,43 @@ class _MaTvGuideScreenState extends State<MaTvGuideScreen> {
       if (mounted) setState(() => _now = DateTime.now());
     });
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToRow());
+    _rows.addListener(_onScrolled);
     unawaited(_fetch());
+  }
+
+  /// The first row on screen after a scroll by finger, for the programmes
+  /// to fetch.
+  int? _scrolledRow;
+
+  void _onScrolled() {
+    if (!_rows.hasClients) return;
+    final r = (_rows.offset / _rowHeight).floor();
+    if (r == _scrolledRow) return;
+    _scrolledRow = r;
+    _scheduleFetch();
+  }
+
+  /// A swipe across the grid: an hour later or earlier (phone, tablet).
+  void _swipeTime(double velocity) {
+    if (velocity.abs() < 250) return;
+    final d = velocity < 0 ? const Duration(hours: 1) : const Duration(hours: -1);
+    var win = _win.add(d);
+    if (win.isBefore(_earliest)) win = _earliest;
+    if (win.isAfter(_now.add(const Duration(days: 3)))) return;
+    setState(() {
+      _win = win;
+      _cursor = _cursor.add(d);
+      if (_cursor.isBefore(_win)) _cursor = _win;
+    });
+    _scheduleFetch();
+  }
+
+  void _backToNow() {
+    setState(() {
+      _cursor = DateTime.now();
+      _win = maTvHalfHour(_cursor);
+    });
+    _scheduleFetch();
   }
 
   @override
@@ -88,6 +124,7 @@ class _MaTvGuideScreenState extends State<MaTvGuideScreen> {
     _fetchTimer?.cancel();
     _toastTimer?.cancel();
     _focus.dispose();
+    _rows.removeListener(_onScrolled);
     _rows.dispose();
     super.dispose();
   }
@@ -106,8 +143,11 @@ class _MaTvGuideScreenState extends State<MaTvGuideScreen> {
       _fetchedFrom = from;
       _fetchedTo = to;
     }
-    final lo = (_row - 12).clamp(0, _chans.length - 1);
-    final hi = (_row + 24).clamp(0, _chans.length - 1);
+    // Around the selected row, and around what the finger scrolled to on a
+    // phone (the selection does not follow a scroll).
+    final center = _scrolledRow ?? _row;
+    final lo = (center - 12).clamp(0, _chans.length - 1);
+    final hi = (center + 24).clamp(0, _chans.length - 1);
     final ids = [for (var i = lo; i <= hi; i++) if (!_asked.contains(_chans[i].id)) _chans[i].id];
     if (ids.isEmpty) return;
     _asked.addAll(ids);
@@ -278,7 +318,9 @@ class _MaTvGuideScreenState extends State<MaTvGuideScreen> {
         autofocus: true,
         onKeyEvent: _onKey,
         child: SafeArea(
-          child: MaTvGuideView(
+          child: GestureDetector(
+            onHorizontalDragEnd: (d) => _swipeTime(d.primaryVelocity ?? 0),
+            child: MaTvGuideView(
             channels: _chans,
             programs: {for (var i = 0; i < _chans.length; i++) _chans[i].id: _rowPrograms(i)},
             row: _row,
@@ -297,6 +339,8 @@ class _MaTvGuideScreenState extends State<MaTvGuideScreen> {
               });
               _choose();
             },
+            onBackToNow: _win.isAtSameMomentAs(maTvHalfHour(_now)) ? null : _backToNow,
+          ),
           ),
         ),
       ),
@@ -318,6 +362,9 @@ class MaTvGuideView extends StatelessWidget {
   final String? toast;
   final void Function(int row, MaTvProgram program)? onTapProgram;
 
+  /// Shown when the hours moved away from now: back to now (touch).
+  final VoidCallback? onBackToNow;
+
   /// What Ma TV records or will record, marked with a red dot.
   final MaTvRecordings? recordings;
 
@@ -334,6 +381,7 @@ class MaTvGuideView extends StatelessWidget {
     this.controller,
     this.toast,
     this.onTapProgram,
+    this.onBackToNow,
     this.recordings,
   });
 
@@ -385,6 +433,16 @@ class MaTvGuideView extends StatelessWidget {
             ),
           ],
         ),
+        if (onBackToNow != null)
+          Positioned(
+            right: 20,
+            bottom: 24,
+            child: FilledButton.icon(
+              onPressed: onBackToNow,
+              icon: const Icon(Icons.schedule_rounded),
+              label: Text(_tn('Maintenant', 'Now', 'Сейчас', '现在')),
+            ),
+          ),
         if (toast != null)
           Positioned(
             bottom: 28,

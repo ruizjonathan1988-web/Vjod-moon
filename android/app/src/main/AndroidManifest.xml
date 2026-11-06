@@ -132,6 +132,14 @@
             android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver"
             android:exported="false" />
 
+        <!-- VJOD 4.17: a Ma TV channel or an IPTV film keeps playing with the
+             screen off or the app in the background. -->
+        <service
+            android:name=".VjodPlaybackService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback"
+            android:stopWithTask="true" />
+
         <service
             android:name="com.ryanheise.audioservice.AudioService"
             android:exported="true"
@@ -184,5 +192,8 @@
         <package android:name="studio.scillarium.ottnavigator"/>
         <package android:name="com.nst.iptvsmarterspro"/>
         <package android:name="ru.iptvremote.android.iptv"/>
+        <!-- Replay : les applis des chaînes, en dernier recours (VJOD 4.18) -->
+        <package android:name="tv.arte.plus7"/>
+        <package android:name="fr.francetv.pluzz"/>
     </queries>
 </manifest>

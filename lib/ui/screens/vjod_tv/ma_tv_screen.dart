@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../data/services/vjod/ma_tv.dart';
+import '../../../data/services/vjod/tv_sources.dart' show maTvAccessCut;
 import '../../../util/focus/dpad_keys.dart';
 import '../../../util/platform_detection.dart';
 import '../../navigation/destinations.dart';
@@ -28,6 +29,25 @@ String _tn(String fr, String en, String ru, String zh) =>
 
 /// Where the TV entries of the app land: Ma TV when the seedbox hands it out,
 /// the Jellyfin guide ([fallback]) otherwise.
+/// Entries of the list that open a page rather than list channels.
+bool maTvIsAction(MaTvCategory c) => c.kind == 'search' || c.kind == 'rec' || c.kind == 'sports';
+
+/// The category the TV tab opens on: the last one watched, else the
+/// favourites, France, or the first list of channels. Never Rechercher,
+/// Sports or Enregistrements: their column is empty and the remote seemed
+/// stuck there.
+int maTvStartCategory(List<MaTvCategory> cats, String last) {
+  if (cats.isEmpty) return 0;
+  final i = cats.indexWhere((c) => c.id == last && !maTvIsAction(c));
+  if (i >= 0) return i;
+  final fav = cats.indexWhere((c) => c.id == 'fav');
+  if (fav >= 0) return fav;
+  final fr = cats.indexWhere((c) => c.id == 'c:FR');
+  if (fr >= 0) return fr;
+  final first = cats.indexWhere((c) => !maTvIsAction(c));
+  return first >= 0 ? first : 0;
+}
+
 class MaTvEntryScreen extends StatefulWidget {
   final Widget Function() fallback;
 
@@ -185,6 +205,28 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
   }
 
   Future<void> _load({bool fresh = false}) async {
+    // VJOD 4.20: the lists last seen come up at once, the fresh ones follow.
+    if (_cats.isEmpty && !fresh) {
+      final saved = await _client.categoriesSaved();
+      if (saved != null && saved.isNotEmpty && mounted && _cats.isEmpty) {
+        final cats = _localCats(saved);
+        final start = maTvStartCategory(cats, widget.kids ? '' : MaTvMemory.lastCategory);
+        final chans = await _savedChannelsOf(cats[start]);
+        if (mounted && _cats.isEmpty) {
+          final last = MaTvMemory.lastChannel;
+          final at = (chans ?? const <MaTvChannel>[]).indexWhere((c) => c.id == last);
+          setState(() {
+            _cats = cats;
+            _cat = start;
+            _column = maTvIsAction(cats[start]) ? 0 : _column;
+            _chans = chans ?? const [];
+            _chan = at >= 0 ? at : 0;
+            _loading = false;
+          });
+          _scrollTo(_chanScroll, _chan, MaTvChannelRow.height + 6);
+        }
+      }
+    }
     setState(() {
       _loading = _cats.isEmpty;
       _failed = false;
@@ -199,19 +241,11 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
       return;
     }
     final cats = _localCats(server);
-    var start = 0;
-    final last = widget.kids ? '' : MaTvMemory.lastCategory;
-    final i = cats.indexWhere((c) => c.id == last);
-    if (i >= 0) {
-      start = i;
-    } else {
-      final fr = cats.indexWhere((c) => c.id == 'c:FR');
-      final fav = cats.indexWhere((c) => c.id == 'fav');
-      start = fav >= 0 ? fav : (fr >= 0 ? fr : 0);
-    }
+    final start = maTvStartCategory(cats, widget.kids ? '' : MaTvMemory.lastCategory);
     setState(() {
       _cats = cats;
       _cat = start;
+      _column = cats.isNotEmpty && maTvIsAction(cats[start]) ? 0 : _column;
       _loading = false;
     });
     await _openCategory(start, fresh: fresh);
@@ -236,16 +270,39 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
     return _client.channels(c.id, fresh: fresh);
   }
 
+  Future<List<MaTvChannel>?> _savedChannelsOf(MaTvCategory c) async {
+    if (_isAction(c) || c.kind == 'fav' || c.kind == 'recent') return null;
+    return _client.channelsSaved(c.id);
+  }
+
   Future<void> _openCategory(int index, {bool fresh = false}) async {
     if (index < 0 || index >= _cats.length) return;
     final request = ++_chanRequest;
+    final wasShowing = _cat == index && _chans.isNotEmpty;
     setState(() {
       _cat = index;
-      _loadingChans = true;
+      _loadingChans = !wasShowing;
     });
+    // The list last seen at once, the fresh one in its place after.
+    if (!wasShowing && !fresh) {
+      final saved = await _savedChannelsOf(_cats[index]);
+      if (!mounted || request != _chanRequest) return;
+      if (saved != null && saved.isNotEmpty) {
+        final last = MaTvMemory.lastChannel;
+        final at = saved.indexWhere((c) => c.id == last);
+        setState(() {
+          _chans = saved;
+          _chan = at >= 0 ? at : 0;
+          _loadingChans = false;
+        });
+        _scrollTo(_chanScroll, _chan, MaTvChannelRow.height + 6);
+      }
+    }
+    final shownId = _chans.isNotEmpty ? _chans[_chan.clamp(0, _chans.length - 1)].id : null;
     final chans = await _channelsOf(_cats[index], fresh: fresh);
     if (!mounted || request != _chanRequest) return;
-    final last = MaTvMemory.lastChannel;
+    if (chans == null && _chans.isNotEmpty && !_loadingChans) return;
+    final last = shownId ?? MaTvMemory.lastChannel;
     final at = (chans ?? const <MaTvChannel>[]).indexWhere((c) => c.id == last);
     setState(() {
       _chans = chans ?? const [];
@@ -312,7 +369,7 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
   }
 
   /// Entries of the list that open a page rather than list channels.
-  static bool _isAction(MaTvCategory c) => c.kind == 'search' || c.kind == 'rec' || c.kind == 'sports';
+  static bool _isAction(MaTvCategory c) => maTvIsAction(c);
 
   bool get _onAction => _cats.isNotEmpty && _isAction(_cats[_cat]);
 
@@ -398,8 +455,9 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
     setState(() {
       _favorites = MaTvMemory.favorites.toSet();
       _cats = _localCats(server);
-      final ci = _cats.indexWhere((c) => c.id == MaTvMemory.lastCategory);
+      final ci = _cats.indexWhere((c) => c.id == MaTvMemory.lastCategory && !_isAction(c));
       _cat = ci >= 0 ? ci : _idx(_cats.indexWhere((c) => c.id == current), _cats.length);
+      if (_isAction(_cats[_cat])) _column = 0;
       _now = DateTime.now();
     });
     await _openCategory(_cat);
@@ -413,6 +471,9 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
 
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (!event.isActionable || _cats.isEmpty) return KeyEventResult.ignored;
+    // Nothing in the channel column (an action entry, an empty category):
+    // the keys work on the list of categories instead of doing nothing.
+    if (_column == 1 && _chans.isEmpty && !_loadingChans) _column = 0;
     final key = event.logicalKey;
     if (key.isBackKey && _column == 1 && !_narrow) {
       setState(() => _column = 0);
@@ -547,6 +608,7 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
   }
 
   Widget _unreachable() {
+    final cut = maTvAccessCut();
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -554,12 +616,16 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              _tn('Ma TV ne répond pas', 'Ma TV isn’t responding', 'Ma TV не отвечает', 'Ma TV 无响应'),
+              cut
+                  ? _tn('Accès à Ma TV coupé', 'Ma TV access cut off', 'Доступ к Ma TV отключён', 'Ma TV 访问已被关闭')
+                  : _tn('Ma TV ne répond pas', 'Ma TV isn’t responding', 'Ma TV не отвечает', 'Ma TV 无响应'),
               style: const TextStyle(color: MaTvColors.ink, fontSize: 22, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 8),
             Text(
-              _tn('IPTV Checker, sur la seedbox, n\'a pas répondu. Il redémarre peut-être, réessaie dans un instant.', 'IPTV Checker, on the seedbox, didn\'t answer. It may be restarting, try again in a moment.', 'IPTV Checker на сидбоксе не ответил. Возможно, перезапускается — попробуй чуть позже.', '种子盒上的 IPTV Checker 没有响应，可能正在重启，请稍后再试。'),
+              cut
+                  ? _tn('L\'administrateur a coupé l\'accès de ce profil à la TV et aux films IPTV. Demande-lui de le rétablir.', 'The admin cut this profile off from TV and IPTV films. Ask them to restore it.', 'Администратор отключил этому профилю ТВ и IPTV-фильмы. Попроси вернуть доступ.', '管理员已关闭此用户的电视和 IPTV 影片访问，请联系其恢复。')
+                  : _tn('IPTV Checker, sur la seedbox, n\'a pas répondu. Il redémarre peut-être, réessaie dans un instant.', 'IPTV Checker, on the seedbox, didn\'t answer. It may be restarting, try again in a moment.', 'IPTV Checker на сидбоксе не ответил. Возможно, перезапускается — попробуй чуть позже.', '种子盒上的 IPTV Checker 没有响应，可能正在重启，请稍后再试。'),
               textAlign: TextAlign.center,
               style: const TextStyle(color: MaTvColors.mute, fontSize: 15),
             ),

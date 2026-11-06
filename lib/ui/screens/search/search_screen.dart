@@ -15,12 +15,20 @@ import '../../../data/offline/connectivity_aware_media_server_client.dart';
 import '../../../data/repositories/multi_server_repository.dart';
 import '../../../data/repositories/search_repository.dart';
 import '../../../data/repositories/seerr_repository.dart';
+import '../home/home_view_model.dart';
+import '../vjod_tv/ma_tv_replay_screen.dart' show showReplaySheet;
+import '../../../data/services/vjod/ma_tv_replay.dart' show MaTvReplay, ReplayItem;
 import '../../../data/services/recent_searches_store.dart';
 import '../../../data/services/remote_search_session.dart';
 import '../../../data/services/voice_search_controller.dart';
 import '../../../data/viewmodels/search_view_model.dart';
 import '../../../data/services/vjod/iptv_progress.dart';
 import '../../../data/services/vjod/xtream_catalog.dart';
+import '../../../data/services/vjod/channel_search.dart' show normalizeChannelQuery;
+import '../../../data/services/vjod/ma_tv.dart' show MaTvAccess, MaTvChannel, MaTvClient, ensureMaTvConfigured, searchChannelHits;
+import '../../../util/vjod_log.dart' show vjodLogError;
+import '../vjod_tv/ma_tv_player_screen.dart' show MaTvPlayerScreen;
+import '../vjod_tv/ma_tv_widgets.dart' show maTvRoute;
 import '../../../preference/preference_constants.dart';
 import '../../../preference/user_preferences.dart';
 import '../../../preference/seerr_preferences.dart';
@@ -131,6 +139,7 @@ class _SearchScreenState extends State<SearchScreen>
     _vm.addListener(_onViewModelChanged);
     _vm.warmUpProvider();
     _initSeerr();
+    unawaited(_loadTvChannels());
 
     if (widget.initialQuery != null && widget.initialQuery!.isNotEmpty) {
       _searchController.text = widget.initialQuery!;
@@ -185,6 +194,7 @@ class _SearchScreenState extends State<SearchScreen>
 
   void _onViewModelChanged() {
     final query = _searchController.text.trim();
+    _searchReplay(_vm.query.trim());
     final tabKeys = _tabKeys;
     final keptTab = _selectedTab < _shownTabKeys.length
         ? tabKeys.indexOf(_shownTabKeys[_selectedTab])
@@ -363,9 +373,52 @@ class _SearchScreenState extends State<SearchScreen>
       ThemeRegistry.active.id == ThemeRegistry.vjodId ||
       ThemeRegistry.active.id == ThemeRegistry.ecrinId;
 
+  // VJOD: Ma TV's channels (name, number, programme on now) come first in the
+  // results, so « TF1 » or « PSG » finds the channel and not only films.
+  List<MaTvChannel>? _tvChannels;
+
+  Future<void> _loadTvChannels() async {
+    if (_userPreferences.get(UserPreferences.kidsModeEnabled)) return;
+    try {
+      if (!await ensureMaTvConfigured() || !await MaTvAccess.allowed()) return;
+      final all = await MaTvClient().allChannels();
+      if (!mounted || all == null) return;
+      setState(() => _tvChannels = all);
+    } catch (e) {
+      vjodLogError('Recherche : chaînes de Ma TV', e);
+    }
+  }
+
+  List<MaTvChannel> get _channelHits {
+    final all = _tvChannels;
+    final q = _vm.query;
+    if (all == null || normalizeChannelQuery(q).isEmpty) return const [];
+    return searchChannelHits(all, q);
+  }
+
+  bool get _hasChannels => _channelHits.isNotEmpty || _replayHits.isNotEmpty;
+
+  // VJOD 4.29: the channels' replay answers too, in the same row as the
+  // channels (« Chaînes et replay »).
+  List<ReplayItem> _replayHits = const [];
+  String _replayQuery = '';
+
+  void _searchReplay(String q) {
+    if (q == _replayQuery) return;
+    _replayQuery = q;
+    if (q.length < 3 || _userPreferences.get(UserPreferences.kidsModeEnabled)) {
+      if (_replayHits.isNotEmpty) setState(() => _replayHits = const []);
+      return;
+    }
+    unawaited(MaTvReplay().search(q).then((found) {
+      if (!mounted || _replayQuery != q) return;
+      setState(() => _replayHits = found.take(12).toList());
+    }).catchError((Object _) {}));
+  }
+
   int get _tabCount {
     final hasContent =
-        _vm.results.isNotEmpty || _hasSeerr || _hasGames || _hasProvider;
+        _vm.results.isNotEmpty || _hasSeerr || _hasGames || _hasProvider || _hasChannels;
     return hasContent ? _leadingTabCount + 1 + _vm.results.length : 0;
   }
 
@@ -1069,7 +1122,7 @@ class _SearchScreenState extends State<SearchScreen>
   Widget _buildBody() {
     switch (_vm.state) {
       case SearchState.idle:
-        return const SizedBox.shrink();
+        return _buildIdeas();
       case SearchState.loading:
         if (_vm.results.isEmpty) {
           return const SkeletonLibraryGrid(
@@ -1082,7 +1135,8 @@ class _SearchScreenState extends State<SearchScreen>
           when _vm.results.isEmpty &&
               _vm.seerrResults.isEmpty &&
               _vm.gameResults.isEmpty &&
-              _vm.providerResults.isEmpty:
+              _vm.providerResults.isEmpty &&
+              !_hasChannels:
         return Center(
           child: Text(
             AppLocalizations.of(context).noResultsForQuery(_vm.query),
@@ -1103,6 +1157,63 @@ class _SearchScreenState extends State<SearchScreen>
           ),
         );
     }
+  }
+
+  /// VJOD 4.28: an empty search opens on ideas, the last searches and
+  /// titles of the Home, one press away.
+  Widget _buildIdeas() {
+    final ideas = <String>[];
+    final getIt = GetIt.instance;
+    if (getIt.isRegistered<HomeViewModel>()) {
+      const ids = {
+        HomeViewModel.forYouRowId,
+        HomeViewModel.top10MoviesRowId,
+        HomeViewModel.top10SeriesRowId,
+        HomeViewModel.frenchMoviesRowId,
+      };
+      for (final row in getIt<HomeViewModel>().rows) {
+        if (!ids.contains(row.id)) continue;
+        for (final item in row.items.take(5)) {
+          final name = item.name.trim();
+          if (name.isNotEmpty && !ideas.contains(name)) ideas.add(name);
+        }
+      }
+    }
+    final recent = _recentSearches.take(8).toList();
+    if (recent.isEmpty && ideas.isEmpty) return const SizedBox.shrink();
+    Widget section(String title, List<String> words, IconData icon) => Padding(
+      padding: const EdgeInsets.only(bottom: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title,
+              style: TextStyle(color: AppColorScheme.onSurface, fontSize: 17, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final w in words)
+                ActionChip(
+                  avatar: Icon(icon, size: 18),
+                  label: Text(w),
+                  onPressed: () => _onSearchSubmitted(w),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (recent.isNotEmpty) section('Tes dernières recherches', recent, Icons.history_rounded),
+          if (ideas.isNotEmpty) section('Des idées', ideas.take(16).toList(), Icons.lightbulb_outline_rounded),
+        ],
+      ),
+    );
   }
 
   int _currentTabItemCount() {
@@ -1129,7 +1240,9 @@ class _SearchScreenState extends State<SearchScreen>
         _vm.results.fold<int>(0, (s, g) => s + g.items.length) +
         _vm.seerrResults.length +
         _vm.gameResults.length +
-        _vm.providerResults.length;
+        _vm.providerResults.length +
+        _channelHits.length +
+        _replayHits.length;
     // VJOD names the tabs the mock-up's way: "À demander · 5".
     final vjod =
         ThemeRegistry.active.id == ThemeRegistry.vjodId ||
@@ -1319,7 +1432,11 @@ class _SearchScreenState extends State<SearchScreen>
     final hasSeerr = _vm.seerrResults.isNotEmpty;
     final hasGames = _vm.gameResults.isNotEmpty;
     final hasProvider = _hasProvider;
+    final channels = _channelHits;
+    final replays = _replayHits;
+    final ch = channels.isEmpty && replays.isEmpty ? 0 : 1;
     _allRowIds = [
+      if (ch == 1) 'channels',
       for (final g in groups) g.itemTypes.first,
       if (hasProvider) 'provider',
       if (hasSeerr) 'seerr',
@@ -1327,6 +1444,7 @@ class _SearchScreenState extends State<SearchScreen>
     ];
     // Library groups come first, then the Seerr and Games rows when present.
     final rowLens = <int>[
+      if (ch == 1) channels.length + replays.length,
       for (final g in groups) g.items.length,
       if (hasProvider) _vm.providerResults.length,
       if (hasSeerr) _vm.seerrResults.length,
@@ -1334,19 +1452,65 @@ class _SearchScreenState extends State<SearchScreen>
     ];
 
     final rows = <Widget>[];
+    if (ch == 1) {
+      const cardWidth = 150.0;
+      rows.add(
+        LibraryRow(
+          key: _allRowKey(0),
+          title: replays.isEmpty
+              ? vjodText(context, fr: 'Chaînes en direct', en: 'Live channels', ru: 'Каналы в эфире', zh: '直播频道')
+              : channels.isEmpty
+              ? 'Au replay'
+              : 'Chaînes et replay',
+          rowHeight: cardWidth / (16 / 9) + 56,
+          children: [
+            for (var c = 0; c < channels.length; c++)
+              MediaCard(
+                title: '${channels[c].number}  ${channels[c].name}',
+                subtitle: channels[c].now?.title.isNotEmpty == true
+                    ? vjodText(context, fr: 'En ce moment : ${channels[c].now!.title}', en: 'On now: ${channels[c].now!.title}', ru: 'Сейчас: ${channels[c].now!.title}', zh: '正在播放：${channels[c].now!.title}')
+                    : vjodText(context, fr: 'Regarder en direct', en: 'Watch live', ru: 'Смотреть', zh: '观看直播'),
+                imageUrl: channels[c].logo.isEmpty ? null : channels[c].logo,
+                width: cardWidth,
+                aspectRatio: 16 / 9,
+                itemType: 'TvChannel',
+                focusColor: focusColor,
+                cardFocusExpansion: cardFocusExpansion,
+                focusNode: _allCardNode(0, c),
+                onKeyEvent: (node, event) => _onAllCardKey(0, c, rowLens, event),
+                onTap: () => _openChannel(channels, c),
+              ),
+            for (var i = 0; i < replays.length; i++)
+              MediaCard(
+                title: replays[i].show,
+                subtitle: ['Replay', replays[i].dayLabel].where((x) => x.isNotEmpty).join(' · '),
+                imageUrl: replays[i].image.isEmpty ? null : replays[i].image,
+                width: cardWidth,
+                aspectRatio: 16 / 9,
+                itemType: 'Episode',
+                focusColor: focusColor,
+                cardFocusExpansion: cardFocusExpansion,
+                focusNode: _allCardNode(0, channels.length + i),
+                onKeyEvent: (node, event) => _onAllCardKey(0, channels.length + i, rowLens, event),
+                onTap: () => unawaited(showReplaySheet(context, replays[i])),
+              ),
+          ],
+        ),
+      );
+    }
     for (var r = 0; r < groups.length; r++) {
       final group = groups[r];
       final ar = MediaCard.aspectRatioForType(group.items.first.type);
       final cardWidth = (ar == 2/3) ? 108.0 : 150.0;
       rows.add(
         LibraryRow(
-          key: _allRowKey(r),
+          key: _allRowKey(r + ch),
           title: localizeSearchGroupTitle(group.title, l10n),
           rowHeight: cardWidth / ar + 56,
           children: [
             for (var c = 0; c < group.items.length; c++)
               _buildAllItemCard(
-                r,
+                r + ch,
                 r,
                 c,
                 cardWidth,
@@ -1360,7 +1524,7 @@ class _SearchScreenState extends State<SearchScreen>
       );
     }
     if (hasProvider) {
-      final providerRow = groups.length;
+      final providerRow = groups.length + ch;
       const cardWidth = 108.0;
       rows.add(
         LibraryRow(
@@ -1389,7 +1553,7 @@ class _SearchScreenState extends State<SearchScreen>
       );
     }
     if (hasSeerr) {
-      final seerrRow = groups.length + (hasProvider ? 1 : 0);
+      final seerrRow = groups.length + ch + (hasProvider ? 1 : 0);
       final cardWidth = 108.0;
       final seerrLabel = GetIt.instance<SeerrPreferences>().labelOrDefault(
         l10n.seerr,
@@ -1416,7 +1580,7 @@ class _SearchScreenState extends State<SearchScreen>
     }
     if (hasGames) {
       final gamesRow =
-          groups.length + (hasProvider ? 1 : 0) + (hasSeerr ? 1 : 0);
+          groups.length + ch + (hasProvider ? 1 : 0) + (hasSeerr ? 1 : 0);
       final cardWidth = 108.0;
       rows.add(
         LibraryRow(
@@ -1782,6 +1946,21 @@ class _SearchScreenState extends State<SearchScreen>
       onKeyEvent: onNavKey,
       onTap: () => _openProviderTitle(title),
     );
+  }
+
+  /// Plays the channel in Ma TV's player, the other channels found to zap
+  /// through.
+  void _openChannel(List<MaTvChannel> found, int index) {
+    unawaited(Navigator.of(context, rootNavigator: true).push<void>(
+      maTvRoute(
+        (_) => MaTvPlayerScreen(
+          channels: found,
+          startIndex: index,
+          categoryId: 'search',
+          categoryLabel: vjodText(context, fr: 'Recherche', en: 'Search', ru: 'Поиск', zh: '搜索'),
+        ),
+      ),
+    ));
   }
 
   void _openProviderTitle(XtreamTitle title) {

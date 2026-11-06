@@ -21,6 +21,7 @@ import 'package:server_core/server_core.dart' hide ImageType;
 import 'package:window_manager/window_manager.dart';
 
 import '../../../data/services/vjod/ma_tv_alerts.dart';
+import '../../../data/services/vjod/replay_alerts.dart';
 import '../../../data/services/vjod/provider_catalog_refresher.dart';
 import '../../../data/services/vjod/web_iptv.dart';
 import '../../../data/models/aggregated_item.dart';
@@ -109,6 +110,9 @@ import '../../../data/services/vjod/iptv_progress.dart';
 import '../../../util/startup_timeline.dart';
 import '../../../data/services/vjod/provider_catalog_access.dart' show currentProviderCatalog;
 import '../../widgets/vjod/vjod_whats_new.dart';
+import '../vjod_tv/ma_tv_replay_screen.dart' show openReplayCard, resumeReplay;
+import '../vjod_tv/ma_tv_widgets.dart' show MaTvColors;
+import '../../../data/services/vjod/ma_tv_replay.dart' show ReplayOrder;
 
 Color get _homeBackground => AppColorScheme.background;
 
@@ -233,6 +237,8 @@ class _HomeShellState extends State<_HomeShell>
     }
     // Alertes de Ma TV (nuit ratée, compte qui expire…), pour l'administrateur.
     MaTvAlerts.start();
+    // « Nouvel épisode » des émissions suivies, sur le téléphone (VJOD 4.28).
+    ReplayAlerts.start();
     // Once after an update: what the new VJOD version brings.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) unawaited(maybeShowVjodWhatsNew(context));
@@ -818,6 +824,11 @@ class _ContentRowsState extends State<_ContentRows>
   /// left, the series opens on the episode to go on with.
   void _openIptvResume(BuildContext context, AggregatedItem item) {
     final r = item.rawData[HomeViewModel.iptvResumeKey];
+    if (r is Map && r['kind'] == 'replay') {
+      // A channel's replay picks up where it was left, from its source again.
+      unawaited(resumeReplay(context, '${r['id']}'));
+      return;
+    }
     final catalog = currentProviderCatalog();
     if (r is! Map || catalog == null) return;
     String v(String k) => '${r[k] ?? ''}';
@@ -849,8 +860,44 @@ class _ContentRowsState extends State<_ContentRows>
     );
   }
 
+  /// A card of the Replay row: « Mes émissions » or a channel's page; the
+  /// badges follow on the way back.
+  void _openReplay(BuildContext context, AggregatedItem item) {
+    final r = item.rawData[HomeViewModel.replayKey];
+    if (r is! Map) return;
+    if (r['kind'] == 'chan') unawaited(ReplayOrder.noteOpen('${r['chan']}'));
+    openReplayCard(context, r, onClosed: () => unawaited(widget.viewModel.refreshReplay()));
+  }
+
+  /// Long press on a channel tile: pin it first in the row, or unpin it.
+  Future<void> _replayLongPress(BuildContext context, AggregatedItem item) async {
+    final r = item.rawData[HomeViewModel.replayKey];
+    if (r is! Map || r['kind'] != 'chan') return;
+    final chan = '${r['chan']}';
+    final pinned = await ReplayOrder.isPinned(chan);
+    if (!context.mounted) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('${r['name']}'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Annuler')),
+          FilledButton(
+            autofocus: true,
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(pinned ? 'Ne plus épingler' : 'Épingler en premier'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await ReplayOrder.togglePin(chan);
+    await widget.viewModel.refreshReplay();
+  }
+
   String? _iptvTmdb(AggregatedItem item) {
     if (item.serverId != 'seerr') return null;
+    if (item.rawData[HomeViewModel.replayKey] != null) return null;
     if (item.rawData[HomeViewModel.iptvResumeKey] != null) return null;
     final status = item.seerrStatus;
     if (status == SeerrMediaStatus.available || status == SeerrMediaStatus.partiallyAvailable) return null;
@@ -4475,6 +4522,7 @@ class _ContentRowsState extends State<_ContentRows>
       // The mock-up says what a row is for, not where it comes from.
       return switch (row.id) {
         HomeViewModel.forYouRowId => l10n.vjodForYouSubtitle,
+        HomeViewModel.replayRowId => 'Un appui : tes émissions · ou une chaîne pour explorer',
         'french_movies' => l10n.vjodFrenchSubtitle,
         HomeViewModel.vjodMoodRowId => l10n.localeName.startsWith('fr')
             ? 'Votre humeur colore les rangées jusqu\'à demain matin'
@@ -4878,6 +4926,8 @@ class _ContentRowsState extends State<_ContentRows>
                         rowIndex: rowIndex,
                         rows: rows,
                       );
+                    } else if (row.id == HomeViewModel.replayRowId && _vjodTheme) {
+                      rowChild = _buildReplayRow(row, rowIndex: rowIndex, rows: rows);
                     } else if (row.rowType == HomeRowType.libraryTilesSmall) {
                       rowChild = _buildLibraryButtonsRow(
                         row,
@@ -5153,6 +5203,157 @@ class _ContentRowsState extends State<_ContentRows>
 
   /// "Ce soir, plutôt…" as the mock-up's chips under the banner: one pill
   /// per mood, today's in red, the focused one in white.
+  /// VJOD 4.23: the Replay row as on the mock-up. Low wide tiles: « Mes
+  /// émissions » first, light, with its new episodes and the shows
+  /// followed; then each channel's own logo, whole, with a red badge when
+  /// something new came out.
+  Widget _buildReplayRow(
+    HomeRow row, {
+    required int rowIndex,
+    required List<HomeRow> rows,
+  }) {
+    final l10n = AppLocalizations.of(context);
+    final scale = _desktopUiScaleFactor();
+    final phone = PlatformDetection.useMobileUi;
+    final tileHeight = (phone ? 84.0 : 100.0) * scale;
+    final tileWidth = (phone ? 150.0 : 200.0) * scale;
+    final rowHeight = tileHeight + 22 * scale;
+    return _buildTitledRow(
+      key: _rowContainerKey(rowIndex),
+      title: _localizedRowTitle(row, l10n),
+      subtitle: _rowSubtitle(row, l10n),
+      rowIndex: rowIndex,
+      hasItems: row.items.isNotEmpty,
+      height: rowHeight,
+      child: LockedFocusRow<AggregatedItem>(
+        key: _rowKey(rowIndex),
+        items: row.items,
+        itemKey: _rowItemIdentity,
+        hubKey: _hubKeyForRow(row),
+        controller: _rowHorizontalController(rowIndex),
+        height: rowHeight,
+        itemExtent: tileWidth,
+        itemSpacing: 14 * scale,
+        leadingPadding: _isHomeRowsStyleV2() ? _kHomeRowLabelInset : 0,
+        clipBehavior: Clip.none,
+        padding: EdgeInsets.fromLTRB(_kHomeRowLabelInset, 12 * scale, 20, 8),
+        onIndexChanged: (_, item) => _onHomeRowTileFocused(item),
+        onFocusChange: (has) => _onRowFocusTracked(rowIndex, has),
+        onVerticalNavigation: (isUp) => _onRowVerticalNavigation(
+          rowIndex: rowIndex,
+          rows: rows,
+          isUp: isUp,
+        ),
+        onLeftEdge: _onRowLeftEdge,
+        onTap: (_, item) => _openReplay(context, item),
+        onLongPress: (_, item) => unawaited(_replayLongPress(context, item)),
+        itemBuilder: (ctx, item, idx, isFocused) => Align(
+          alignment: Alignment.topLeft,
+          child: MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: GestureDetector(
+              onTap: () => _openReplay(context, item),
+              onLongPress: () => unawaited(_replayLongPress(context, item)),
+              child: _replayTile(item, tileWidth, tileHeight, scale, isFocused),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _replayTile(AggregatedItem item, double w, double h, double scale, bool focused) {
+    final r = item.rawData[HomeViewModel.replayKey];
+    final mine = r is Map && r['kind'] == 'mine';
+    final fresh = (item.rawData[HomeViewModel.replayFreshKey] as num?)?.toInt() ?? 0;
+    final radius = BorderRadius.circular(12 * scale);
+    final ring = Border.all(color: focused ? vjodInk : Colors.transparent, width: 3 * scale);
+    final Widget body;
+    if (mine) {
+      final names = '${item.rawData[HomeViewModel.replayNamesKey] ?? ''}';
+      body = Container(
+        decoration: BoxDecoration(color: MaTvColors.ink, borderRadius: radius, border: ring),
+        padding: EdgeInsets.symmetric(horizontal: 14 * scale, vertical: 8 * scale),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Mes émissions',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: const Color(0xFF141210), fontSize: 19 * scale, fontWeight: FontWeight.w900)),
+            SizedBox(height: 2 * scale),
+            Text(
+              fresh > 0 ? '$fresh nouveau${fresh > 1 ? 'x' : ''} épisode${fresh > 1 ? 's' : ''}' : (names.isEmpty ? 'Suis tes émissions' : 'Rien de nouveau'),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: const Color(0xFF141210), fontSize: 13 * scale, fontWeight: FontWeight.w600),
+            ),
+            if (names.isNotEmpty)
+              Text(names,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: const Color(0xFF4A463F), fontSize: 11.5 * scale)),
+          ],
+        ),
+      );
+    } else {
+      final logo = '${item.rawData[HomeViewModel.replayLogoKey] ?? ''}';
+      final name = item.name;
+      final label = Center(
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 10 * scale),
+          child: Text(name,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: MaTvColors.ink, fontSize: 20 * scale, fontWeight: FontWeight.w900)),
+        ),
+      );
+      body = Container(
+        decoration: BoxDecoration(color: const Color(0xFF24252B), borderRadius: radius, border: ring),
+        padding: EdgeInsets.symmetric(horizontal: 18 * scale, vertical: 14 * scale),
+        child: logo.isEmpty
+            ? label
+            : Image.network(
+                logo,
+                fit: BoxFit.contain,
+                cacheWidth: (w * 2).round(),
+                semanticLabel: name,
+                errorBuilder: (_, _, _) => label,
+              ),
+      );
+    }
+    final pinned = item.rawData[HomeViewModel.replayPinnedKey] == true;
+    return SizedBox(
+      width: w,
+      height: h,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned.fill(child: AnimatedScale(scale: focused ? 1.04 : 1, duration: const Duration(milliseconds: 120), child: body)),
+          if (!mine && fresh > 0)
+            Positioned(
+              top: -8 * scale,
+              right: -8 * scale,
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 9 * scale, vertical: 3 * scale),
+                decoration: BoxDecoration(color: vjodRed, borderRadius: BorderRadius.circular(12 * scale)),
+                child: Text('$fresh',
+                    style: TextStyle(color: Colors.white, fontSize: 13 * scale, fontWeight: FontWeight.w700)),
+              ),
+            ),
+          if (pinned)
+            Positioned(
+              left: 8 * scale,
+              top: 6 * scale,
+              child: Icon(Icons.push_pin_rounded, size: 14 * scale, color: MaTvColors.mute),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildVjodMoodChipsRow(
     HomeRow row, {
     required int rowIndex,
@@ -5570,6 +5771,8 @@ class _ContentRowsState extends State<_ContentRows>
             widget.viewModel.toggleTop10();
           } else if (item.rawData[HomeViewModel.iptvResumeKey] is Map) {
             _openIptvResume(context, item);
+          } else if (item.rawData[HomeViewModel.replayKey] is Map) {
+            _openReplay(context, item);
           } else if (item.serverId == 'seerr') {
             _navigateToSeerrItem(
               context,
@@ -5689,6 +5892,8 @@ class _ContentRowsState extends State<_ContentRows>
                       _playSurprise(context, item);
                     } else if (item.rawData[HomeViewModel.iptvResumeKey] is Map) {
                       _openIptvResume(context, item);
+                    } else if (item.rawData[HomeViewModel.replayKey] is Map) {
+                      _openReplay(context, item);
                     } else if (item.serverId == 'seerr') {
                       _navigateToSeerrItem(
                         context,
@@ -6481,12 +6686,17 @@ class _ContentRowsState extends State<_ContentRows>
       item.serverId == 'seerr' &&
       item.rawData['SeerrShortcut'] == null &&
       item.rawData['FilterType'] == null &&
-      item.rawData[HomeViewModel.iptvResumeKey] == null;
+      item.rawData[HomeViewModel.iptvResumeKey] == null &&
+      item.rawData[HomeViewModel.replayKey] == null;
 
   /// Long press on a title the library lacks: « Voir la fiche » first, then
   /// watching it now at the IPTV provider and asking for it (the « Pour
   /// vous » choices too on those cards). Library titles keep their menu.
   void _onItemLongPress(AggregatedItem item) {
+    if (item.rawData[HomeViewModel.replayKey] is Map) {
+      unawaited(_replayLongPress(context, item));
+      return;
+    }
     if (!_isSeerrTitle(item)) {
       showContextMenu(context, item, onChanged: () => setState(() {}));
       return;

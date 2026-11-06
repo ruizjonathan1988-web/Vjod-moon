@@ -4,7 +4,9 @@ import android.app.Activity
 import android.app.PendingIntent
 import android.content.Intent
 import android.content.pm.PackageInstaller
+import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
 import kotlin.concurrent.thread
@@ -55,6 +57,48 @@ object PersoApkInstaller {
                 activity.runOnUiThread { result.error("install_failed", e.message, null) }
             }
         }
+    }
+
+    /// Whether VJOD may hand an APK to the installer. Android 8+ (Fire OS 7+)
+    /// asks this per app: VJOD installed by Downloader has no right of its own
+    /// to install, and Fire OS then shows a blocking « Pour votre sécurité »
+    /// screen. Before Android 8 the global « sources inconnues » switch counts.
+    fun canInstall(activity: Activity): Boolean =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            try {
+                activity.packageManager.canRequestPackageInstalls()
+            } catch (e: Exception) {
+                true
+            }
+        } else {
+            true
+        }
+
+    /// Opens the setting that lets VJOD install its updates: the per-app page
+    /// when the system has it, else the developer options (where Fire OS keeps
+    /// « Installer des applications inconnues »), else the settings.
+    fun openInstallSettings(activity: Activity): Boolean {
+        val targets = mutableListOf<Intent>()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            targets.add(
+                Intent(
+                    Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                    Uri.parse("package:" + activity.packageName),
+                ),
+            )
+        }
+        targets.add(Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS))
+        targets.add(Intent(Settings.ACTION_SETTINGS))
+        for (intent in targets) {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            try {
+                activity.startActivity(intent)
+                return true
+            } catch (e: Exception) {
+                // Try the next one.
+            }
+        }
+        return false
     }
 
     /// When this copy was last installed or updated, in milliseconds.

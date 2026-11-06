@@ -1093,6 +1093,17 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
           context.navigateTopLevel(_tvRoute);
         },
       ),
+      // VJOD 4.30: the channels' replay, a page of its own as in the France
+      // TV app (on a phone, in the avatar menu with TV).
+      VjodNavItem(
+        label: 'Replay',
+        icon: Icons.replay_rounded,
+        selected: _isActive(Destinations.replay),
+        onTap: () {
+          if (_isActive(Destinations.replay)) return;
+          context.navigateTopLevel(Destinations.replay);
+        },
+      ),
       // Simple mode keeps Accueil, Films, Séries and TV; what Explorer,
       // Bientôt and En route hold is in Films, Séries and the avatar menu.
       if (seerr && !_simple) ...[
@@ -1136,7 +1147,7 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
     final published = narrow
         ? [
             for (final t in tabs)
-              if (_simple || t.label != l10n.vjodTvTab) t,
+              if (_simple || (t.label != l10n.vjodTvTab && t.label != 'Replay')) t,
           ]
         : const <VjodNavItem>[];
     if (!_sameTabs(TopToolbar.vjodBottomTabs.value, published)) {
@@ -1284,6 +1295,9 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
             if (TopToolbar.vjodNarrow(host))
               entry(Icons.live_tv_rounded, l10n.vjodTvTab,
                   () => go(_tvRoute)),
+            if (TopToolbar.vjodNarrow(host))
+              entry(Icons.replay_rounded, 'Replay',
+                  () => go(Destinations.replay)),
           ],
           settings: entry(
             Icons.settings_outlined,

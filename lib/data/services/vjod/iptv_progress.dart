@@ -13,7 +13,8 @@ import '../../../util/vjod_log.dart';
 
 /// What is playing: enough to save its place and to learn from it.
 class IptvWatch {
-  /// `movie` or `series`.
+  /// `movie`, `series`, or `replay` (an episode of a channel's replay:
+  /// [id] is Ma TV's replay id, [poster] its picture).
   final String kind;
 
   /// Ma TV's number for the film or the series.
@@ -44,6 +45,7 @@ class IptvWatch {
   });
 
   bool get isSeries => kind == 'series';
+  bool get isReplay => kind == 'replay';
 
   /// A film from the provider's catalogue.
   factory IptvWatch.movie(XtreamTitle t) => IptvWatch(
@@ -72,7 +74,7 @@ class IptvWatch {
   static IptvWatch? fromQuery(Map<String, String> q) {
     final kind = q['w_kind'] ?? '';
     final id = q['w_id'] ?? '';
-    if (id.isEmpty || (kind != 'movie' && kind != 'series')) return null;
+    if (id.isEmpty || (kind != 'movie' && kind != 'series' && kind != 'replay')) return null;
     return IptvWatch(
       kind: kind,
       id: id,
@@ -147,7 +149,7 @@ class IptvProgress {
     int n(Object? v) => v is num ? v.toInt() : int.tryParse('${v ?? ''}') ?? 0;
     final at = j['at'];
     return IptvProgress(
-      kind: j['kind'] == 'series' ? 'series' : 'movie',
+      kind: j['kind'] == 'series' || j['kind'] == 'replay' ? '${j['kind']}' : 'movie',
       id: id,
       name: '${j['name'] ?? ''}',
       tmdb: '${j['tmdb'] ?? ''}',

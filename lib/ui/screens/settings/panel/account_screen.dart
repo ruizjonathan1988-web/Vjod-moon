@@ -56,6 +56,12 @@ class _AccountScreen extends StatelessWidget {
                 subtitle: l10n.requirePasswordWithToken,
                 icon: Icons.lock,
               ),
+              SwitchPreferenceTile(
+                preference: UserPreferences.vjodWhoIsWatching,
+                title: '« Qui regarde ? » sur la télé',
+                subtitle: 'Au démarrage, choisir son profil quand il y en a plusieurs (chacun garde son code PIN)',
+                icon: Icons.people_alt_rounded,
+              ),
               _TvSettingsListTile(
                 leading: const Icon(Icons.pin),
                 title: Text(l10n.pinCode),

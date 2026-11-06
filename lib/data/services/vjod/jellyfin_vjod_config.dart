@@ -91,6 +91,11 @@ Future<bool> syncVjodConfigFromServer() async {
         break;
       }
     }
+    // This profile's own key to Ma TV (Ma TV 3.60): who watches what, and a
+    // profile the admin can cut off alone.
+    if (await enrollMaTv(token: getIt<MediaServerClient>().accessToken, force: tvChanged)) {
+      tvChanged = true;
+    }
     for (final item in items) {
       if (item is! Map) continue;
       final config = configFromOverview(item['Overview']?.toString());

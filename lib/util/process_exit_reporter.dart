@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../data/services/crash_report_service.dart';
 import '../data/services/log_service.dart';
+import '../data/services/vjod/ma_tv_reports.dart';
 
 /// Logs how the previous run ended and keeps Android's note of what this one
 /// is doing current. A crash in native code takes the process down before Dart
@@ -31,6 +32,10 @@ class ProcessExitReporter {
       if (raw is! Map) continue;
       final exit = describeProcessExit(raw.cast<String, Object?>());
       _logs.logCrash(exit.message, exit.details);
+      MaTvReports.instance.report(
+        MaTvReport(kind: 'crash', message: exit.message, stack: exit.details, where: 'android'),
+        key: 'android|${exit.signature}',
+      );
       await _crashes.record(exit.signature, _logs.exportText(maxEntries: 50));
     }
   }
