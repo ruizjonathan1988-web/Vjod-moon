@@ -15,6 +15,9 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.36', [
+    'Aura, le jeu de cinéma, peut ouvrir dans VJOD n\u2019importe quel film qu\u2019il te propose : sur ton serveur, en VOD chez ton fournisseur ou à demander. VJOD ouvre sa fiche, avec le bouton qui convient.',
+  ]),
   VjodRelease('4.35', [
     'Version web : les onglets (Ma TV, Films, Séries, Replay) et les vidéos ne tournent plus sans fin. Depuis 4.20, le navigateur attendait des listes gardées qu\u2019il ne peut pas lire.',
   ]),
