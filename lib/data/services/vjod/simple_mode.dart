@@ -124,4 +124,5 @@ const simpleModeFicheButtons = [
   DetailButton.trailer,
   DetailButton.favorite,
   DetailButton.seerrWatchlist,
+  DetailButton.auraPropose,
 ];

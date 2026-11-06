@@ -1626,6 +1626,11 @@ class UserPreferences extends ChangeNotifier {
     defaultValue: false,
   );
 
+  /// Aura, le jeu de cinéma (VJOD 4.37), for the profile in use: « off »
+  /// (VJOD as before) or « button » (Pop's button at the top). Kept in
+  /// Jellyfin beside simple mode and copied here (see `aura_service.dart`).
+  static final vjodAuraMode = Preference<String>(key: 'vjod_aura_mode', defaultValue: 'off');
+
   /// Sports (VJOD 4.6, Ma TV 3.55), per profile: the Sports entry in Ma TV,
   /// the score shown on the channel of a match, and the odds (never in Kids
   /// Mode, whatever this says).

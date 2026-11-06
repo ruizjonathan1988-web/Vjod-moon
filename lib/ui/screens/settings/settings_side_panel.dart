@@ -127,6 +127,8 @@ import '../detail/detail_buttons.dart';
 import '../playback/osd_buttons.dart';
 import '../syncplay/syncplay_screen.dart';
 import '../../../util/vjod_timings.dart';
+import '../../../data/services/vjod/aura/aura_service.dart';
+import '../../widgets/vjod/aura_drawer.dart';
 
 part 'panel/settings_panel_infra.dart';
 part 'panel/settings_search_field.dart';
@@ -500,6 +502,12 @@ class _SettingsSidePanelState extends ConsumerState<SettingsSidePanel> {
             ru: 'Максимальное качество, битрейт',
             zh: '最高画质、码率'),
         onTap: () => context.pushSettingsScreen(const _QualityDecodingScreen()),
+      ),
+      _PanelEntry(
+        icon: Icons.auto_awesome_rounded,
+        title: 'Aura, le jeu de cinéma',
+        subtitle: vjodAuraOn() ? 'Bouton Pop · proposer des films à la maison' : 'Coupé',
+        onTap: () => context.pushSettingsScreen(const AuraSettingsScreen()),
       ),
       _PanelEntry(
         icon: Icons.family_restroom,

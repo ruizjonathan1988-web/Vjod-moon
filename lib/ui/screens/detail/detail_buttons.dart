@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../data/services/plugin_sync_service.dart';
+import '../../../data/services/vjod/aura/aura_service.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../preference/button_layout.dart';
 import '../../../preference/user_preferences.dart';
@@ -31,6 +32,8 @@ enum DetailButton {
   favorite('favorite'),
   personalRating('personalRating'),
   notForMe('notForMe'),
+  // VJOD 4.37 : proposer le titre à un profil de la maison (Aura).
+  auraPropose('auraPropose'),
   playlist('playlist'),
   download('download'),
   deleteFiles('deleteFiles'),
@@ -60,6 +63,7 @@ enum DetailButton {
     DetailButton.seerrReportIssue ||
     DetailButton.seerrManage ||
     DetailButton.notForMe ||
+    DetailButton.auraPropose ||
     DetailButton.trailer => true,
     _ => false,
   };
@@ -82,6 +86,7 @@ enum DetailButton {
       DetailButton.seerrManage =>
         GetIt.instance<PluginSyncService>().seerrAvailable,
       DetailButton.watchWithGroup => _syncPlayAvailable,
+      DetailButton.auraPropose => vjodAuraOn(),
       _ => true,
     };
   }
@@ -141,6 +146,7 @@ enum DetailButton {
     DetailButton.favorite => Icons.favorite_border,
     DetailButton.personalRating => Icons.star_outline,
     DetailButton.notForMe => Icons.thumb_down_alt_outlined,
+    DetailButton.auraPropose => Icons.auto_awesome_rounded,
     DetailButton.playlist => Icons.playlist_add,
     DetailButton.download => Icons.download_for_offline,
     DetailButton.deleteFiles => Icons.delete_outline,
@@ -166,6 +172,7 @@ enum DetailButton {
     DetailButton.favorite => l10n.favorite,
     DetailButton.personalRating => l10n.rate,
     DetailButton.notForMe => l10n.notForMe,
+    DetailButton.auraPropose => 'Proposer à…',
     DetailButton.playlist => l10n.addToPlaylist,
     DetailButton.download => l10n.download,
     DetailButton.deleteFiles => l10n.deleteDownloadedFiles,
