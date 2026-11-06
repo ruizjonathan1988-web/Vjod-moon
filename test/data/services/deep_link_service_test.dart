@@ -19,6 +19,28 @@ void main() {
       );
     });
 
+    test('Aura : un titre TMDB ouvre sa fiche Regarder / Demander', () {
+      expect(
+        DeepLinkService.routeForDeepLink(Uri.parse('moonfin://tmdb?id=550&type=movie')),
+        '/seerr/media/550?mediaType=movie',
+      );
+      expect(
+        DeepLinkService.routeForDeepLink(Uri.parse('moonfin://tmdb?id=1396&type=tv&title=Breaking%20Bad')),
+        '/seerr/media/1396?mediaType=tv&title=Breaking+Bad',
+      );
+      // Sans type, c'est un film.
+      expect(
+        DeepLinkService.routeForDeepLink(Uri.parse('moonfin://tmdb?id=550')),
+        '/seerr/media/550?mediaType=movie',
+      );
+    });
+
+    test('Aura : un identifiant TMDB absent ou bizarre est ignoré', () {
+      expect(DeepLinkService.routeForDeepLink(Uri.parse('moonfin://tmdb')), isNull);
+      expect(DeepLinkService.routeForDeepLink(Uri.parse('moonfin://tmdb?id=abc')), isNull);
+      expect(DeepLinkService.routeForDeepLink(Uri.parse('moonfin://tmdb?id=../admin')), isNull);
+    });
+
     test('routes item host without autoPlay', () {
       expect(
         DeepLinkService.routeForDeepLink(Uri.parse('moonfin://item?id=abc123')),

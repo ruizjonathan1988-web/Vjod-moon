@@ -40,6 +40,10 @@ class DeepLinkService {
   ///  - `moonfin://item?id=<itemId>[&serverId=<serverId>][&userId=<userId>]`
   ///  - `moonfin://play?id=<itemId>[&serverId=<serverId>][&userId=<userId>]`
   ///    (starts playback)
+  ///  - `moonfin://tmdb?id=<tmdbId>[&type=movie|tv][&title=<titre>]` : la
+  ///    fiche « Regarder / Demander » d'un titre TMDB, qu'il soit sur le
+  ///    serveur, en VOD chez le fournisseur IPTV ou à demander (Seerr).
+  ///    Envoyé par Aura, le jeu de cinéma.
   ///
   /// `userId` optionally pins a stored user, skipping the profile picker on a
   /// cold start and switching to that user when another one is signed in. It
@@ -62,6 +66,17 @@ class DeepLinkService {
       final u = uri.queryParameters['u'];
       if (u == null || u.isEmpty) return null;
       return '/tv?catalog=${Uri.encodeQueryComponent(u)}';
+    }
+    // Un titre TMDB (envoyé par Aura) : sa fiche, comme depuis le Catalogue.
+    if (uri.host == 'tmdb') {
+      final tmdbId = uri.queryParameters['id']?.trim() ?? '';
+      if (!RegExp(r'^\d+$').hasMatch(tmdbId)) return null;
+      final type = uri.queryParameters['type'] == 'tv' ? 'tv' : 'movie';
+      final title = uri.queryParameters['title']?.trim() ?? '';
+      return Uri(path: '/seerr/media/$tmdbId', queryParameters: {
+        'mediaType': type,
+        if (title.isNotEmpty) 'title': title,
+      }).toString();
     }
     final id = uri.queryParameters['id'];
     if (id == null || id.isEmpty) return null;
