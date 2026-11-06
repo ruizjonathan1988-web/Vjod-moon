@@ -55,6 +55,8 @@ import 'server_messages_dialog.dart';
 import 'server_messages_nav_slot.dart';
 import 'shuffle_overlay.dart';
 import '../screens/tonight/tonight_screen.dart';
+import '../../data/services/vjod/aura/aura_service.dart';
+import 'vjod/aura_drawer.dart';
 import 'user_menu_dialog.dart';
 
 import 'offline_aware_image.dart';
@@ -222,6 +224,7 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
     _userSub = _userRepo.currentUserStream.listen((_) => _loadUserImage());
     _prefs.addListener(_onPrefsChanged);
     unawaited(syncSimpleModeFromServer());
+    unawaited(syncAuraModeFromServer());
     _viewsRepo.addListener(_onUserViewsChanged);
     GetIt.instance<PluginSyncService>().addListener(_onPrefsChanged);
     if (GetIt.instance.isRegistered<AchievementsService>()) {
@@ -1173,6 +1176,7 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
         context.navigateTopLevel(Destinations.search);
       },
       onAvatar: _openVjodMenu,
+      beforeAvatar: !_kidsMode && vjodAuraOn() ? AuraPopButton(scale: s) : null,
       tabs: narrow ? const [] : tabs,
       searchHint: vjodText(
         context,
