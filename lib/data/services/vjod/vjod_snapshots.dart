@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:path_provider/path_provider.dart';
 
 class VjodSnapshots {
@@ -14,8 +15,25 @@ class VjodSnapshots {
   static Directory? _dir;
 
   // Off under `flutter test` unless a test turns it on: a list saved by one
-  // test must not show up in the next.
-  static bool _on = !Platform.environment.containsKey('FLUTTER_TEST');
+  // test must not show up in the next. In a browser there is no file system
+  // (and `Platform.environment` throws): the lists are kept in memory only
+  // (VJOD 4.35; since 4.20 every screen waited on this and spun forever).
+  static bool _on = kIsWeb || !_underTest();
+
+  static bool _underTest() {
+    try {
+      return Platform.environment.containsKey('FLUTTER_TEST');
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static bool? _webForTests;
+
+  /// Only for tests: pretends to be a browser (true) or not (null).
+  static set webForTests(bool? v) => _webForTests = v;
+
+  static bool get _web => _webForTests ?? kIsWeb;
 
   /// Only for tests: where the files go (null turns saving off again).
   static set directoryForTests(Directory? d) {
@@ -25,6 +43,7 @@ class VjodSnapshots {
   }
 
   static Future<File?> _file(String key) async {
+    if (_web) return null;
     try {
       _dir ??= Directory('${(await getApplicationSupportDirectory()).path}/vjod_lists');
       final dir = _dir!;
@@ -38,9 +57,9 @@ class VjodSnapshots {
   /// The last answer saved under [key] (memory first, then the device), or
   /// null.
   static Future<Object?> read(String key) async {
-    if (!_on) return null;
-    if (_mem.containsKey(key)) return _mem[key];
     try {
+      if (!_on) return null;
+      if (_mem.containsKey(key)) return _mem[key];
       final f = await _file(key);
       if (f == null || !f.existsSync()) return null;
       final j = jsonDecode(await f.readAsString());
@@ -53,9 +72,9 @@ class VjodSnapshots {
 
   /// Keeps [json] under [key]; best effort.
   static Future<void> write(String key, Object? json) async {
-    if (!_on) return;
-    _mem[key] = json;
     try {
+      if (!_on) return;
+      _mem[key] = json;
       final f = await _file(key);
       await f?.writeAsString(jsonEncode(json));
     } catch (_) {}
