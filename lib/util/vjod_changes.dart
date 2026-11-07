@@ -15,6 +15,9 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.40', [
+    'Ma TV dans le navigateur d\u2019un téléphone : toucher l\u2019image répond de nouveau tout de suite, et un double toucher ne passe plus en plein écran par surprise. Le volume et le plein écran restent sur ordinateur.',
+  ]),
   VjodRelease('4.39', [
     'Ma TV sur ordinateur (et version web) : un bouton volume avec sa réglette, et un bouton plein écran (ou un double-clic sur l\u2019image). Les commandes apparaissent quand la souris bouge, puis s\u2019effacent avec le curseur.',
     'Films et Séries : la recherche dans la bibliothèque trouve aussi les titres pas encore affichés. Elle s\u2019arrêtait parfois aux premiers chargés.',
