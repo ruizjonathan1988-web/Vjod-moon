@@ -231,8 +231,13 @@ class _FadeScalePageTransitionsBuilder extends PageTransitionsBuilder {
     BuildContext context,
     Animation<double> animation,
     Animation<double> secondaryAnimation,
-    Widget child,
+    Widget page,
   ) {
+    // VJOD 4.46, web: a page under the current one is not laid out, and when
+    // the browser window got focus back, Flutter measured its buttons to pick
+    // one and crashed (« RenderBox was not laid out », 30 reports). Such a
+    // page takes no focus until it is on top again.
+    final child = ExcludeFocus(excluding: kIsWeb && !route.isCurrent, child: page);
     final speed = GetIt.I.isRegistered<UserPreferences>()
         ? GetIt.I<UserPreferences>().get(UserPreferences.pageTransitionSpeed)
         : PageTransitionSpeed.medium;

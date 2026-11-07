@@ -170,7 +170,7 @@ void _installCrashHandlers() {
   WidgetsBinding.instance.platformDispatcher.onError = (error, stack) {
     // Returning true marks the error handled, which drops the engine's print.
     debugPrint('Uncaught: $error\n$stack');
-    _captureCrash(error, stack);
+    _captureCrash(error, stack, during: _screen());
     return true;
   };
 }
@@ -178,12 +178,16 @@ void _installCrashHandlers() {
 /// Where an error happened, for the Ma TV report: the screen, and what
 /// Flutter was doing (« during a hit test », « during performLayout »…).
 /// The web build minifies names, so this is often the only real clue.
-String _during(FlutterErrorDetails details) {
-  final parts = <String>[];
+String _screen() {
   try {
     final matches = appRouter.routerDelegate.currentConfiguration.matches;
-    if (matches.isNotEmpty) parts.add('écran ${matches.last.matchedLocation}');
+    if (matches.isNotEmpty) return 'écran ${matches.last.matchedLocation}';
   } catch (_) {}
+  return '';
+}
+
+String _during(FlutterErrorDetails details) {
+  final parts = <String>[if (_screen() case final s when s.isNotEmpty) s];
   try {
     final c = details.context?.toDescription();
     if (c != null && c.isNotEmpty) parts.add(c);

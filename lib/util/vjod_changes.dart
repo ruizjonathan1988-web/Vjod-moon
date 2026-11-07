@@ -15,6 +15,9 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.46', [
+    'Version web : revenir sur l\u2019onglet de VJOD (ou y entrer avec la touche Tab) ne fait plus planter la page. C\u2019était le plantage « RenderBox was not laid out », le plus fréquent de la maison.',
+  ]),
   VjodRelease('4.44', [
     'Quand le service des demandes (Seerr) ne répond plus, VJOD n\u2019attend plus 30 secondes à chaque page : après trois essais sans réponse, il le laisse de côté deux minutes, et les fiches et rangées s\u2019affichent tout de suite.',
     'Recherche : si le serveur met trop de temps (une seule lettre dans une grande bibliothèque), les résultats IPTV et à demander s\u2019affichent quand même, au lieu de « Impossible de se connecter au serveur ».',
