@@ -187,8 +187,8 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
   }
 
   Future<void> _toggleFullscreen() async {
-    final next = !(await isFullscreen());
-    await setFullscreen(next);
+    final next = !(await FullscreenHelper.isFullscreen());
+    await FullscreenHelper.setFullscreen(next);
     if (mounted) setState(() => _fullscreen = next);
   }
 
@@ -210,7 +210,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     super.initState();
     unawaited(loadSupportNumber());
     if (_bigScreen) {
-      unawaited(isFullscreen().then((v) {
+      unawaited(FullscreenHelper.isFullscreen().then((v) {
         if (mounted) setState(() => _fullscreen = v);
       }));
     }
