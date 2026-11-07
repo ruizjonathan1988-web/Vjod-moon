@@ -700,10 +700,20 @@ class LibraryBrowseViewModel extends ChangeNotifier {
 
     if (!stillWanted()) return;
     while (hasMore) {
-      final beforeCount = _items.length;
+      // A page asked for by scrolling may be on its way: loadMore would
+      // return without loading, and the walk used to stop there, leaving the
+      // search box to filter only the first pages (« la recherche ne trouve
+      // rien »). Wait for it instead.
+      while (_loadingMore) {
+        await Future.delayed(const Duration(milliseconds: 30));
+        if (!stillWanted()) return;
+      }
+      // Count what the server sent, not what is shown: a page whose rows were
+      // all dropped (folders, duplicates) is not the end of the library.
+      final beforeFetched = _fetchedCount;
       await loadMore(pageSizeOverride: 300);
       if (!stillWanted()) return;
-      if (_items.length == beforeCount) break;
+      if (_fetchedCount == beforeFetched) break;
     }
   }
 
