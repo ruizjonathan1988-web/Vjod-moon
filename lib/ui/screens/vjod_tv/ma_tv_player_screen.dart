@@ -173,7 +173,9 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
 
   /// A computer (or its browser): a mouse moves over the picture, the window
   /// can go full screen.
-  bool get _bigScreen => _touch && (PlatformDetection.isWeb || PlatformDetection.isDesktop);
+  // Not a phone's browser: there a double tap would toggle full screen by
+  // surprise and every single tap would wait for it.
+  bool get _bigScreen => _touch && PlatformDetection.useDesktopUi;
 
   /// The sound level of the player, 0 to 100, kept while the app is open.
   static double _volume = 100;
