@@ -65,16 +65,6 @@ void main() {
     return people;
   }
 
-  Map<String, dynamic> person(String id) => {
-    'Items': [
-      {'Id': id, 'Name': id},
-    ],
-  };
-
-  List<String> groupTypes(SearchViewModel vm) => [
-    for (final group in vm.results) group.itemTypes.first,
-  ];
-
   test('VJOD : une lettre de plus filtre aussitôt, une recherche déjà faite revient tout de suite', () {
     fakeAsync((async) {
       itemsFor('ali', [('Alien', 'Movie'), ('Aladdin', 'Movie')]);
