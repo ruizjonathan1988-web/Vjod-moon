@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/material.dart';
+import 'util/image_errors.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:get_it/get_it.dart';
@@ -165,6 +166,9 @@ Timer? _crashFlushDebounce;
 void _installCrashHandlers() {
   FlutterError.onError = (details) {
     FlutterError.presentError(details);
+    // A poster that fails to load is drawn as a blank, not a crash: kept out
+    // of the Ma TV reports, where it read « Plantage » (VJOD 4.45).
+    if (isImageLoadError(details)) return;
     _captureCrash(details.exception, details.stack, during: _during(details));
   };
   WidgetsBinding.instance.platformDispatcher.onError = (error, stack) {
