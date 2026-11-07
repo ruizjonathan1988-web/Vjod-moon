@@ -100,6 +100,21 @@ void main() {
   });
 
   group('l\'aura, comme dans Aura', () {
+    test('un film cacheté garde son titre caché jusqu\'au jour prévu', () {
+      final p = AuraProposal.fromJson({
+        'id': 'p1',
+        'de': 'u1',
+        'de_nom': 'Léa',
+        'film': {'titre': 'Matrix', 'tmdb': 603, 'type': 'movie', 'ouvrir_le': '2026-11-13'},
+      })!;
+      expect(p.sealed(DateTime(2026, 11, 12, 23)), isTrue);
+      expect(p.opensLabel(DateTime(2026, 11, 11)), 'à ouvrir vendredi');
+      expect(p.opensLabel(DateTime(2026, 11, 12)), 'à ouvrir demain');
+      expect(p.sealed(DateTime(2026, 11, 13, 0, 1)), isFalse);
+      final libre = AuraProposal.fromJson({'id': 'p2', 'de': 'u1', 'film': {'titre': 'Coco'}})!;
+      expect(libre.sealed(DateTime(2026, 11, 12)), isFalse);
+    });
+
     test('+1 vu, +2 aimé (cœur ou 4 et 5), +3 quand plusieurs aiment le même film', () {
       final s = AuraScore.scores([
         _p('1', seen: true),

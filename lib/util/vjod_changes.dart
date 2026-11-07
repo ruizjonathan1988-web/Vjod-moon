@@ -15,6 +15,9 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.38', [
+    'Aura : un film proposé peut maintenant être cacheté jusqu\u2019à un jour choisi. Dans le tiroir Aura, tu vois qui te l\u2019envoie et quand l\u2019ouvrir, mais pas le titre : la surprise reste entière jusque-là.',
+  ]),
   VjodRelease('4.37', [
     'Aura, le jeu de cinéma, arrive dans VJOD. À activer profil par profil dans Réglages → L\u2019essentiel → Aura : un bouton jaune en haut ouvre la course contre Pop, tes cartes du soir, ce qu\u2019on te propose et l\u2019aura de la maison.',
     'Sur la fiche d\u2019un film ou d\u2019une série, « Proposer à… » l\u2019envoie à quelqu\u2019un de la maison, avec un mot si tu veux. Ton aura grandit quand il le regarde (+1), quand il l\u2019aime (+2), et quand plusieurs l\u2019aiment (+3).',
