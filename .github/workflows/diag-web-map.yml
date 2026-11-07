@@ -1,0 +1,36 @@
+name: Diag carte web
+on:
+  push:
+    branches: [diag-web-map]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  map:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.2'
+      - name: Build web avec cartes
+        run: |
+          flutter pub get
+          flutter build web --wasm --release --source-maps --base-href "/Vjod-moon/" > build.txt 2>&1 || (tail -40 build.txt; exit 1)
+          ls -la build/web | head -40
+      - name: Compare au deploiement
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir dep && cd dep
+          gh api repos/${{ github.repository }}/actions/artifacts/13588266662/zip > a.zip && unzip -oq a.zip && tar -xf artifact.tar ./main.dart.js && wc -l main.dart.js ../build/web/main.dart.js && (cmp main.dart.js ../build/web/main.dart.js && echo IDENTIQUE || echo DIFFERENT)
+      - name: Traduire la pile
+        run: |
+          npm i source-map@0.7.4 > /dev/null 2>&1
+          cat > m.mjs <<'JS'
+          import fs from 'fs'; import { SourceMapConsumer } from 'source-map';
+          const map = JSON.parse(fs.readFileSync('build/web/main.dart.js.map','utf8'));
+          const frames = [[5273,30],[188132,18],[188133,19],[206363,45],[35671,5],[207156,19],[35636,19],[206828,11],[206832,22],[222413,45],[203319,7],[5418,65],[1222,15],[124315,10],[124798,5],[124814,14],[136984,34],[137000,12],[10232,29],[10208,43],[124767,77],[222405,10],[162357,14]];
+          await SourceMapConsumer.with(map, null, c => { for (const [l,col] of frames) { const p = c.originalPositionFor({line:l, column:col-1}); console.log(`${l}:${col} -> ${p.source}:${p.line} ${p.name||''}`); } });
+          JS
+          node m.mjs
