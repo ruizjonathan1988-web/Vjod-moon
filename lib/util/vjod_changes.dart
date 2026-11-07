@@ -15,6 +15,9 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.41', [
+    'Quand VJOD plante, le signalement envoyé à Ma TV dit aussi sur quel écran et pendant quoi : de quoi trouver et corriger les plantages de la version web.',
+  ]),
   VjodRelease('4.40', [
     'Ma TV dans le navigateur d\u2019un téléphone : toucher l\u2019image répond de nouveau tout de suite, et un double toucher ne passe plus en plein écran par surprise. Le volume et le plein écran restent sur ordinateur.',
   ]),

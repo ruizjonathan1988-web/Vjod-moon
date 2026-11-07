@@ -137,11 +137,13 @@ class MaTvReports {
   }
 
   /// An uncaught Dart error.
-  void crash(Object error, StackTrace? stack, {String where = 'flutter'}) {
+  /// [during] says where (screen, what Flutter was doing); it goes on a
+  /// line of its own, so the same error still groups under one title.
+  void crash(Object error, StackTrace? stack, {String where = 'flutter', String during = ''}) {
     final first = error.toString().split('\n').first;
     report(MaTvReport(
       kind: 'crash',
-      message: error.toString(),
+      message: during.isEmpty ? error.toString() : '${error.toString()}\n$during',
       stack: _frames(stack),
       where: where,
     ), key: 'crash|$first');

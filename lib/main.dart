@@ -165,7 +165,7 @@ Timer? _crashFlushDebounce;
 void _installCrashHandlers() {
   FlutterError.onError = (details) {
     FlutterError.presentError(details);
-    _captureCrash(details.exception, details.stack);
+    _captureCrash(details.exception, details.stack, during: _during(details));
   };
   WidgetsBinding.instance.platformDispatcher.onError = (error, stack) {
     // Returning true marks the error handled, which drops the engine's print.
@@ -175,9 +175,27 @@ void _installCrashHandlers() {
   };
 }
 
-void _captureCrash(Object error, StackTrace? stack) {
+/// Where an error happened, for the Ma TV report: the screen, and what
+/// Flutter was doing (« during a hit test », « during performLayout »…).
+/// The web build minifies names, so this is often the only real clue.
+String _during(FlutterErrorDetails details) {
+  final parts = <String>[];
+  try {
+    final matches = appRouter.routerDelegate.currentConfiguration.matches;
+    if (matches.isNotEmpty) parts.add('écran ${matches.last.matchedLocation}');
+  } catch (_) {}
+  try {
+    final c = details.context?.toDescription();
+    if (c != null && c.isNotEmpty) parts.add(c);
+    final lib = details.library;
+    if (lib != null && lib.isNotEmpty) parts.add(lib);
+  } catch (_) {}
+  return parts.join(' · ');
+}
+
+void _captureCrash(Object error, StackTrace? stack, {String during = ''}) {
   // To Ma TV too, where the household admin sees it (VJOD 4.11).
-  MaTvReports.instance.crash(error, stack);
+  MaTvReports.instance.crash(error, stack, during: during);
   try {
     final errorLine = error.toString().split('\n').first;
     final frameLine = stack?.toString().split('\n').first.trim() ?? '';
