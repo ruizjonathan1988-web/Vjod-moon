@@ -1368,6 +1368,7 @@ class Media3VideoView(
             format: Format,
             decoderReuseEvaluation: DecoderReuseEvaluation?,
         ) {
+            PlatformViewCensus.noteVideo(format.sampleMimeType)
             val frameRate = resolveSelectedVideoFrameRate() ?: format.frameRate
             if (frameRate.isFinite() && frameRate > 0f) {
                 maybeApplyFrameRateSwitching(frameRate)
@@ -1379,6 +1380,7 @@ class Media3VideoView(
             format: Format,
             decoderReuseEvaluation: DecoderReuseEvaluation?,
         ) {
+            PlatformViewCensus.noteAudio(format.sampleMimeType)
             currentAudioIsBitstream = isBitstreamAudioMime(format.sampleMimeType)
             val lossless = isLosslessAudioMime(format.sampleMimeType)
             if (lossless != currentAudioIsLossless) {
@@ -1391,7 +1393,16 @@ class Media3VideoView(
             }
         }
 
-        override fun onAudioSinkError(
+        override fun onAudioDecoderInitialized(
+            eventTime: AnalyticsListener.EventTime,
+            decoderName: String,
+            initializedTimestampMs: Long,
+            initializationDurationMs: Long,
+        ) {
+            PlatformViewCensus.noteAudioDecoder(decoderName)
+        }
+
+                override fun onAudioSinkError(
             eventTime: AnalyticsListener.EventTime,
             audioSinkError: Exception,
         ) {
