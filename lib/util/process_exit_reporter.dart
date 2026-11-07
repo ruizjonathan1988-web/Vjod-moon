@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import '../data/services/crash_report_service.dart';
 import '../data/services/log_service.dart';
 import '../data/services/vjod/ma_tv_reports.dart';
+import '../playback/media3_fallback.dart';
 
 /// Logs how the previous run ended and keeps Android's note of what this one
 /// is doing current. A crash in native code takes the process down before Dart
@@ -31,6 +32,15 @@ class ProcessExitReporter {
     for (final raw in exits ?? const <Object?>[]) {
       if (raw is! Map) continue;
       final exit = describeProcessExit(raw.cast<String, Object?>());
+      // A crash in the middle of a film with Media3: that format goes to mpv.
+      final avoided = await Media3Fallback.instance.afterExit(raw.cast<String, Object?>());
+      if (avoided != null) {
+        MaTvReports.instance.play(
+          'Plantage du lecteur Android ($avoided) : ce format passe sur mpv',
+          where: 'lecteur',
+          player: 'media3',
+        );
+      }
       _logs.logCrash(exit.message, exit.details);
       MaTvReports.instance.report(
         MaTvReport(kind: 'crash', message: exit.message, stack: exit.details, where: 'android'),
