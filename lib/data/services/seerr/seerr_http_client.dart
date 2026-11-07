@@ -16,13 +16,38 @@ class SeerrHttpClient {
 
   SeerrHttpClient({required this.proxyConfig}) {
     _dio = Dio(BaseOptions(
-      connectTimeout: const Duration(seconds: 30),
-      receiveTimeout: const Duration(seconds: 30),
-      sendTimeout: const Duration(seconds: 30),
+      connectTimeout: const Duration(seconds: 10),
+      receiveTimeout: const Duration(seconds: 20),
+      sendTimeout: const Duration(seconds: 20),
       followRedirects: true,
       validateStatus: (_) => true,
     ));
 
+    // VJOD: when Seerr stops answering, every page that asks it waited 30 s
+    // (a Wowlink box saw 60 answers in a row at 30 s). After a few timeouts
+    // in a row, Seerr is left alone for a moment: pages show what they have
+    // at once, and Seerr is tried again after the pause.
+    _dio.interceptors.add(InterceptorsWrapper(
+      onRequest: (options, handler) {
+        if (seerrPause.paused(DateTime.now())) {
+          handler.reject(DioException(
+            requestOptions: options,
+            type: DioExceptionType.connectionError,
+            message: 'Seerr ne répond pas : nouvel essai dans un moment',
+          ));
+          return;
+        }
+        handler.next(options);
+      },
+      onResponse: (response, handler) {
+        seerrPause.answered();
+        handler.next(response);
+      },
+      onError: (error, handler) {
+        if (seerrPause.counts(error.type)) seerrPause.timedOut(DateTime.now());
+        handler.next(error);
+      },
+    ));
     _dio.interceptors.add(VjodTimingInterceptor('Seerr'));
     _dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) {
@@ -1004,3 +1029,40 @@ class _ProxyUnwrapInterceptor extends Interceptor {
     handler.next(response);
   }
 }
+
+/// When Seerr times out [limit] times in a row, it is left alone for [pause].
+class SeerrPause {
+  SeerrPause({this.limit = 3, this.pause = const Duration(minutes: 2)});
+
+  final int limit;
+  final Duration pause;
+  int _timeouts = 0;
+  DateTime? _until;
+
+  bool paused(DateTime now) {
+    final until = _until;
+    if (until == null) return false;
+    if (now.isBefore(until)) return true;
+    _until = null;
+    _timeouts = limit - 1; // one more timeout and the pause starts again
+    return false;
+  }
+
+  bool counts(DioExceptionType type) =>
+      type == DioExceptionType.connectionTimeout ||
+      type == DioExceptionType.receiveTimeout ||
+      type == DioExceptionType.sendTimeout;
+
+  void timedOut(DateTime now) {
+    _timeouts++;
+    if (_timeouts >= limit) _until = now.add(pause);
+  }
+
+  void answered() {
+    _timeouts = 0;
+    _until = null;
+  }
+}
+
+/// One for all Seerr clients of the app.
+final seerrPause = SeerrPause();

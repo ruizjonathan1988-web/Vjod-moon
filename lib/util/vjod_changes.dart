@@ -15,6 +15,10 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.44', [
+    'Quand le service des demandes (Seerr) ne répond plus, VJOD n\u2019attend plus 30 secondes à chaque page : après trois essais sans réponse, il le laisse de côté deux minutes, et les fiches et rangées s\u2019affichent tout de suite.',
+    'Recherche : si le serveur met trop de temps (une seule lettre dans une grande bibliothèque), les résultats IPTV et à demander s\u2019affichent quand même, au lieu de « Impossible de se connecter au serveur ».',
+  ]),
   VjodRelease('4.43', [
     'Sur une box Android, quand un film saccade avec le lecteur d\u2019Android, VJOD le relance tout seul avec l\u2019autre lecteur (mpv, celui qui ressemble à VLC), là où il en était. L\u2019appareil s\u2019en souvient pour ce format.',
     'De même après un plantage du lecteur en plein film : la fois suivante, ce format passe directement par mpv.',
