@@ -210,6 +210,10 @@ class AuraProposal {
   final int? rating;
   final DateTime createdAt;
 
+  /// Un film cacheté (Aura, R60) : le titre reste caché chez celui qui le
+  /// reçoit jusqu'à ce jour-là. Rangé dans « film.ouvrir_le ».
+  final DateTime? opensOn;
+
   const AuraProposal({
     required this.id,
     required this.from,
@@ -229,7 +233,23 @@ class AuraProposal {
     this.liked = false,
     this.rating,
     required this.createdAt,
+    this.opensOn,
   });
+
+  /// Encore cacheté ce jour-là.
+  bool sealed(DateTime now) => opensOn != null && DateTime(now.year, now.month, now.day).isBefore(opensOn!);
+
+  /// « à ouvrir demain », « à ouvrir vendredi », « à ouvrir le 14 ».
+  String opensLabel(DateTime now) {
+    const days = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
+    final o = opensOn;
+    if (o == null) return '';
+    final gap = o.difference(DateTime(now.year, now.month, now.day)).inDays;
+    if (gap <= 0) return 'à ouvrir dès maintenant';
+    if (gap == 1) return 'à ouvrir demain';
+    if (gap < 7) return 'à ouvrir ${days[o.weekday - 1]}';
+    return 'à ouvrir le ${o.day}';
+  }
 
   /// Qui gagne l'aura : la personne (tous ses appareils), sinon le joueur.
   String get author => fromPerson ?? from;
@@ -262,6 +282,7 @@ class AuraProposal {
       liked: raw['aime'] == true,
       rating: (raw['note'] as num?)?.toInt(),
       createdAt: DateTime.tryParse('${raw['cree_le']}') ?? DateTime.fromMillisecondsSinceEpoch(0),
+      opensOn: film['ouvrir_le'] == null ? null : DateTime.tryParse('${film['ouvrir_le']}'),
     );
   }
 

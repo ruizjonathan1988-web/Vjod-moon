@@ -156,6 +156,18 @@ class _AuraDrawerScreenState extends State<AuraDrawerScreen> {
         const _Line('Rien pour l’instant. Sur la fiche d’un film, « Proposer à… » l’envoie à quelqu’un de la maison.')
       else
         for (final p in d.received)
+          if (p.sealed(DateTime.now()))
+            // Cacheté depuis Aura : qui l'envoie et quand, jamais le titre.
+            AuraTile(
+              autofocus: takeFocus(),
+              icon: Icons.lock_rounded,
+              title: 'Un film cacheté de ${p.fromName}',
+              subtitle: '${p.opensLabel(DateTime.now())[0].toUpperCase()}${p.opensLabel(DateTime.now()).substring(1)}${p.note != null ? ' · « ${p.note} »' : ''}',
+              onTap: () => ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+                SnackBar(content: Text('Pas avant le jour prévu : ${p.opensLabel(DateTime.now())}.')),
+              ),
+            )
+          else
           AuraTile(
             autofocus: takeFocus(),
             icon: Icons.card_giftcard_rounded,
