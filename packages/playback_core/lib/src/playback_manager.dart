@@ -1196,6 +1196,13 @@ class PlaybackManager implements AudioOwnable {
     _diagnosticLogger = logger;
   }
 
+  /// Opens what is playing again where it is, and lets the backend selector
+  /// choose afresh (VJOD: Media3 stuttered, so the item goes to mpv).
+  Future<void> reselectBackendAtCurrentPosition({String reason = 'backend-fallback'}) {
+    _resetBackendSelectionLock();
+    return _reResolveAtCurrentPosition(reason: reason);
+  }
+
   void _resetBackendSelectionLock() {
     _backendSelectionLockedForSession = false;
     _sessionLockedBackend = null;

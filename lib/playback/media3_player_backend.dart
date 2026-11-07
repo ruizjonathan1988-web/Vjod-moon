@@ -193,6 +193,10 @@ class Media3PlayerBackend extends PlayerBackend
   final _bufferStream = StreamController<Duration>.broadcast();
   final _playingStream = StreamController<bool>.broadcast();
   final _bufferingStream = StreamController<bool>.broadcast();
+
+  /// Dropped-frame reports from the player: (frames, over how many ms).
+  final _droppedFramesStream = StreamController<(int, int)>.broadcast();
+  Stream<(int, int)> get droppedFramesStream => _droppedFramesStream.stream;
   final _completedStream = StreamController<bool>.broadcast();
   final _errorStream = StreamController<Map<String, dynamic>>.broadcast();
 
@@ -421,6 +425,9 @@ class Media3PlayerBackend extends PlayerBackend
         if (!_firstFrameController.isClosed) _firstFrameController.add(null);
         _diag('Media3: first frame rendered @ ${_toInt(map['positionMs'])}ms');
       case 'droppedFrames':
+        if (!_droppedFramesStream.isClosed) {
+          _droppedFramesStream.add((_toInt(map['count']), _toInt(map['elapsedMs'])));
+        }
         _diag(
           'Media3: dropped ${_toInt(map['count'])} video frames in '
           '${_toInt(map['elapsedMs'])}ms',
@@ -1718,6 +1725,7 @@ class Media3PlayerBackend extends PlayerBackend
     _bufferStream.close();
     _playingStream.close();
     _bufferingStream.close();
+    _droppedFramesStream.close();
     _completedStream.close();
     _errorStream.close();
     _tracksChangedController.close();
