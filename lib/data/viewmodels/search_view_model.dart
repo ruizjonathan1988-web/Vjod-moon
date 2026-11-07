@@ -263,6 +263,7 @@ class SearchViewModel extends ChangeNotifier {
     if (query != _query) return;
     final run = ++_searchRun;
 
+    Object? serverError;
     try {
         final activeGroups = _scopedParentId != null
           ? _bookSearchGroups()
@@ -288,7 +289,18 @@ class SearchViewModel extends ChangeNotifier {
               ),
               Future.value(const <AggregatedItem>[]),
             )
-          : await _buildGroupedGlobalResults(query, activeGroups);
+          : await _buildGroupedGlobalResults(query, activeGroups).catchError((
+              Object e,
+            ) {
+              // The server's search failed (often one letter on a big
+              // library, which times out). The IPTV, request and game
+              // results still show; the error only when nothing else does.
+              serverError = e;
+              return (
+                [for (final g in activeGroups) g.copyWith(items: const <AggregatedItem>[])],
+                Future.value(const <AggregatedItem>[]),
+              );
+            });
       final seerrLate = await seerrFuture
           .then<List<SeerrDiscoverItem>?>((found) => found)
           .timeout(_sideGrace, onTimeout: () => null);
@@ -317,6 +329,11 @@ class SearchViewModel extends ChangeNotifier {
           : await peopleFuture;
 
       if (query != _query) return;
+
+      final serverFailed = serverError;
+      if (serverFailed != null && !hasOtherResults && (people ?? const []).isEmpty) {
+        throw serverFailed;
+      }
 
       _results = _withPeople(groups, people ?? const []);
       _gameResults = games;
