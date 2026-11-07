@@ -15,6 +15,9 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.42', [
+    'Quand le lecteur plante en plein film sur une TV Android, le signalement dit aussi quels formats il décodait (image et son) : de quoi trouver le format que l\u2019appareil ne supporte pas.',
+  ]),
   VjodRelease('4.41', [
     'Quand VJOD plante, le signalement envoyé à Ma TV dit aussi sur quel écran et pendant quoi : de quoi trouver et corriger les plantages de la version web.',
   ]),
