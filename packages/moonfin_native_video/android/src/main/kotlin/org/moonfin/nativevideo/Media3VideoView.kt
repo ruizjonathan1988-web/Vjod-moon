@@ -1393,15 +1393,6 @@ class Media3VideoView(
             }
         }
 
-        override fun onAudioDecoderInitialized(
-            eventTime: AnalyticsListener.EventTime,
-            decoderName: String,
-            initializedTimestampMs: Long,
-            initializationDurationMs: Long,
-        ) {
-            PlatformViewCensus.noteAudioDecoder(decoderName)
-        }
-
                 override fun onAudioSinkError(
             eventTime: AnalyticsListener.EventTime,
             audioSinkError: Exception,
@@ -1484,6 +1475,7 @@ class Media3VideoView(
         ) {
             // An ffmpeg* name means the extension renderer took the track and
             // c2.*/OMX.* a platform decoder. Passthrough emits no decoder init.
+            PlatformViewCensus.noteAudioDecoder(decoderName)
             Media3Bridge.emitEvent(
                 mapOf(
                     "event" to "audioDecoderInit",
