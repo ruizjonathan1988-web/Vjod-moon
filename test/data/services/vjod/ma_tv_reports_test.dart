@@ -63,6 +63,15 @@ void main() {
     expect(await reports.pending(), isEmpty);
   });
 
+  test('un plantage dit sur quel écran et pendant quoi, sur sa propre ligne', () async {
+    final err = StateError('RenderBox was not laid out ${DateTime.now().microsecondsSinceEpoch}');
+    reports.crash(err, null, during: 'écran /search · during a hit test · gesture library');
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    final r = (await reports.pending()).last;
+    expect(r.message.split('\n').first, err.toString());
+    expect(r.message, contains('écran /search · during a hit test'));
+  });
+
   test('le même problème une seule fois par lancement', () async {
     final err = ArgumentError('toujours la même ${DateTime.now().microsecondsSinceEpoch}');
     for (var i = 0; i < 5; i++) {
