@@ -15,6 +15,10 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.39', [
+    'Ma TV sur ordinateur (et version web) : un bouton volume avec sa réglette, et un bouton plein écran (ou un double-clic sur l\u2019image). Les commandes apparaissent quand la souris bouge, puis s\u2019effacent avec le curseur.',
+    'Films et Séries : la recherche dans la bibliothèque trouve aussi les titres pas encore affichés. Elle s\u2019arrêtait parfois aux premiers chargés.',
+  ]),
   VjodRelease('4.38', [
     'Aura : un film proposé peut maintenant être cacheté jusqu\u2019à un jour choisi. Dans le tiroir Aura, tu vois qui te l\u2019envoie et quand l\u2019ouvrir, mais pas le titre : la surprise reste entière jusque-là.',
   ]),

@@ -85,6 +85,10 @@ abstract class TvEngine {
 
   /// Sound off or back on (Multiview: only the tile picked is heard).
   Future<void> setMuted(bool muted);
+
+  /// The sound level, 0 to 100 (the volume slider of the player on a
+  /// computer or a phone).
+  Future<void> setVolume(double volume);
   Widget view();
   Future<void> dispose();
 }
@@ -174,6 +178,9 @@ class MpvTvEngine implements TvEngine {
   Future<void> stop() => _player.stop();
   @override
   Future<void> setMuted(bool muted) => _player.setVolume(muted ? 0 : 100);
+
+  @override
+  Future<void> setVolume(double volume) => _player.setVolume(volume.clamp(0, 100).toDouble());
 
   @override
   Widget view() => Video(
@@ -311,6 +318,9 @@ class ExoTvEngine implements TvEngine {
   Future<void> setMuted(bool muted) => _backend.setVolume(muted ? 0 : 100);
 
   @override
+  Future<void> setVolume(double volume) => _backend.setVolume(volume.clamp(0, 100).toDouble());
+
+  @override
   Widget view() => Media3VideoView(
     fill: Colors.black,
     onPlatformViewCreated: (id) {
@@ -398,6 +408,9 @@ class AppleTvEngine implements TvEngine {
   Future<void> stop() => _backend.stop();
   @override
   Future<void> setMuted(bool muted) => _backend.setVolume(muted ? 0 : 100);
+
+  @override
+  Future<void> setVolume(double volume) => _backend.setVolume(volume.clamp(0, 100).toDouble());
   @override
   Widget view() => const ColoredBox(color: Colors.black, child: AetherVideoView());
 
@@ -510,6 +523,9 @@ class WebTvEngine implements TvEngine {
   }
   @override
   Future<void> setMuted(bool muted) => _backend.setVolume(muted ? 0 : 100);
+
+  @override
+  Future<void> setVolume(double volume) => _backend.setVolume(volume.clamp(0, 100).toDouble());
 
   @override
   Widget view() => ColoredBox(color: Colors.black, child: _backend.buildView());
