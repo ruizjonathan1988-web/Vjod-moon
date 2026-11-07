@@ -37,6 +37,8 @@ import '../../playback/appletv_backend.dart';
 import '../../playback/auto_bitrate_service.dart';
 import '../../playback/aether_backend.dart';
 import '../../playback/media_kit_player_backend.dart';
+import '../../data/services/vjod/ma_tv_reports.dart';
+import '../../playback/media3_fallback.dart';
 import '../../playback/media3_player_backend.dart';
 import '../../playback/offline_stream_resolver.dart';
 import '../../playback/playback_profile_diagnostics.dart';
@@ -477,6 +479,8 @@ void registerPlaybackModule() {
   };
 
   manager.setBackend(initialBackend);
+  final watchedMedia3 = media3Backend;
+  if (watchedMedia3 != null) _watchMedia3(manager, watchedMedia3);
   manager.setBackendSelector((resolution, currentBackend) {
     if (PlatformDetection.isAppleTV) {
       if (currentBackend is AppleTvBackend) return currentBackend;
@@ -505,7 +509,8 @@ void registerPlaybackModule() {
       final preferMedia3 =
           prefs.get(UserPreferences.playbackEnginePreference) ==
           PlaybackEnginePreference.media3;
-      if (preferMedia3) {
+      // A format Media3 stuttered or crashed on, on this device, goes to mpv.
+      if (preferMedia3 && !Media3Fallback.instance.avoids(resolution)) {
         if (currentBackend is Media3PlayerBackend) return currentBackend;
         return _getIt<Media3PlayerBackend>();
       }
@@ -859,4 +864,43 @@ Future<void> _ensureResolverForItem(dynamic item) async {
   final client = factory.getClientIfExists(item.serverId);
   if (client == null) return;
   setActiveStreamResolver(client);
+}
+
+/// VJOD: Media3 stutters on a format this device decodes badly: that film
+/// switches to mpv where it was, and the format is remembered (see
+/// [Media3Fallback]). Also notes what Media3 plays, for a native crash.
+void _watchMedia3(PlaybackManager manager, Media3PlayerBackend media3) {
+  unawaited(Media3Fallback.instance.load());
+  var watch = StutterWatch();
+  String? film;
+  String keyNow() {
+    final r = manager.currentResolution;
+    return r == null ? '' : Media3Fallback.formatKey(r.mediaStreams, r.selectedAudioStreamIndex);
+  }
+
+  media3.playingStream.listen((playing) {
+    if (!playing || !identical(manager.backend, media3)) return;
+    final r = manager.currentResolution;
+    if (r == null) return;
+    if (r.mediaSourceId != film) {
+      film = r.mediaSourceId;
+      watch = StutterWatch();
+    }
+    unawaited(Media3Fallback.instance.playing(keyNow()));
+  });
+  media3.droppedFramesStream.listen((report) {
+    if (!identical(manager.backend, media3) || !media3.isPlaying) return;
+    if (!watch.add(report.$1, report.$2)) return;
+    final key = keyNow();
+    if (key.isEmpty) return;
+    unawaited(() async {
+      await Media3Fallback.instance.avoid(key);
+      MaTvReports.instance.play(
+        'Saccades avec le lecteur Android ($key) : passage automatique sur mpv',
+        where: 'lecteur',
+        player: 'media3',
+      );
+      await manager.reselectBackendAtCurrentPosition(reason: 'media3-stutter');
+    }());
+  });
 }
