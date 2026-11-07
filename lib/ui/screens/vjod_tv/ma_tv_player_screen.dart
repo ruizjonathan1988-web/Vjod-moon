@@ -21,6 +21,7 @@ import '../../../data/services/vjod/ma_tv_reports.dart';
 import '../../../data/services/vjod/ma_tv_sports.dart';
 import '../../../data/services/vjod/tv_sources.dart';
 import '../../../util/focus/dpad_keys.dart';
+import '../../../util/fullscreen_helper.dart';
 import '../../../util/platform_detection.dart';
 import '../../../util/system_ui.dart';
 import '../../../util/vjod_text.dart';
@@ -170,10 +171,49 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
   }
   bool get _touch => !PlatformDetection.isTV;
 
+  /// A computer (or its browser): a mouse moves over the picture, the window
+  /// can go full screen.
+  bool get _bigScreen => _touch && (PlatformDetection.isWeb || PlatformDetection.isDesktop);
+
+  /// The sound level of the player, 0 to 100, kept while the app is open.
+  static double _volume = 100;
+  bool _volumeOpen = false;
+  bool _fullscreen = false;
+
+  Future<void> _setVolume(double v) async {
+    setState(() => _volume = v.clamp(0, 100).toDouble());
+    _showBanner();
+    await _engine.setVolume(_volume);
+  }
+
+  Future<void> _toggleFullscreen() async {
+    final next = !(await FullscreenHelper.isFullscreen());
+    await FullscreenHelper.setFullscreen(next);
+    if (mounted) setState(() => _fullscreen = next);
+  }
+
+  /// The mouse moved over the picture: bring the controls back for a while.
+  void _wake() {
+    if (!_bigScreen || _overlay != _Overlay.none) return;
+    if (_banner) {
+      _bannerTimer?.cancel();
+      _bannerTimer = Timer(_bannerTime, () {
+        if (mounted && _overlay == _Overlay.none && _number.isEmpty) setState(() => _banner = false);
+      });
+    } else {
+      _showBanner();
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     unawaited(loadSupportNumber());
+    if (_bigScreen) {
+      unawaited(FullscreenHelper.isFullscreen().then((v) {
+        if (mounted) setState(() => _fullscreen = v);
+      }));
+    }
     _list = List.of(widget.channels);
     _index = widget.startIndex.clamp(0, _list.isEmpty ? 0 : _list.length - 1);
     _catId = widget.categoryId;
@@ -513,6 +553,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     }
     try {
       await _engine.open(uri.toString(), live: _replaying == null && _delay == Duration.zero);
+      if (_touch && _volume != 100) unawaited(_engine.setVolume(_volume));
     } catch (_) {
       if (_engine is ExoTvEngine && _fallBackToMpv()) return;
     }
@@ -1482,8 +1523,12 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
           focusNode: _focus,
           autofocus: true,
           onKeyEvent: _onKey,
-          child: GestureDetector(
+          child: MouseRegion(
+            onHover: (_) => _wake(),
+            cursor: _bigScreen && !_banner && _overlay == _Overlay.none ? SystemMouseCursors.none : MouseCursor.defer,
+            child: GestureDetector(
             behavior: HitTestBehavior.opaque,
+            onDoubleTap: _bigScreen ? () => unawaited(_toggleFullscreen()) : null,
             onTap: () {
               if (_overlay != _Overlay.none) {
                 _close();
@@ -1592,6 +1637,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
               ],
             ),
           ),
+          ),
         ),
       ),
     );
@@ -1622,6 +1668,30 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
             b(Icons.info_outline_rounded, _t('Guide', 'Guide', 'Гид', '指南'), () => unawaited(_openGuide())),
             b(Icons.grid_view_rounded, _t('Grille', 'Guide', 'Сетка', '节目表'), () => unawaited(_openGrid())),
             if (!widget.kids) b(Icons.tune_rounded, _t('Sources', 'Sources', 'Источники', '片源'), () => setState(() => _overlay = _Overlay.sources)),
+            if (_bigScreen) b(
+              _volume <= 0 ? Icons.volume_off_rounded : _volume < 50 ? Icons.volume_down_rounded : Icons.volume_up_rounded,
+              _t('Volume', 'Volume', 'Громкость', '音量'),
+              () {
+                setState(() => _volumeOpen = !_volumeOpen);
+                _showBanner();
+              },
+            ),
+            if (_bigScreen && _volumeOpen)
+              SizedBox(
+                width: 140,
+                child: Slider(
+                  value: _volume,
+                  max: 100,
+                  activeColor: MaTvColors.accent,
+                  onChanged: (v) => unawaited(_setVolume(v)),
+                ),
+              ),
+            if (_bigScreen)
+              b(
+                _fullscreen ? Icons.fullscreen_exit_rounded : Icons.fullscreen_rounded,
+                _fullscreen ? _t('Quitter le plein écran', 'Exit full screen', 'Выйти из полноэкранного режима', '退出全屏') : _t('Plein écran', 'Full screen', 'Полный экран', '全屏'),
+                () => unawaited(_toggleFullscreen()),
+              ),
           ],
         ),
       ),
