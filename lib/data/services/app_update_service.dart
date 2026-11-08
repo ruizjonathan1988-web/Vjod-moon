@@ -384,6 +384,7 @@ class AppUpdateService {
 
       final assetsJson = decoded['assets'];
       final assets = <_ReleaseAsset>[];
+      String? notesUrl;
       if (assetsJson is List) {
         for (final asset in assetsJson) {
           if (asset is! Map) {
@@ -392,6 +393,10 @@ class AppUpdateService {
           final name = asset['name']?.toString();
           final downloadUrl = asset['browser_download_url']?.toString();
           if (name == null || name.isEmpty || downloadUrl == null || downloadUrl.isEmpty) {
+            continue;
+          }
+          if (name == vjodNotesAsset) {
+            notesUrl = downloadUrl;
             continue;
           }
           assets.add(
@@ -404,12 +409,27 @@ class AppUpdateService {
         }
       }
 
+      // VJOD: what changes is in a file next to the APKs (nouveautes.txt),
+      // not on the public release page; the page only says a version is out.
+      var notes = decoded['body']?.toString();
+      if (notesUrl != null) {
+        try {
+          final r = await client.getUrl(Uri.parse(notesUrl));
+          final res = await r.close().timeout(const Duration(seconds: 10));
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            notes = '${notes ?? ''}\n${await res.transform(utf8.decoder).join()}';
+          } else {
+            await res.drain<void>();
+          }
+        } catch (_) {}
+      }
+
       return _LatestRelease(
         version: tagName,
         assets: assets,
         releaseNotesUrl: htmlUrl,
         title: decoded['name']?.toString(),
-        notes: decoded['body']?.toString(),
+        notes: notes,
       );
     } catch (_) {
       return null;

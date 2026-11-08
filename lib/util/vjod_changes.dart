@@ -15,6 +15,13 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('5.2', [
+    'Les messages d\u2019erreur de la TV parlent de « Ma TV » au lieu du nom de l\u2019outil de la seedbox.',
+    'Rien ne change à l\u2019usage : la liste des nouveautés n\u2019est plus affichée sur la page publique des téléchargements, seulement dans l\u2019appli.',
+  ]),
+  VjodRelease('5.1', [
+    'Rien ne change à l\u2019usage : l\u2019adresse du serveur de la maison n\u2019est plus écrite dans le code public, la construction la donne elle-même.',
+  ]),
   VjodRelease('5.0', [
     'VJOD 5.0 rassemble tout ce qui est arrivé depuis la 4.12 : la liste complète suit, version par version.',
     'Le replay des chaînes (TF1, France 2, M6, Arte…) a son onglet, avec « Mes émissions », les nouveaux épisodes et la reprise où tu t\u2019étais arrêté.',
@@ -259,6 +266,10 @@ List<VjodRelease> vjodReleasesSince(String? seen, String current) => [
 /// The version a GitHub release names in its title (« VJOD 4.1 »), or null.
 String? vjodVersionFromTitle(String? title) =>
     RegExp(r'VJOD\s+(\d+(?:\.\d+)+)').firstMatch(title ?? '')?.group(1);
+
+/// The file, next to the APKs of a release, that lists what changes (the
+/// public release page only says a new version is out).
+const vjodNotesAsset = 'nouveautes.txt';
 
 /// The changes a GitHub release lists in its notes (lines starting « - »).
 List<String> vjodChangesFromNotes(String? notes) => [

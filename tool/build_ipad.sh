@@ -39,6 +39,7 @@ chmod +x ios/game_host/fetch_cores.sh ios/game_host/wrap_frameworks.sh
 flutter build ipa --release --no-codesign \
   --build-name "$VERSION" --build-number "$BUILD_NUM" \
   --dart-define=DISTRIBUTION_CHANNEL=ios_unsigned \
+  --dart-define=VJOD_SERVEUR="${VJOD_SERVEUR:-}" \
   --dart-define=VJOD_BUILD="$(TZ=Europe/Paris date +%Y-%m-%dT%H:%M)" \
   --dart-define=VJOD_COMMIT="${GITHUB_SHA::7}"
 

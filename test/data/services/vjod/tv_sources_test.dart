@@ -6,20 +6,20 @@ void main() {
   const overview =
       'Réglages de la TV en direct pour VJOD (IPTV Checker). Ne pas modifier ni supprimer : '
       'IPTV Checker la met à jour.\n\n'
-      'VJOD-TV:eyJ2IjoxLCJ1cmwiOiJodHRwczovL2F2YTg4Lnplbi51c2J4Lm1lL2lwdHYtY2hlY2tlciIsImtleSI6ImFiY19ERUYtMTIzIn0';
+      'VJOD-TV:eyJ2IjoxLCJ1cmwiOiJodHRwczovL3R2Lm1haXNvbi5leGFtcGxlL2NoZWNrZXIiLCJrZXkiOiJhYmNfREVGLTEyMyJ9';
 
   test('reads the Ma TV address IPTV Checker left in Jellyfin', () {
     final server = tvServerFromOverview(overview)!;
-    expect(server.url, 'https://ava88.zen.usbx.me/iptv-checker');
+    expect(server.url, 'https://tv.maison.example/checker');
     expect(server.key, 'abc_DEF-123');
     final uri = server.endpoint('/tv/api/channel', {'num': '1'});
     expect(uri.toString(),
-        'https://ava88.zen.usbx.me/iptv-checker/tv/api/channel?num=1&k=abc_DEF-123');
+        'https://tv.maison.example/checker/tv/api/channel?num=1&k=abc_DEF-123');
   });
 
   test('a pasted code and anything else', () {
-    final server = TvSourcesServer.fromCode('https://h.example/iptv-checker/#KEY')!;
-    expect(server.url, 'https://h.example/iptv-checker');
+    final server = TvSourcesServer.fromCode('https://h.example/checker/#KEY')!;
+    expect(server.url, 'https://h.example/checker');
     expect(server.key, 'KEY');
     expect(TvSourcesServer.fromCode('pas un code'), isNull);
     expect(tvServerFromOverview('VJOD-CONFIG:abc'), isNull);

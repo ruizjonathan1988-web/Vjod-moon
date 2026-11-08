@@ -3,8 +3,10 @@
 // choice. « Choisir un serveur » on that page still leads to any other
 // server, for people who are not on this one.
 
-/// The house Jellyfin (on the Ultra.cc seedbox).
-const vjodHomeServerUrl = 'https://ava88.zen.usbx.me/jellyfin';
+/// The house Jellyfin. Its address is not written in the code (the code is
+/// public) : the build gives it from the GitHub secret VJOD_SERVEUR. Empty
+/// when the secret is missing, and then nothing is offered.
+const vjodHomeServerUrl = String.fromEnvironment('VJOD_SERVEUR');
 
 /// Whether the server choice should open the house server by itself: only
 /// while no server is saved on the device, and only once, so someone who

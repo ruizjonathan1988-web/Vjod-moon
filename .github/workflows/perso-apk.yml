@@ -69,7 +69,7 @@ jobs:
       - name: APK telephone
         run: |
           set +e
-          bash tool/retry_net.sh build-phone.txt flutter build apk --release --flavor mobile-beta --dart-define=DISTRIBUTION_CHANNEL=apk --dart-define=VJOD_BUILD=$(TZ=Europe/Paris date +%Y-%m-%dT%H:%M) --dart-define=VJOD_COMMIT=${GITHUB_SHA::7}
+          bash tool/retry_net.sh build-phone.txt flutter build apk --release --flavor mobile-beta --dart-define=DISTRIBUTION_CHANNEL=apk --dart-define=VJOD_SERVEUR=${{ secrets.VJOD_SERVEUR }} --dart-define=VJOD_BUILD=$(TZ=Europe/Paris date +%Y-%m-%dT%H:%M) --dart-define=VJOD_COMMIT=${GITHUB_SHA::7}
           status=$?
           if [ $status -ne 0 ]; then
             grep -E "Error|error:|\.dart:[0-9]+|FAILURE|What went wrong" -A2 build-phone.txt | head -40 | while IFS= read -r line; do echo "::error::$line"; done
@@ -94,7 +94,11 @@ jobs:
           # tells the whole household what changed, not just the last step.
           since=$(gh release view perso-latest --repo "$GITHUB_REPOSITORY" --json name -q .name 2>/dev/null | sed -n 's/^VJOD \([0-9.]*\).*/\1/p')
           python3 tool/vjod_release_notes.py --since "$since" > notes.txt
-          gh release edit perso-beta --repo "$GITHUB_REPOSITORY" --title "VJOD $(head -1 notes.txt)" --notes "$(tail -n +2 notes.txt)" || true
+          # The changes go in a file next to the APKs (the app reads it), not on
+          # the public release page, which only says a version is out.
+          tail -n +2 notes.txt > nouveautes.txt
+          gh release upload perso-beta nouveautes.txt --repo "$GITHUB_REPOSITORY" --clobber || true
+          gh release edit perso-beta --repo "$GITHUB_REPOSITORY" --title "VJOD $(head -1 notes.txt)" --notes "Nouvelle version. Les nouveautés s'affichent dans l'appli." || true
 
   tv:
     runs-on: ubuntu-latest
@@ -124,7 +128,7 @@ jobs:
           MOONFIN_TEST_ID_SUFFIX: .perso
         run: |
           set +e
-          bash tool/retry_net.sh build-tv.txt flutter build apk --release --flavor androidTv --dart-define=MOONFIN_FORCE_TV=true --dart-define=DISTRIBUTION_CHANNEL=android_tv_apk --dart-define=VJOD_BUILD=$(TZ=Europe/Paris date +%Y-%m-%dT%H:%M) --dart-define=VJOD_COMMIT=${GITHUB_SHA::7}
+          bash tool/retry_net.sh build-tv.txt flutter build apk --release --flavor androidTv --dart-define=MOONFIN_FORCE_TV=true --dart-define=DISTRIBUTION_CHANNEL=android_tv_apk --dart-define=VJOD_SERVEUR=${{ secrets.VJOD_SERVEUR }} --dart-define=VJOD_BUILD=$(TZ=Europe/Paris date +%Y-%m-%dT%H:%M) --dart-define=VJOD_COMMIT=${GITHUB_SHA::7}
           status=$?
           if [ $status -ne 0 ]; then
             grep -E "Error|error:|\.dart:[0-9]+|FAILURE|What went wrong" -A2 build-tv.txt | head -40 | while IFS= read -r line; do echo "::error::$line"; done
@@ -149,7 +153,7 @@ jobs:
         run: |
           set +e
           rm -f build/app/outputs/flutter-apk/*-release.apk
-          bash tool/retry_net.sh build-tv32.txt flutter build apk --release --flavor androidTv --target-platform android-arm --dart-define=MOONFIN_FORCE_TV=true --dart-define=DISTRIBUTION_CHANNEL=android_tv_apk --dart-define=VJOD_BUILD=$(TZ=Europe/Paris date +%Y-%m-%dT%H:%M) --dart-define=VJOD_COMMIT=${GITHUB_SHA::7}
+          bash tool/retry_net.sh build-tv32.txt flutter build apk --release --flavor androidTv --target-platform android-arm --dart-define=MOONFIN_FORCE_TV=true --dart-define=DISTRIBUTION_CHANNEL=android_tv_apk --dart-define=VJOD_SERVEUR=${{ secrets.VJOD_SERVEUR }} --dart-define=VJOD_BUILD=$(TZ=Europe/Paris date +%Y-%m-%dT%H:%M) --dart-define=VJOD_COMMIT=${GITHUB_SHA::7}
           status=$?
           if [ $status -ne 0 ]; then
             grep -E "Error|error:|FAILURE|What went wrong" -A2 build-tv32.txt | head -20 | while IFS= read -r line; do echo "::warning::$line"; done
@@ -173,7 +177,11 @@ jobs:
           # tells the whole household what changed, not just the last step.
           since=$(gh release view perso-latest --repo "$GITHUB_REPOSITORY" --json name -q .name 2>/dev/null | sed -n 's/^VJOD \([0-9.]*\).*/\1/p')
           python3 tool/vjod_release_notes.py --since "$since" > notes.txt
-          gh release edit perso-beta --repo "$GITHUB_REPOSITORY" --title "VJOD $(head -1 notes.txt)" --notes "$(tail -n +2 notes.txt)" || true
+          # The changes go in a file next to the APKs (the app reads it), not on
+          # the public release page, which only says a version is out.
+          tail -n +2 notes.txt > nouveautes.txt
+          gh release upload perso-beta nouveautes.txt --repo "$GITHUB_REPOSITORY" --clobber || true
+          gh release edit perso-beta --repo "$GITHUB_REPOSITORY" --title "VJOD $(head -1 notes.txt)" --notes "Nouvelle version. Les nouveautés s'affichent dans l'appli." || true
 
   # VJOD for the Mac: a DMG signed ad hoc (no paid Apple account), on its own
   # release (mac-latest), whose notes name the commit: the Mac app offers the
@@ -201,7 +209,7 @@ jobs:
           DMG_CHANNEL: macos_dmg
         run: |
           set +e
-          export VJOD_DART_DEFINES="--dart-define=VJOD_BUILD=$(TZ=Europe/Paris date +%Y-%m-%dT%H:%M) --dart-define=VJOD_COMMIT=${GITHUB_SHA::7}"
+          export VJOD_DART_DEFINES="--dart-define=VJOD_SERVEUR=${{ secrets.VJOD_SERVEUR }} --dart-define=VJOD_BUILD=$(TZ=Europe/Paris date +%Y-%m-%dT%H:%M) --dart-define=VJOD_COMMIT=${GITHUB_SHA::7}"
           chmod +x build-macos.sh
           ./build-macos.sh > build-mac.txt 2>&1
           status=$?
@@ -219,8 +227,10 @@ jobs:
           python3 tool/vjod_release_notes.py > notes.txt
           gh release create mac-latest --repo "$GITHUB_REPOSITORY" --title "VJOD Mac" --notes "Dernière version de VJOD pour Mac." --prerelease || true
           gh release upload mac-latest vjod-mac.dmg --repo "$GITHUB_REPOSITORY" --clobber
+          tail -n +2 notes.txt > nouveautes.txt
+          gh release upload mac-latest nouveautes.txt --repo "$GITHUB_REPOSITORY" --clobber || true
           gh release edit mac-latest --repo "$GITHUB_REPOSITORY" --title "VJOD $(head -1 notes.txt) (Mac)" --notes "commit ${GITHUB_SHA::7}
-          $(tail -n +2 notes.txt)" || true
+          Nouvelle version. Les nouveautés s'affichent dans l'appli." || true
 
   # VJOD for the iPad: an unsigned .ipa on its own release (ipad-latest), with
   # altstore.json, the AltStore source that offers each build as an update.
@@ -242,7 +252,7 @@ jobs:
       - name: Fichier iPad
         run: |
           set +e
-          export VERSION=$(python3 tool/vjod_release_notes.py | head -1) BUILD_NUM=$GITHUB_RUN_NUMBER
+          export VERSION=$(python3 tool/vjod_release_notes.py | head -1) BUILD_NUM=$GITHUB_RUN_NUMBER VJOD_SERVEUR='${{ secrets.VJOD_SERVEUR }}'
           ./tool/build_ipad.sh > build-ipad.txt 2>&1
           status=$?
           tail -40 build-ipad.txt
@@ -259,5 +269,4 @@ jobs:
           python3 tool/vjod_release_notes.py > notes.txt
           gh release create ipad-latest --repo "$GITHUB_REPOSITORY" --title "VJOD iPad" --notes "VJOD pour iPad, à installer avec AltStore." --prerelease || true
           gh release upload ipad-latest vjod-ipad.ipa altstore.json --repo "$GITHUB_REPOSITORY" --clobber
-          gh release edit ipad-latest --repo "$GITHUB_REPOSITORY" --title "VJOD $(head -1 notes.txt) (iPad)" --notes "Source AltStore : https://github.com/${GITHUB_REPOSITORY}/releases/download/ipad-latest/altstore.json
-          $(tail -n +2 notes.txt)" || true
+          gh release edit ipad-latest --repo "$GITHUB_REPOSITORY" --title "VJOD $(head -1 notes.txt) (iPad)" --notes "Source AltStore : https://github.com/${GITHUB_REPOSITORY}/releases/download/ipad-latest/altstore.json" || true

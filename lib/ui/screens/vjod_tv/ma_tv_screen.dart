@@ -625,7 +625,7 @@ class _MaTvBrowserScreenState extends State<MaTvBrowserScreen> {
             Text(
               cut
                   ? _tn('L\'administrateur a coupé l\'accès de ce profil à la TV et aux films IPTV. Demande-lui de le rétablir.', 'The admin cut this profile off from TV and IPTV films. Ask them to restore it.', 'Администратор отключил этому профилю ТВ и IPTV-фильмы. Попроси вернуть доступ.', '管理员已关闭此用户的电视和 IPTV 影片访问，请联系其恢复。')
-                  : _tn('IPTV Checker, sur la seedbox, n\'a pas répondu. Il redémarre peut-être, réessaie dans un instant.', 'IPTV Checker, on the seedbox, didn\'t answer. It may be restarting, try again in a moment.', 'IPTV Checker на сидбоксе не ответил. Возможно, перезапускается — попробуй чуть позже.', '种子盒上的 IPTV Checker 没有响应，可能正在重启，请稍后再试。'),
+                  : _tn('Ma TV n\'a pas répondu. Elle redémarre peut-être, réessaie dans un instant.', 'Ma TV didn\'t answer. It may be restarting, try again in a moment.', 'Ma TV не ответила. Возможно, перезапускается — попробуй чуть позже.', 'Ma TV 没有响应，可能正在重启，请稍后再试。'),
               textAlign: TextAlign.center,
               style: const TextStyle(color: MaTvColors.mute, fontSize: 15),
             ),

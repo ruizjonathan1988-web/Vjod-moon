@@ -861,8 +861,8 @@ class _LiveTvPlayerScreenState extends State<LiveTvPlayerScreen>
     final number = lineupNumber(_currentChannel.number);
     if (!_tvSources.isConfigured || number == null) {
       _showSourceNotice(_isFrench
-          ? "Plusieurs sources : branche « Ma TV » d'IPTV Checker sur Jellyfin"
-          : 'Several sources: connect IPTV Checker "Ma TV" to Jellyfin');
+          ? "Plusieurs sources : branche « Ma TV » sur Jellyfin"
+          : 'Several sources: connect "Ma TV" to Jellyfin');
       return;
     }
     _hideTimer?.cancel();

@@ -27,10 +27,12 @@ jobs:
           set -e
           mkdir essai && cd essai
           gh release download perso-beta --repo "$REPO" --pattern '*.apk'
+          gh release download perso-beta --repo "$REPO" --pattern 'nouveautes.txt' || true
           ls -la
           title=$(gh release view perso-beta --repo "$REPO" --json name -q .name)
           notes=$(gh release view perso-beta --repo "$REPO" --json body -q .body)
           gh release create perso-latest --repo "$REPO" --title "$title" --notes "$notes" --prerelease || true
           gh release upload perso-latest *.apk --repo "$REPO" --clobber
+          if [ -f nouveautes.txt ]; then gh release upload perso-latest nouveautes.txt --repo "$REPO" --clobber; fi
           gh release edit perso-latest --repo "$REPO" --title "$title" --notes "$notes"
           echo "Validée : $title"

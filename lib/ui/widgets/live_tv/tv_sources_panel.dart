@@ -125,7 +125,7 @@ class _TvSourcesPanelState extends State<TvSourcesPanel> {
       if (result != null) _data = result;
     });
     if (result == null) {
-      widget.onPicked(_t('IPTV Checker ne répond pas', 'IPTV Checker is not answering'));
+      widget.onPicked(_t('Ma TV ne répond pas', 'Ma TV is not answering'));
       return;
     }
     final details = source?.details(french: _french) ?? '';
@@ -285,8 +285,8 @@ class _TvSourcesPanelState extends State<TvSourcesPanel> {
     final data = _data;
     if (data == null) {
       return Text(
-        _t("Cette chaîne n'est pas dans Ma TV, ou IPTV Checker ne répond pas.",
-            "This channel isn't in Ma TV, or IPTV Checker is not answering."),
+        _t("Cette chaîne n'est pas dans Ma TV, ou Ma TV ne répond pas.",
+            "This channel isn't in Ma TV, or Ma TV is not answering."),
         style: const TextStyle(color: _mute, fontSize: 15),
       );
     }

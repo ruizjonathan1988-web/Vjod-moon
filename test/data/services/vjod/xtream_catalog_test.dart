@@ -383,7 +383,7 @@ void main() {
         TvPlaylist(
           id: 'm',
           name: 'Ma TV',
-          url: 'https://h.example/iptv-checker/tv/xc',
+          url: 'https://h.example/checker/tv/xc',
           kind: TvPlaylistKind.xtream,
           username: 'vjod',
           password: 'k',
