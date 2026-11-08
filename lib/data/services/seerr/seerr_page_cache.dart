@@ -20,7 +20,7 @@ class SeerrPageCache {
   SeerrPageCache._();
 
   /// Served as is, without asking again.
-  static const fresh = Duration(minutes: 3);
+  static const fresh = Duration(minutes: 1);
 
   /// Served, then asked again in the background, until it is this old.
   static const usable = Duration(hours: 24);
@@ -37,7 +37,7 @@ class SeerrPageCache {
   static final _cacheable = RegExp(
     r'/Moonfin/Seerr/Api/('
     r'discover/(?!watchlist)[a-z/]+'
-    r'|(movie|tv)/\d+(/(similar|recommendations))?'
+    r'|(movie|tv)/\d+/(similar|recommendations)'
     r'|collection/\d+'
     r'|person/\d+(/combined_credits)?'
     r'|search'
@@ -88,9 +88,22 @@ class SeerrPageCache {
 
   static int get length => _entries.length;
 
+  static Set<String>? _inLibrary;
+
+  /// What the library holds among the viewer's requests, each time it is
+  /// checked: a title that just finished downloading empties what is kept,
+  /// so it shows as ready to watch everywhere at once, not one visit later.
+  static void libraryHolds(Set<String> keys) {
+    final before = _inLibrary;
+    _inLibrary = {...keys};
+    if (before == null) return;
+    if (keys.any((k) => !before.contains(k))) clear();
+  }
+
   @visibleForTesting
   static void resetForTest() {
     _entries.clear();
+    _inLibrary = null;
     _loaded = true;
     _saveTimer?.cancel();
   }

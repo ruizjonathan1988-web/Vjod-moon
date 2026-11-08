@@ -17,6 +17,7 @@ class VjodRelease {
 const vjodReleases = <VjodRelease>[
   VjodRelease('5.8', [
     'Rangées instantanées : Films, Séries, Bientôt et les titres proches s\u2019affichent tout de suite avec ce que VJOD a gardé, puis se mettent à jour en douce.',
+    'Un titre qui finit de se télécharger apparaît aussitôt comme prêt à regarder, partout.',
     'Sur la télé, la fiche d\u2019une affiche qui reste sélectionnée se prépare d\u2019avance : OK l\u2019ouvre aussitôt.',
     'Contrôle parental : la liste des classifications s\u2019ouvre en une seconde au lieu de 20 à 30.',
   ]),
