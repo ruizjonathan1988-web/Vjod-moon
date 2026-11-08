@@ -15,6 +15,9 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('5.5', [
+    'Demander une série : plus aucune saison n\u2019est cochée d\u2019avance. Tu choisis les saisons (ou « Toutes les saisons » exprès), sinon rien ne part, pour ne plus tout télécharger par surprise.',
+  ]),
   VjodRelease('5.4', [
     'Fiche d\u2019une série → Supprimer : chaque saison se supprime de nouveau seule (« Seulement saison 2 »), sans passer par un épisode.',
   ]),
