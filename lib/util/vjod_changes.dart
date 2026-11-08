@@ -15,6 +15,15 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('5.0', [
+    'VJOD 5.0 rassemble tout ce qui est arrivé depuis la 4.12 : la liste complète suit, version par version.',
+    'Le replay des chaînes (TF1, France 2, M6, Arte…) a son onglet, avec « Mes émissions », les nouveaux épisodes et la reprise où tu t\u2019étais arrêté.',
+    'Aura, le jeu de cinéma, est dans VJOD : se proposer des films entre profils de la maison, même cachetés jusqu\u2019à un jour choisi.',
+    'Recherche bien plus rapide, et elle trouve aussi les chaînes et les émissions du replay.',
+    'Sur une box Android, un film qui saccade ou fait planter le lecteur repart tout seul avec l\u2019autre lecteur (mpv).',
+    'Sur ordinateur et dans le navigateur : volume, plein écran et commandes à la souris pour Ma TV et les films IPTV ; replay et enregistrements lisibles dans le navigateur.',
+    'Sur le téléphone : la chaîne continue écran éteint ou en petite fenêtre.',
+  ]),
   VjodRelease('4.51', [
     'Films et Séries : la recherche par la loupe marche de nouveau (« La recherche n\u2019a pas marché » à chaque fois).',
     'Version web : revenir sur l\u2019onglet de VJOD n\u2019est plus signalé comme un plantage sur la page Ma TV (rien ne cassait).',
@@ -224,6 +233,27 @@ const vjodReleases = <VjodRelease>[
     'Le serveur de la maison est reproposé si la première connexion a échoué.',
     'Plus de saccades pendant le chargement de Films et Séries, et corrections diverses.',
   ]),
+];
+
+/// Orders two version numbers (« 4.9 » before « 4.12 » before « 5.0 »).
+int compareVjodVersions(String a, String b) {
+  List<int> parts(String v) => [for (final p in v.split('.')) int.tryParse(p) ?? 0];
+  final x = parts(a), y = parts(b);
+  for (var i = 0; i < x.length || i < y.length; i++) {
+    final d = (i < x.length ? x[i] : 0).compareTo(i < y.length ? y[i] : 0);
+    if (d != 0) return d;
+  }
+  return 0;
+}
+
+/// What changed since [seen] (the version this device showed last), up to
+/// [current], newest first. A first install (no [seen]) gets [current] only:
+/// VJOD 5.0 on a device that had 4.12 lists every version in between.
+List<VjodRelease> vjodReleasesSince(String? seen, String current) => [
+  for (final r in vjodReleases)
+    if (compareVjodVersions(r.version, current) <= 0 &&
+        (seen == null ? r.version == current : compareVjodVersions(r.version, seen) > 0))
+      r,
 ];
 
 /// The version a GitHub release names in its title (« VJOD 4.1 »), or null.
