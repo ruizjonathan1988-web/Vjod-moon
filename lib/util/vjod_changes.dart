@@ -15,6 +15,9 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('5.7', [
+    'Menu de ton avatar → « Connecter un appareil » : tape le code Quick Connect qu\u2019affiche un autre écran (Aura sur la télé, un navigateur) pour le connecter à ton compte. Aussi sur la télé.',
+  ]),
   VjodRelease('5.6', [
     '« À propos » › Fluidité des écrans : chaque écran est mesuré à part (les fiches, la recherche…), avec le temps qu\u2019il met à être prêt.',
   ]),

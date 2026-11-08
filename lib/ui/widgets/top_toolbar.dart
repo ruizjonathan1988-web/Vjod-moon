@@ -1261,6 +1261,16 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
                   if (seerr)
                     entry(Icons.calendar_month_outlined, l10n.vjodTabSoon,
                         () => go(Destinations.bientot)),
+                  if (vjodOffersQuickConnect())
+                    entry(
+                      Icons.devices_rounded,
+                      vjodText(context,
+                          fr: 'Connecter un appareil',
+                          en: 'Connect a device',
+                          ru: 'Подключить устройство',
+                          zh: '连接设备'),
+                      () => unawaited(showQuickConnectCodeDialog(host)),
+                    ),
                 ]
               : [
             entry(
@@ -1302,6 +1312,23 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
             if (TopToolbar.vjodNarrow(host))
               entry(Icons.replay_rounded, 'Replay',
                   () => go(Destinations.replay)),
+            // VJOD 5.7: let another screen in with this account (Aura on the
+            // TV, a friend's browser) by typing the code it shows.
+            if (!kids && vjodOffersQuickConnect())
+              entry(
+                Icons.devices_rounded,
+                vjodText(context,
+                    fr: 'Connecter un appareil',
+                    en: 'Connect a device',
+                    ru: 'Подключить устройство',
+                    zh: '连接设备'),
+                () => unawaited(showQuickConnectCodeDialog(host)),
+                subtitle: vjodText(context,
+                    fr: 'Quick Connect : tape le code qu\u2019il affiche',
+                    en: 'Quick Connect: type the code it shows',
+                    ru: 'Quick Connect: введи показанный код',
+                    zh: 'Quick Connect：输入它显示的代码'),
+              ),
           ],
           settings: entry(
             Icons.settings_outlined,
@@ -3251,5 +3278,15 @@ class _TopMusicBarState extends State<TopMusicBar> {
         ),
       ),
     );
+  }
+}
+
+/// VJOD 5.7: Quick Connect is offered in the avatar menu on every screen,
+/// the TV included, as soon as the server is a Jellyfin.
+bool vjodOffersQuickConnect() {
+  try {
+    return GetIt.instance<MediaServerClient>().serverType == ServerType.jellyfin;
+  } catch (_) {
+    return false;
   }
 }
