@@ -15,6 +15,10 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.47', [
+    'Recherche plus rapide : les résultats de ton serveur s\u2019affichent dès qu\u2019il répond, et les films IPTV, les demandes, les personnes et les chaînes arrivent ensuite, sans plus les faire attendre (jusqu\u2019à 3 secondes de gagnées).',
+    'La liste des chaînes est préparée dès l\u2019ouverture de la loupe, et le serveur cherche seulement ce qui s\u2019affiche.',
+  ]),
   VjodRelease('4.46', [
     'Version web : revenir sur l\u2019onglet de VJOD (ou y entrer avec la touche Tab) ne fait plus planter la page. C\u2019était le plantage « RenderBox was not laid out », le plus fréquent de la maison.',
   ]),
