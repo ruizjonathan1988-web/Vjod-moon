@@ -15,6 +15,10 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.48', [
+    'Recherche : taper une lettre de plus après une pause (« ali » puis « alie ») ne fait plus planter VJOD (écran gris sur la box, plantage sur le web).',
+    'Les signalements de plantage indiquent l\u2019écran en tête du détail, visible sur la page Ma TV.',
+  ]),
   VjodRelease('4.47', [
     'Recherche plus rapide : les résultats de ton serveur s\u2019affichent dès qu\u2019il répond, et les films IPTV, les demandes, les personnes et les chaînes arrivent ensuite, sans plus les faire attendre (jusqu\u2019à 3 secondes de gagnées).',
     'La liste des chaînes est préparée dès l\u2019ouverture de la loupe, et le serveur cherche seulement ce qui s\u2019affiche.',
