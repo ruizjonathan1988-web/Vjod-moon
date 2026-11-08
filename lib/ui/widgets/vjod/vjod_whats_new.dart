@@ -20,10 +20,13 @@ Future<void> maybeShowVjodWhatsNew(BuildContext context) async {
     return;
   }
   const current = VjodBuild.version;
-  if (prefs.getString(_seenKey) == current) return;
+  final seen = prefs.getString(_seenKey);
+  if (seen == current) return;
   await prefs.setString(_seenKey, current);
-  final release = vjodReleases.where((r) => r.version == current).firstOrNull;
-  if (release == null || release.changes.isEmpty || !context.mounted) return;
+  // Every version since the one this device showed last (5.0 on a 4.12 lists
+  // them all), newest first.
+  final releases = vjodReleasesSince(seen, current).where((r) => r.changes.isNotEmpty).toList();
+  if (releases.isEmpty || !context.mounted) return;
   await showStyledPlayerDialog<void>(
     context,
     title: vjodText(
@@ -37,11 +40,29 @@ Future<void> maybeShowVjodWhatsNew(BuildContext context) async {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        for (final change in release.changes)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Text('• $change', style: Theme.of(ctx).textTheme.bodyMedium),
+        ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(ctx).height * 0.6),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (final release in releases) ...[
+                  if (releases.length > 1)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6, bottom: 6),
+                      child: Text('VJOD ${release.version}', style: Theme.of(ctx).textTheme.titleSmall),
+                    ),
+                  for (final change in release.changes)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Text('• $change', style: Theme.of(ctx).textTheme.bodyMedium),
+                    ),
+                ],
+              ],
+            ),
           ),
+        ),
         const SizedBox(height: 8),
         Align(
           alignment: Alignment.centerRight,

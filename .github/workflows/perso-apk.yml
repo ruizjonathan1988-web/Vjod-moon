@@ -90,7 +90,10 @@ jobs:
           cp build/app/outputs/flutter-apk/*-release.apk moonfin-fold.apk
           gh release create perso-beta --repo "$GITHUB_REPOSITORY" --title "VJOD essai" --notes "Version d'essai : appareils réglés sur « Versions d'essai » seulement, en attendant la validation sur la page Ma TV." --prerelease || true
           gh release upload perso-beta moonfin-fold.apk --repo "$GITHUB_REPOSITORY" --clobber
-          python3 tool/vjod_release_notes.py > notes.txt
+          # Everything since the version everyone has (perso-latest), so validating
+          # tells the whole household what changed, not just the last step.
+          since=$(gh release view perso-latest --repo "$GITHUB_REPOSITORY" --json name -q .name 2>/dev/null | sed -n 's/^VJOD \([0-9.]*\).*/\1/p')
+          python3 tool/vjod_release_notes.py --since "$since" > notes.txt
           gh release edit perso-beta --repo "$GITHUB_REPOSITORY" --title "VJOD $(head -1 notes.txt)" --notes "$(tail -n +2 notes.txt)" || true
 
   tv:
@@ -166,7 +169,10 @@ jobs:
             gh release upload perso-beta moonfin-tv-arm32.apk --repo "$GITHUB_REPOSITORY" --clobber
           fi
           # VJOD's number and what it brings, for the update window (vjod_changes.dart).
-          python3 tool/vjod_release_notes.py > notes.txt
+          # Everything since the version everyone has (perso-latest), so validating
+          # tells the whole household what changed, not just the last step.
+          since=$(gh release view perso-latest --repo "$GITHUB_REPOSITORY" --json name -q .name 2>/dev/null | sed -n 's/^VJOD \([0-9.]*\).*/\1/p')
+          python3 tool/vjod_release_notes.py --since "$since" > notes.txt
           gh release edit perso-beta --repo "$GITHUB_REPOSITORY" --title "VJOD $(head -1 notes.txt)" --notes "$(tail -n +2 notes.txt)" || true
 
   # VJOD for the Mac: a DMG signed ad hoc (no paid Apple account), on its own
