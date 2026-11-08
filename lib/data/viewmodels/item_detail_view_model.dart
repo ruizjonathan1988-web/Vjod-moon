@@ -29,6 +29,7 @@ import 'seerr_media_detail_view_model.dart';
 import '../models/upcoming_episode_info.dart';
 import '../services/upcoming_episode_service.dart';
 import '../services/vjod/media_delete.dart';
+import '../services/vjod/item_prefetch.dart';
 import '../services/vjod/provider_catalog_access.dart';
 import '../services/vjod/xtream_catalog.dart';
 
@@ -1139,7 +1140,13 @@ class ItemDetailViewModel extends ChangeNotifier {
           } catch (_) {}
         }
       } else {
-        final data = await _client.itemsApi.getItem(itemId, mediaSourceId: mediaSourceId);
+        // VJOD 5.8: the fiche may already have been asked for while its
+        // poster was selected (item_prefetch.dart).
+        final early = mediaSourceId == null ? ItemPrefetch.take(itemId, DateTime.now()) : null;
+        var data = early == null ? null : await early;
+        if (data == null || data.isEmpty) {
+          data = await _client.itemsApi.getItem(itemId, mediaSourceId: mediaSourceId);
+        }
         final candidate = AggregatedItem(
           id: itemId,
           serverId: _serverId ?? _client.baseUrl,

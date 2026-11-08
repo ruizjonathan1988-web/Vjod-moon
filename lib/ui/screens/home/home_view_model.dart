@@ -35,6 +35,7 @@ import '../../../preference/user_preferences.dart';
 import '../../../data/repositories/seerr_repository.dart';
 import '../../../data/services/plugin_sync_service.dart';
 import '../../../data/services/seerr/seerr_api_models.dart';
+import '../../../data/services/seerr/seerr_page_cache.dart';
 import '../../../data/services/seerr/seerr_discover_sliders.dart';
 import '../../../data/services/seerr/for_you_service.dart';
 import '../../../data/services/seerr/my_requests.dart';
@@ -4129,6 +4130,7 @@ class HomeViewModel extends ChangeNotifier {
             ),
         ]);
         entries = promoteInLibrary(entries, inLibrary, now: now);
+        SeerrPageCache.libraryHolds(inLibrary);
       }
 
       final ready = newlyReady(entries, seerrPrefs.announcedReadyRequests);

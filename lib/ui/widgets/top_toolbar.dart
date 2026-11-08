@@ -20,7 +20,9 @@ import '../../auth/repositories/user_repository.dart';
 import '../../data/models/aggregated_library.dart';
 import '../../data/repositories/multi_server_repository.dart';
 import '../../data/repositories/seerr_repository.dart';
+import '../../data/services/row_data_source.dart';
 import '../../data/services/seerr/my_requests.dart';
+import '../../data/services/seerr/seerr_page_cache.dart';
 import '../../data/repositories/user_views_repository.dart';
 import '../../data/services/achievements_service.dart';
 import '../../data/services/library_scope_service.dart';
@@ -194,7 +196,8 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
     TopToolbar.vjodEnRouteCount.addListener(_onEnRouteCount);
     unawaited(_refreshEnRouteCount());
     _enRouteTimer = Timer.periodic(
-      const Duration(minutes: 2),
+      // VJOD 5.9: every 45 s (was 2 min), so the badge keeps up.
+      const Duration(seconds: 45),
       (_) => unawaited(_refreshEnRouteCount()),
     );
     // Guarded so a stale registration from a torn-down toolbar is a safe
@@ -284,11 +287,33 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
         sort: 'modified',
         limit: 50,
       );
-      final entries = myRequestEntries(
+      final now = DateTime.now();
+      var entries = myRequestEntries(
         response.results,
-        now: DateTime.now(),
+        now: now,
         limit: 30,
       );
+      // VJOD 5.9: as in En route, a title the library already holds has
+      // arrived, whatever Seerr still says: it no longer counts.
+      final candidates = [
+        for (final e in libraryCandidates(entries))
+          if (e.media.tmdbId != null) e,
+      ];
+      if (candidates.isNotEmpty) {
+        final client = GetIt.instance<MediaServerClient>();
+        final inLibrary = await RowDataSource(client).loadLibraryTmdbKeys(
+          client.baseUrl,
+          [
+            for (final e in candidates)
+              (
+                mediaType: e.request.type == 'tv' ? 'tv' : 'movie',
+                tmdbId: e.media.tmdbId!,
+              ),
+          ],
+        );
+        entries = promoteInLibrary(entries, inLibrary, now: now);
+        SeerrPageCache.libraryHolds(inLibrary);
+      }
       final waiting = entries
           .where(
             (e) =>
@@ -1261,6 +1286,16 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
                   if (seerr)
                     entry(Icons.calendar_month_outlined, l10n.vjodTabSoon,
                         () => go(Destinations.bientot)),
+                  if (vjodOffersQuickConnect())
+                    entry(
+                      Icons.devices_rounded,
+                      vjodText(context,
+                          fr: 'Connecter un appareil',
+                          en: 'Connect a device',
+                          ru: 'Подключить устройство',
+                          zh: '连接设备'),
+                      () => unawaited(showQuickConnectCodeDialog(host)),
+                    ),
                 ]
               : [
             entry(
@@ -1302,6 +1337,23 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
             if (TopToolbar.vjodNarrow(host))
               entry(Icons.replay_rounded, 'Replay',
                   () => go(Destinations.replay)),
+            // VJOD 5.7: let another screen in with this account (Aura on the
+            // TV, a friend's browser) by typing the code it shows.
+            if (!kids && vjodOffersQuickConnect())
+              entry(
+                Icons.devices_rounded,
+                vjodText(context,
+                    fr: 'Connecter un appareil',
+                    en: 'Connect a device',
+                    ru: 'Подключить устройство',
+                    zh: '连接设备'),
+                () => unawaited(showQuickConnectCodeDialog(host)),
+                subtitle: vjodText(context,
+                    fr: 'Quick Connect : tape le code qu\u2019il affiche',
+                    en: 'Quick Connect: type the code it shows',
+                    ru: 'Quick Connect: введи показанный код',
+                    zh: 'Quick Connect：输入它显示的代码'),
+              ),
           ],
           settings: entry(
             Icons.settings_outlined,
@@ -3251,5 +3303,15 @@ class _TopMusicBarState extends State<TopMusicBar> {
         ),
       ),
     );
+  }
+}
+
+/// VJOD 5.7: Quick Connect is offered in the avatar menu on every screen,
+/// the TV included, as soon as the server is a Jellyfin.
+bool vjodOffersQuickConnect() {
+  try {
+    return GetIt.instance<MediaServerClient>().serverType == ServerType.jellyfin;
+  } catch (_) {
+    return false;
   }
 }

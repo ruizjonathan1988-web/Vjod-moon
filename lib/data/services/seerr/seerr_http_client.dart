@@ -7,6 +7,7 @@ import 'package:get_it/get_it.dart';
 import '../log_service.dart';
 import 'seerr_error.dart';
 import 'seerr_models.dart';
+import 'seerr_page_cache.dart';
 import '../../../util/vjod_timings.dart';
 
 class SeerrHttpClient {
@@ -22,6 +23,10 @@ class SeerrHttpClient {
       followRedirects: true,
       validateStatus: (_) => true,
     ));
+
+    // VJOD 5.8: what Seerr answered last time is served at once (see
+    // seerr_page_cache.dart), before the pause and the timing below.
+    _dio.interceptors.add(SeerrCacheReadInterceptor(_dio));
 
     // VJOD: when Seerr stops answering, every page that asks it waited 30 s
     // (a Wowlink box saw 60 answers in a row at 30 s). After a few timeouts
@@ -72,6 +77,7 @@ class SeerrHttpClient {
       },
     ));
     _dio.interceptors.add(_ProxyUnwrapInterceptor());
+    _dio.interceptors.add(SeerrCacheStoreInterceptor());
   }
 
   static LogService? get _log =>
@@ -311,6 +317,17 @@ class SeerrHttpClient {
       options: _authOptions(),
     );
     _requireSuccess(response, 'deleteIssue');
+  }
+
+  /// VJOD 5.9: runs one of Seerr's own jobs now (an administrator only):
+  /// « download-sync » reads the download progress from Radarr and Sonarr,
+  /// « jellyfin-recently-added-scan » sees what just reached the library.
+  Future<void> runJob(String jobId) async {
+    final response = await _dio.post(
+      _apiUrl('settings/jobs/$jobId/run'),
+      options: _authOptions(),
+    );
+    _requireSuccess(response, 'runJob');
   }
 
   Future<Map<String, dynamic>> getRequest(int requestId) async {
