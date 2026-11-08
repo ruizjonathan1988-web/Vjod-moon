@@ -11,6 +11,7 @@ import '../../../data/repositories/seerr_repository.dart';
 import '../../../data/services/row_data_source.dart';
 import '../../../data/services/seerr/my_requests.dart';
 import '../../../data/services/seerr/seerr_page_cache.dart';
+import '../../../data/services/vjod/ma_tv.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../preference/preference_constants.dart';
 import '../../../preference/user_preferences.dart';
@@ -60,6 +61,9 @@ class _EnRouteScreenState extends State<EnRouteScreen> {
   void initState() {
     super.initState();
     unawaited(_load());
+    // VJOD 5.9: Seerr reads the downloads and the library on its own clock;
+    // opening En route asks it to look now (an administrator's VJOD only).
+    unawaited(_freshen());
     // Downloads move every few seconds, so the bars keep up while open.
     _refresh = Timer.periodic(const Duration(seconds: 8), (_) => _load());
   }
@@ -68,6 +72,18 @@ class _EnRouteScreenState extends State<EnRouteScreen> {
   void dispose() {
     _refresh?.cancel();
     super.dispose();
+  }
+
+  Future<void> _freshen() async {
+    try {
+      final repo = await GetIt.instance.getAsync<SeerrRepository>();
+      await repo.ensureInitialized();
+      if (!repo.isAvailable) return;
+      final user = await repo.getCurrentUser();
+      if (!user.isAdmin) return;
+      await repo.freshenDownloads();
+      if (mounted) unawaited(_load());
+    } catch (_) {}
   }
 
   Future<void> _load() async {
@@ -103,6 +119,13 @@ class _EnRouteScreenState extends State<EnRouteScreen> {
         );
         entries = promoteInLibrary(entries, inLibrary, now: now);
         SeerrPageCache.libraryHolds(inLibrary);
+      }
+
+      // VJOD 5.9: where each download really is, read live from Radarr and
+      // Sonarr through Ma TV, instead of waiting for Seerr's next scan.
+      if (MaTvClient().isConfigured) {
+        final live = await MaTvClient().downloads();
+        if (live != null) entries = applyLiveDownloads(entries, live);
       }
 
       // En route shows what is still on its way. A title that has arrived is
@@ -324,10 +347,17 @@ class _EnRouteTileState extends State<_EnRouteTile> {
     final ink = AppColorScheme.onBackground;
     final (label, color) = switch (state) {
       MyRequestState.ready => (l10n.seerrTagReady, AppColorScheme.statusAvailable),
+      MyRequestState.downloading when e.entry.stalled => (
+        'Téléchargement bloqué',
+        AppColorScheme.statusError,
+      ),
       MyRequestState.downloading => (
-        progress == null
-            ? l10n.requestStateDownloadingShort
-            : l10n.requestStateDownloading((progress * 100).round()),
+        [
+          progress == null
+              ? l10n.requestStateDownloadingShort
+              : l10n.requestStateDownloading((progress * 100).round()),
+          if (e.entry.eta case final eta?) enRouteEtaLabel(eta, DateTime.now()),
+        ].where((t) => t.isNotEmpty).join(' · '),
         AppColorScheme.statusDownloading,
       ),
       MyRequestState.approved => (
@@ -501,4 +531,17 @@ class _EnRouteTileState extends State<_EnRouteTile> {
       ),
     );
   }
+}
+
+/// VJOD 5.9: when a download should be done, as Radarr or Sonarr guess it:
+/// « fini dans 4 min », « fin vers 21:40 », or nothing once it is past.
+String enRouteEtaLabel(DateTime eta, DateTime now) {
+  final left = eta.difference(now);
+  if (left.isNegative) return '';
+  if (left.inMinutes < 1) return 'fini dans un instant';
+  if (left.inMinutes < 60) return 'fini dans ${left.inMinutes} min';
+  final h = eta.hour.toString().padLeft(2, '0');
+  final m = eta.minute.toString().padLeft(2, '0');
+  final sameDay = eta.year == now.year && eta.month == now.month && eta.day == now.day;
+  return sameDay ? 'fin vers $h:$m' : 'fin demain vers $h:$m';
 }

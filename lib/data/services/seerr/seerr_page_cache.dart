@@ -25,7 +25,8 @@ class SeerrPageCache {
   /// Served, then asked again in the background, until it is this old.
   static const usable = Duration(hours: 24);
 
-  static const _max = 250;
+  // Each page weighs a few tens of KB: 80 keep the phone light.
+  static const _max = 80;
   static const _fileName = 'seerr_pages_cache.json';
   static const refreshFlag = 'vjodSeerrCacheRefresh';
 

@@ -15,6 +15,11 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('5.9', [
+    'En route plus à jour : à l\u2019ouverture, Seerr regarde tout de suite les téléchargements et la bibliothèque (sur le compte administrateur).',
+    'La pastille d\u2019En route se met à jour toutes les 45 secondes, et ne compte plus un titre déjà arrivé dans la bibliothèque.',
+    'En route montre la vraie progression d\u2019un téléchargement, le temps restant (« fini dans 4 min ») et s\u2019il est bloqué, lus en direct (avec la mise à jour de l\u2019outil de la seedbox).',
+  ]),
   VjodRelease('5.8', [
     'Rangées instantanées : Films, Séries, Bientôt et les titres proches s\u2019affichent tout de suite avec ce que VJOD a gardé, puis se mettent à jour en douce.',
     'Un titre qui finit de se télécharger apparaît aussitôt comme prêt à regarder, partout.',

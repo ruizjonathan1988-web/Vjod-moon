@@ -319,6 +319,17 @@ class SeerrHttpClient {
     _requireSuccess(response, 'deleteIssue');
   }
 
+  /// VJOD 5.9: runs one of Seerr's own jobs now (an administrator only):
+  /// « download-sync » reads the download progress from Radarr and Sonarr,
+  /// « jellyfin-recently-added-scan » sees what just reached the library.
+  Future<void> runJob(String jobId) async {
+    final response = await _dio.post(
+      _apiUrl('settings/jobs/$jobId/run'),
+      options: _authOptions(),
+    );
+    _requireSuccess(response, 'runJob');
+  }
+
   Future<Map<String, dynamic>> getRequest(int requestId) async {
     final response = await _dio.get(
       _apiUrl('request/$requestId'),

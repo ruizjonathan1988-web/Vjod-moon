@@ -771,6 +771,23 @@ class SeerrRepository {
     ),
   );
 
+  DateTime? _lastFreshen;
+
+  /// VJOD 5.9: asks Seerr to look at the downloads and the library right
+  /// away instead of at its next scheduled run, at most once a minute. Only
+  /// an administrator may: for the others it quietly does nothing.
+  Future<void> freshenDownloads({DateTime? now}) async {
+    final at = now ?? DateTime.now();
+    if (!seerrFreshenDue(_lastFreshen, at)) return;
+    _lastFreshen = at;
+    try {
+      await _withClient((c) async {
+        await c.runJob('download-sync');
+        await c.runJob('jellyfin-recently-added-scan');
+      });
+    } catch (_) {}
+  }
+
   Future<SeerrRequest> getRequest(int requestId) => _withClient(
     (c) async => SeerrRequest.fromJson(await c.getRequest(requestId)),
   );
@@ -1024,3 +1041,8 @@ class SeerrRepository {
     _httpClient = null;
   }
 }
+
+/// VJOD 5.9: whether Seerr may be asked to rescan again ([last] was the last
+/// time): not more than once a minute.
+bool seerrFreshenDue(DateTime? last, DateTime now) =>
+    last == null || now.difference(last) >= const Duration(minutes: 1);

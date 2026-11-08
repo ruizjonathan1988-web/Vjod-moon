@@ -249,6 +249,13 @@ class MaTvClient {
 
   /// What Ma TV wants the administrator to know (failed night, account about
   /// to expire, channel with no working source). Null when it can't be read.
+  /// VJOD 5.9: what Radarr and Sonarr are downloading right now, read live
+  /// by Ma TV. Null when Ma TV can't be read or is too old to know it.
+  Future<List<MaTvDownload>?> downloads() async {
+    final json = await _get('/tv/api/downloads');
+    return json == null ? null : parseMaTvDownloads(json);
+  }
+
   Future<List<MaTvAlert>?> alerts() async {
     final json = await _get('/tv/api/alerts');
     return json == null ? null : parseMaTvAlerts(json);
@@ -616,4 +623,45 @@ List<MaTvChannel> searchChannelHits(List<MaTvChannel> all, String query, {int li
     return e != 0 ? e : a.number.compareTo(b.number);
   });
   return [...byName, ...byShow].take(limit).toList();
+}
+
+/// VJOD 5.9: one title (a series: one season) in Radarr's or Sonarr's queue.
+class MaTvDownload {
+  const MaTvDownload({
+    required this.isTv,
+    this.tmdbId,
+    this.tvdbId,
+    this.season,
+    required this.progress,
+    this.eta,
+    this.stalled = false,
+  });
+
+  final bool isTv;
+  final int? tmdbId;
+  final int? tvdbId;
+  final int? season;
+
+  /// From 0 to 1.
+  final double progress;
+  final DateTime? eta;
+  final bool stalled;
+}
+
+List<MaTvDownload> parseMaTvDownloads(Object? json) {
+  final items = json is Map ? json['items'] : null;
+  if (items is! List) return const [];
+  return [
+    for (final i in items)
+      if (i is Map && (i['tmdb'] is num || i['tvdb'] is num))
+        MaTvDownload(
+          isTv: i['type'] == 'tv',
+          tmdbId: (i['tmdb'] as num?)?.toInt(),
+          tvdbId: (i['tvdb'] as num?)?.toInt(),
+          season: (i['season'] as num?)?.toInt(),
+          progress: ((i['progress'] as num?)?.toDouble() ?? 0).clamp(0.0, 1.0),
+          eta: DateTime.tryParse('${i['eta'] ?? ''}')?.toLocal(),
+          stalled: i['stalled'] == true,
+        ),
+  ];
 }
