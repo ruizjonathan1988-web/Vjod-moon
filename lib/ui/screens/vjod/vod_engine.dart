@@ -56,6 +56,9 @@ abstract class VodEngine {
   Future<void> open(String url, Map<String, String> headers, {Duration start = Duration.zero});
   Future<void> seek(Duration position);
   Future<void> playOrPause();
+
+  /// The sound level, 0 to 100 (the volume slider on a computer).
+  Future<void> setVolume(double volume);
   Future<void> setAudio(VodTrack track);
   Future<void> setSubtitle(VodTrack? track);
 
@@ -155,6 +158,8 @@ class MpvVodEngine implements VodEngine {
   Future<void> seek(Duration position) => _player.seek(position);
   @override
   Future<void> playOrPause() => _player.playOrPause();
+  @override
+  Future<void> setVolume(double volume) => _player.setVolume(volume.clamp(0, 100).toDouble());
 
   @override
   Future<void> setAudio(VodTrack track) async {
@@ -282,6 +287,8 @@ class ExoVodEngine implements VodEngine {
   Future<void> seek(Duration position) => _backend.seekTo(position);
   @override
   Future<void> playOrPause() => _backend.isPlaying ? _backend.pause() : _backend.resume();
+  @override
+  Future<void> setVolume(double volume) => _backend.setVolume(volume.clamp(0, 100).toDouble());
 
   @override
   Future<void> setAudio(VodTrack track) async {
@@ -410,6 +417,8 @@ class AetherVodEngine implements VodEngine {
   Future<void> seek(Duration position) => _backend.seekTo(position);
   @override
   Future<void> playOrPause() => _backend.isPlaying ? _backend.pause() : _backend.resume();
+  @override
+  Future<void> setVolume(double volume) => _backend.setVolume(volume.clamp(0, 100).toDouble());
   @override
   Future<void> setAudio(VodTrack track) async {}
   @override
@@ -593,6 +602,8 @@ class WebVodEngine implements VodEngine {
   }
   @override
   Future<void> playOrPause() => _backend.isPlaying ? _backend.pause() : _backend.resume();
+  @override
+  Future<void> setVolume(double volume) => _backend.setVolume(volume.clamp(0, 100).toDouble());
   @override
   Future<void> setAudio(VodTrack track) async {}
   @override

@@ -15,6 +15,9 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.49', [
+    'Films et séries IPTV sur ordinateur et dans le navigateur : les commandes apparaissent quand la souris bouge, avec un bouton volume et un bouton plein écran (ou un double-clic sur l\u2019image).',
+  ]),
   VjodRelease('4.48', [
     'Recherche : taper une lettre de plus après une pause (« ali » puis « alie ») ne fait plus planter VJOD (écran gris sur la box, plantage sur le web).',
     'Les signalements de plantage indiquent l\u2019écran en tête du détail, visible sur la page Ma TV.',
