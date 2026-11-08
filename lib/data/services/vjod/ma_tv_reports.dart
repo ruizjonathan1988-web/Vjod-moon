@@ -144,7 +144,9 @@ class MaTvReports {
     report(MaTvReport(
       kind: 'crash',
       message: during.isEmpty ? error.toString() : '${error.toString()}\n$during',
-      stack: _frames(stack),
+      // Also at the top of the stack: the Ma TV page shows only the first
+      // line of the message.
+      stack: during.isEmpty ? _frames(stack) : 'Où : $during\n${_frames(stack)}',
       where: where,
     ), key: 'crash|$first');
   }

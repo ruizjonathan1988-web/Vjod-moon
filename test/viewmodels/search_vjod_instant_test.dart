@@ -65,6 +65,25 @@ void main() {
     return people;
   }
 
+  test('VJOD 4.48 : une lettre de plus ne laisse aucun groupe vide (plantage « No element »)', () {
+    fakeAsync((async) {
+      itemsFor('ali', [('Alien', 'Movie'), ('Aladdin', 'Movie'), ('Alias', 'Series')]);
+      itemsFor('alie', [('Alien', 'Movie')]);
+      peopleFor('ali').complete({'Items': []});
+      peopleFor('alie').complete({'Items': []});
+      final vm = SearchViewModel(SearchRepository(client), client);
+
+      vm.searchDebounced('ali');
+      async.elapse(const Duration(milliseconds: 500));
+      expect(vm.results, hasLength(2));
+      vm.searchDebounced('alie');
+      expect(vm.results.every((g) => g.items.isNotEmpty), isTrue, reason: 'la série « Alias » ne correspond plus');
+      expect(vm.results, hasLength(1));
+      async.elapse(const Duration(milliseconds: 500));
+      vm.dispose();
+    });
+  });
+
   test('VJOD 4.47 : les résultats du serveur ne patientent pas plus de 0,4 s pour les autres sources', () {
     fakeAsync((async) {
       itemsFor('dune', [('Dune', 'Movie')]);

@@ -244,10 +244,12 @@ class SearchViewModel extends ChangeNotifier {
       final t = foldForSearch(text ?? '');
       return words.every(t.contains);
     }
+    // A group left with nothing goes: the screen reads each group's first
+    // item, and « ali » then « alie » crashed it (« Bad state: No element »).
     _results = [
       for (final g in _results)
         g.copyWith(items: [for (final i in g.items) if (ok(i.name) || ok(i.rawData['OriginalTitle'] as String?)) i]),
-    ];
+    ].where((g) => g.items.isNotEmpty).toList();
     _seerrResults = [for (final x in _seerrResults) if (ok(x.title ?? x.name) || ok(x.originalTitle ?? x.originalName)) x];
     _gameResults = [for (final x in _gameResults) if (ok(x.game.title) || ok(x.game.fileName)) x];
     _providerResults = [for (final x in _providerResults) if (ok(x.name)) x];
