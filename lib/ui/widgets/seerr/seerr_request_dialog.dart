@@ -86,7 +86,10 @@ class SeerrRequestDialog extends StatefulWidget {
 }
 
 class _SeerrRequestDialogState extends State<SeerrRequestDialog> {
-  late bool _allSeasons = widget.season == null;
+  // VJOD 5.5: a series never starts on « Toutes les saisons » — every season
+  // would download. The seasons are chosen one by one (or « Toutes » ticked
+  // on purpose); « Demander » waits for a choice.
+  bool _allSeasons = false;
   late bool _is4k = widget.is4k;
   bool _submitting = false;
   late final Set<int> _selectedSeasons = {?widget.season};
@@ -169,8 +172,15 @@ class _SeerrRequestDialogState extends State<SeerrRequestDialog> {
     return needed > remaining;
   }
 
+  /// A series needs its seasons chosen before it can be asked for.
+  bool get _hasSeasonChoice => seerrSeasonChoiceMade(
+        isTv: widget.isTv,
+        allSeasons: _allSeasons,
+        selected: _selectedSeasons.length,
+      );
+
   void _submit() {
-    if (_submitting || _quotaBlocked) {
+    if (_submitting || _quotaBlocked || !_hasSeasonChoice) {
       return;
     }
 
@@ -273,7 +283,7 @@ class _SeerrRequestDialogState extends State<SeerrRequestDialog> {
               primary: true,
               primaryColor: const Color(0xFF6366F1),
               busy: _submitting,
-              onPressed: _quotaBlocked || _submitting ? null : _submit,
+              onPressed: _quotaBlocked || _submitting || !_hasSeasonChoice ? null : _submit,
             ),
           ),
         ],
@@ -323,6 +333,14 @@ class _SeerrRequestDialogState extends State<SeerrRequestDialog> {
             if (_allSeasons) _selectedSeasons.clear();
           }),
         ),
+        if (!_allSeasons && _selectedSeasons.isEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 6, left: 8),
+            child: Text(
+              'Choisis les saisons à demander.',
+              style: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
+            ),
+          ),
         if (!_allSeasons && seasonNumbers.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 8, left: 8),
@@ -353,3 +371,8 @@ class _SeerrRequestDialogState extends State<SeerrRequestDialog> {
     );
   }
 }
+
+/// VJOD 5.5: whether a request can go out. A film always can; a series only
+/// once « Toutes les saisons » is ticked or at least one season is chosen.
+bool seerrSeasonChoiceMade({required bool isTv, required bool allSeasons, required int selected}) =>
+    !isTv || allSeasons || selected > 0;
