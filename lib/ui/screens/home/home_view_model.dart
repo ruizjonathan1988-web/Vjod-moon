@@ -545,6 +545,18 @@ class HomeViewModel extends ChangeNotifier {
   /// Rows built while it was unreachable came from the downloads catalog, so
   /// they hold only what was downloaded. Connectivity reports every probe it
   /// runs, so only the crossing counts.
+  /// When the last full load of every row started (null: never).
+  DateTime? lastFullLoadAt;
+
+  /// VJOD 5.3: coming back to the app reloads every row (a dozen seconds of
+  /// work that slows the whole app down) only when the Home is older than
+  /// [resumeFullRefreshAfter]; sooner, only « Continuer » and the next
+  /// episodes are refreshed, the rows that can have changed.
+  static const resumeFullRefreshAfter = Duration(minutes: 15);
+
+  static bool resumeNeedsFullRefresh({DateTime? lastFullLoad, required DateTime now}) =>
+      lastFullLoad == null || now.difference(lastFullLoad) >= resumeFullRefreshAfter;
+
   static bool reloadsOnReachability({
     required bool canReachServer,
     required bool couldReachServer,
@@ -590,6 +602,7 @@ class HomeViewModel extends ChangeNotifier {
     if (newSectionsOnly) preserveExisting = true;
     _isLoading = true;
     if (!newSectionsOnly) {
+      lastFullLoadAt = DateTime.now();
       _mediaBarViewModel.load(force: forceRefresh);
       _rowOffsets.clear();
       _multiServerRepo.clearOffsets();
