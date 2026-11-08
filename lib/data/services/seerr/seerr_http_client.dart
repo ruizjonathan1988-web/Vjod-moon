@@ -653,10 +653,10 @@ class SeerrHttpClient {
     int offset = 0,
   }) async {
     final page = (offset ~/ limit) + 1;
-    var url = '${_apiUrl('search')}?query=${_encodeQueryValue(query)}&page=$page';
-    if (mediaType != null) {
-      url += '&type=${Uri.encodeComponent(mediaType)}';
-    }
+    // VJOD 4.51: Seerr's /search knows no « type » and refuses a query that
+    // carries one, so the search of Films and Séries always failed (« La
+    // recherche n'a pas marché »). The kind is kept by the callers instead.
+    final url = '${_apiUrl('search')}?query=${_encodeQueryValue(query)}&page=$page';
 
     final response = await _dio.get(
       url,

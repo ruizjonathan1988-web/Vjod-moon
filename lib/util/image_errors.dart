@@ -8,3 +8,11 @@ bool isImageLoadError(FlutterErrorDetails details) {
   return type.contains('NetworkImageLoadException') ||
       details.exception.toString().contains('ImageCodecException');
 }
+
+/// « RenderBox was not laid out » while Flutter picks a button to focus as
+/// the browser window gets focus back: harmless, Flutter goes on.
+bool isViewFocusMeasureError(FlutterErrorDetails details) {
+  final during = details.context?.toDescription() ?? '';
+  return during.contains('didChangeViewFocus') &&
+      details.exception.toString().contains('RenderBox was not laid out');
+}

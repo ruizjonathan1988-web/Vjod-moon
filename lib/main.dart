@@ -169,6 +169,10 @@ void _installCrashHandlers() {
     // A poster that fails to load is drawn as a blank, not a crash: kept out
     // of the Ma TV reports, where it read « Plantage » (VJOD 4.45).
     if (isImageLoadError(details)) return;
+    // When the browser window gets focus back, Flutter measures every button
+    // to pick one, and one it can't measure throws. Nothing breaks (the page
+    // goes on, nothing is focused), so it is not reported as a crash.
+    if (isViewFocusMeasureError(details)) return;
     _captureCrash(details.exception, details.stack, during: _during(details));
   };
   WidgetsBinding.instance.platformDispatcher.onError = (error, stack) {
