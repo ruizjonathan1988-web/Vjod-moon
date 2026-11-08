@@ -33,7 +33,7 @@ def source(ipa, info_plist, tag, notes):
             'bundleIdentifier': info['CFBundleIdentifier'],
             'developerName': 'VJOD',
             'subtitle': 'Films, séries et TV',
-            'localizedDescription': 'VJOD : vos films, séries et la TV en direct.',
+            'localizedDescription': 'VJOD : un client Jellyfin personnel.',
             'iconURL': f'https://raw.githubusercontent.com/{REPO}/perso/web/icons/Icon-512.png',
             'tintColor': 'E50914',
             'versions': [{
