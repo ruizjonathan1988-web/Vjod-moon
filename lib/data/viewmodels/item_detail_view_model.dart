@@ -1248,11 +1248,16 @@ class ItemDetailViewModel extends ChangeNotifier {
     await Future.wait(futures);
   }
 
+  /// What the seasons of a series are asked with.
+  static const seasonFields = 'ChildCount,UserData,CanDelete';
+
   Future<void> _loadSeasons() async {
     try {
+      // CanDelete: without it every season reads as not deletable and the
+      // series' « Supprimer » only offers the whole series (VJOD 5.4).
       final data = await _client.itemsApi.getSeasons(
         itemId,
-        fields: 'ChildCount,UserData',
+        fields: seasonFields,
       );
       final items = (data['Items'] as List?) ?? [];
       _seasons = _mapItems(items, fallbackRating: _item?.officialRating);
