@@ -16,6 +16,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Vérifier le secret VJOD_SERVEUR (sans l'afficher)
+        env:
+          VJOD_SERVEUR: ${{ secrets.VJOD_SERVEUR }}
+        run: |
+          case "$VJOD_SERVEUR" in
+            https://*/jellyfin) echo "VJOD_SERVEUR : présent, bien formé" ;;
+            "") echo "::error::Secret VJOD_SERVEUR absent"; exit 1 ;;
+            *) echo "::error::VJOD_SERVEUR doit être seulement l'adresse, de la forme https://…/jellyfin, sans espace"; exit 1 ;;
+          esac
+
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.47.2'
