@@ -15,6 +15,9 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.46', [
+    'Version web : revenir sur l\u2019onglet de VJOD (ou y entrer avec la touche Tab) ne fait plus planter la page. C\u2019était le plantage « RenderBox was not laid out », le plus fréquent de la maison.',
+  ]),
   VjodRelease('4.45', [
     'Une affiche qui ne se charge pas n\u2019est plus signalée comme un plantage sur la page Ma TV : les vrais plantages ressortent mieux.',
   ]),
