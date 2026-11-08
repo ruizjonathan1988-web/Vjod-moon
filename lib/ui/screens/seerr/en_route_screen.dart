@@ -60,6 +60,9 @@ class _EnRouteScreenState extends State<EnRouteScreen> {
   void initState() {
     super.initState();
     unawaited(_load());
+    // VJOD 5.9: Seerr reads the downloads and the library on its own clock;
+    // opening En route asks it to look now (an administrator's VJOD only).
+    unawaited(_freshen());
     // Downloads move every few seconds, so the bars keep up while open.
     _refresh = Timer.periodic(const Duration(seconds: 8), (_) => _load());
   }
@@ -68,6 +71,18 @@ class _EnRouteScreenState extends State<EnRouteScreen> {
   void dispose() {
     _refresh?.cancel();
     super.dispose();
+  }
+
+  Future<void> _freshen() async {
+    try {
+      final repo = await GetIt.instance.getAsync<SeerrRepository>();
+      await repo.ensureInitialized();
+      if (!repo.isAvailable) return;
+      final user = await repo.getCurrentUser();
+      if (!user.isAdmin) return;
+      await repo.freshenDownloads();
+      if (mounted) unawaited(_load());
+    } catch (_) {}
   }
 
   Future<void> _load() async {
