@@ -87,6 +87,7 @@ class _AboutCategoryScreen extends StatelessWidget {
               ),
               const _StartupTimelineTile(),
               const _TimingsTile(),
+              const _SmoothnessTile(),
               const _ReplayTraceTile(),
               // VJOD 4.27: the month at home, from Playback Reporting (admins).
               if (GetIt.instance<UserRepository>().currentUser?.isAdministrator ?? false)
@@ -338,6 +339,25 @@ class _TimingsTile extends StatelessWidget {
       leading: const Icon(Icons.speed_rounded),
       title: const Text('Temps de réponse'),
       subtitle: Text(lines.isEmpty ? 'Pas encore mesuré : utilise VJOD un moment.' : lines.join('\n')),
+      trailing: const SizedBox.shrink(),
+      onTap: () {},
+    );
+  }
+}
+
+/// VJOD 5.3: how smooth each screen is on this device.
+class _SmoothnessTile extends StatelessWidget {
+  const _SmoothnessTile();
+
+  @override
+  Widget build(BuildContext context) {
+    final lines = VjodSmoothness.lines();
+    return _TvSettingsListTile(
+      leading: const Icon(Icons.animation_rounded),
+      title: const Text('Fluidité des écrans'),
+      subtitle: Text(lines.isEmpty
+          ? 'Pas encore mesurée : utilise VJOD un moment, puis reviens ici.'
+          : lines.join('\n')),
       trailing: const SizedBox.shrink(),
       onTap: () {},
     );

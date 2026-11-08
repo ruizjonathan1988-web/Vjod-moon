@@ -15,6 +15,10 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('5.3', [
+    'Plus fluide : revenir dans VJOD ne recharge plus tout l\u2019Accueil (seulement « Continuer » et les prochains épisodes), sauf après un quart d\u2019heure.',
+    '« À propos » montre la fluidité de chaque écran sur cet appareil, pour trouver ce qui rame.',
+  ]),
   VjodRelease('5.2', [
     'Les messages d\u2019erreur de la TV parlent de « Ma TV » au lieu du nom de l\u2019outil de la seedbox.',
     'Rien ne change à l\u2019usage : la liste des nouveautés n\u2019est plus affichée sur la page publique des téléchargements, seulement dans l\u2019appli.',
