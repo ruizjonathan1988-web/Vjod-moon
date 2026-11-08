@@ -21,6 +21,7 @@ import 'package:server_core/server_core.dart' hide ImageType;
 import 'package:window_manager/window_manager.dart';
 
 import '../../../data/services/vjod/ma_tv_alerts.dart';
+import '../../../data/services/vjod/item_prefetch.dart';
 import '../../../data/services/vjod/replay_alerts.dart';
 import '../../../data/services/vjod/provider_catalog_refresher.dart';
 import '../../../data/services/vjod/web_iptv.dart';
@@ -2929,6 +2930,14 @@ class _ContentRowsState extends State<_ContentRows>
   }
 
   void _onHomeRowTileFocused(AggregatedItem? item) {
+    // VJOD 5.8: a poster that stays selected has its fiche asked for ahead.
+    if (PlatformDetection.isTV) {
+      final client = item == null ? null : _clientForItem(item);
+      ItemPrefetch.selected(
+        client == null ? null : item!.id,
+        (id) => client!.itemsApi.getItem(id),
+      );
+    }
     final forceReveal = _forceRevealOnNextRowFocusFromMediaBar;
     _forceRevealOnNextRowFocusFromMediaBar = false;
     widget.onItemSelected(item);

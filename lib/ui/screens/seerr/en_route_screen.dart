@@ -10,6 +10,7 @@ import 'package:server_core/server_core.dart';
 import '../../../data/repositories/seerr_repository.dart';
 import '../../../data/services/row_data_source.dart';
 import '../../../data/services/seerr/my_requests.dart';
+import '../../../data/services/seerr/seerr_page_cache.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../preference/preference_constants.dart';
 import '../../../preference/user_preferences.dart';
@@ -101,6 +102,7 @@ class _EnRouteScreenState extends State<EnRouteScreen> {
           ],
         );
         entries = promoteInLibrary(entries, inLibrary, now: now);
+        SeerrPageCache.libraryHolds(inLibrary);
       }
 
       // En route shows what is still on its way. A title that has arrived is
