@@ -80,6 +80,29 @@ class _ParentalSettingsScreenState extends State<ParentalSettingsScreen> {
     try {
       final client = GetIt.instance<MediaServerClient>();
       final discovered = <String>{};
+      // VJOD 5.8: the server lists the ratings its library uses in one
+      // answer; reading every title (up to 3 000, 20 to 30 s) is only the
+      // fallback when it doesn't.
+      try {
+        final filters = await client.itemsApi.getQueryFilters(
+          includeItemTypes: const ['Movie', 'Series', 'Episode', 'Video', 'MusicVideo'],
+        );
+        for (final r in filters.officialRatings) {
+          final rating = r.trim();
+          if (rating.isNotEmpty) discovered.add(rating.toUpperCase());
+        }
+      } catch (_) {}
+      if (discovered.isNotEmpty) {
+        if (!mounted) return;
+        setState(() {
+          _serverRatings
+            ..clear()
+            ..addAll(discovered.toList()..sort((a, b) => a.compareTo(b)));
+          _loadingRatings = false;
+          _ratingsError = null;
+        });
+        return;
+      }
       const pageSize = 200;
       var startIndex = 0;
       var safetyPages = 0;

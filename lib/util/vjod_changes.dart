@@ -15,6 +15,11 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('5.8', [
+    'Rangées instantanées : Films, Séries, Bientôt et les titres proches s\u2019affichent tout de suite avec ce que VJOD a gardé, puis se mettent à jour en douce.',
+    'Sur la télé, la fiche d\u2019une affiche qui reste sélectionnée se prépare d\u2019avance : OK l\u2019ouvre aussitôt.',
+    'Contrôle parental : la liste des classifications s\u2019ouvre en une seconde au lieu de 20 à 30.',
+  ]),
   VjodRelease('5.7', [
     'Menu de ton avatar → « Connecter un appareil » : tape le code Quick Connect qu\u2019affiche un autre écran (Aura sur la télé, un navigateur) pour le connecter à ton compte. Aussi sur la télé.',
   ]),
