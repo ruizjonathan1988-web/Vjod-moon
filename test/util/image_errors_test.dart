@@ -17,4 +17,21 @@ void main() {
       isFalse,
     );
   });
+
+  test('le retour du focus dans la fenêtre du navigateur n\'est pas un plantage', () {
+    expect(
+      isViewFocusMeasureError(FlutterErrorDetails(
+        exception: StateError('RenderBox was not laid out: Class5095#34728'),
+        context: ErrorDescription('while dispatching notifications for WidgetsBindingObserver.didChangeViewFocus'),
+      )),
+      isTrue,
+    );
+    expect(
+      isViewFocusMeasureError(FlutterErrorDetails(
+        exception: StateError('RenderBox was not laid out'),
+        context: ErrorDescription('during performLayout()'),
+      )),
+      isFalse,
+    );
+  });
 }

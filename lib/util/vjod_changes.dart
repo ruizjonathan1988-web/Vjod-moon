@@ -15,6 +15,10 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('4.51', [
+    'Films et Séries : la recherche par la loupe marche de nouveau (« La recherche n\u2019a pas marché » à chaque fois).',
+    'Version web : revenir sur l\u2019onglet de VJOD n\u2019est plus signalé comme un plantage sur la page Ma TV (rien ne cassait).',
+  ]),
   VjodRelease('4.50', [
     'Version web : le replay et les enregistrements se lisent dans le navigateur (Ma TV les prépare dans un format qu\u2019il sait lire). Il faut Ma TV 3.73.',
     'Fiche d\u2019un titre IPTV : le bouton « Regarder » montre de nouveau son texte et son icône.',
