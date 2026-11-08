@@ -5,7 +5,7 @@ void main() {
   group('adresse de lecture', () {
     test('film de Ma TV avec qualité et fichier choisi', () {
       final r = IptvCastRequest.fromPlayUrl(
-        'https://hote.example.com/iptv-checker/tv/xc/movie/vjod/CLE/123.mkv?q=1080&src=2',
+        'https://hote.example.com/checker/tv/xc/movie/vjod/CLE/123.mkv?q=1080&src=2',
       )!;
       expect(r.kind, 'movie');
       expect(r.id, '123');

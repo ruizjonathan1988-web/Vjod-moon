@@ -4,7 +4,7 @@ import 'package:moonfin/data/services/vjod/web_iptv.dart';
 void main() {
   group('catalogue sur le web', () {
     test('Ma TV en HTTPS est permis', () {
-      expect(webMayUseCatalog(isMaTv: true, portal: 'https://seedbox.example.com/iptv-checker/tv/xc'), isTrue);
+      expect(webMayUseCatalog(isMaTv: true, portal: 'https://seedbox.example.com/checker/tv/xc'), isTrue);
     });
 
     test('Ma TV en HTTP ne l\'est pas (contenu mixte)', () {
@@ -45,14 +45,14 @@ void main() {
 
   group('raison affichée quand le catalogue manque sur le web', () {
     test('Ma TV en HTTPS : rien à dire', () {
-      expect(webCatalogBlockedReason('https://seedbox.example.com/iptv-checker'), isNull);
-      expect(webCatalogShouldWarn('https://seedbox.example.com/iptv-checker'), isFalse);
+      expect(webCatalogBlockedReason('https://seedbox.example.com/checker'), isNull);
+      expect(webCatalogShouldWarn('https://seedbox.example.com/checker'), isFalse);
     });
 
     test('Ma TV en HTTP : message clair et avertissement sur l\'accueil', () {
-      expect(webCatalogBlockedReason('http://seedbox.example.com/iptv-checker'), webCatalogHttpMessage);
+      expect(webCatalogBlockedReason('http://seedbox.example.com/checker'), webCatalogHttpMessage);
       expect(webCatalogHttpMessage, contains('http://'));
-      expect(webCatalogShouldWarn('http://seedbox.example.com/iptv-checker'), isTrue);
+      expect(webCatalogShouldWarn('http://seedbox.example.com/checker'), isTrue);
     });
 
     test('Ma TV inconnue : expliqué dans les réglages, pas d\'avertissement', () {

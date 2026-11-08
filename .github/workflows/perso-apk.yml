@@ -94,7 +94,11 @@ jobs:
           # tells the whole household what changed, not just the last step.
           since=$(gh release view perso-latest --repo "$GITHUB_REPOSITORY" --json name -q .name 2>/dev/null | sed -n 's/^VJOD \([0-9.]*\).*/\1/p')
           python3 tool/vjod_release_notes.py --since "$since" > notes.txt
-          gh release edit perso-beta --repo "$GITHUB_REPOSITORY" --title "VJOD $(head -1 notes.txt)" --notes "$(tail -n +2 notes.txt)" || true
+          # The changes go in a file next to the APKs (the app reads it), not on
+          # the public release page, which only says a version is out.
+          tail -n +2 notes.txt > nouveautes.txt
+          gh release upload perso-beta nouveautes.txt --repo "$GITHUB_REPOSITORY" --clobber || true
+          gh release edit perso-beta --repo "$GITHUB_REPOSITORY" --title "VJOD $(head -1 notes.txt)" --notes "Nouvelle version. Les nouveautés s'affichent dans l'appli." || true
 
   tv:
     runs-on: ubuntu-latest
@@ -173,7 +177,11 @@ jobs:
           # tells the whole household what changed, not just the last step.
           since=$(gh release view perso-latest --repo "$GITHUB_REPOSITORY" --json name -q .name 2>/dev/null | sed -n 's/^VJOD \([0-9.]*\).*/\1/p')
           python3 tool/vjod_release_notes.py --since "$since" > notes.txt
-          gh release edit perso-beta --repo "$GITHUB_REPOSITORY" --title "VJOD $(head -1 notes.txt)" --notes "$(tail -n +2 notes.txt)" || true
+          # The changes go in a file next to the APKs (the app reads it), not on
+          # the public release page, which only says a version is out.
+          tail -n +2 notes.txt > nouveautes.txt
+          gh release upload perso-beta nouveautes.txt --repo "$GITHUB_REPOSITORY" --clobber || true
+          gh release edit perso-beta --repo "$GITHUB_REPOSITORY" --title "VJOD $(head -1 notes.txt)" --notes "Nouvelle version. Les nouveautés s'affichent dans l'appli." || true
 
   # VJOD for the Mac: a DMG signed ad hoc (no paid Apple account), on its own
   # release (mac-latest), whose notes name the commit: the Mac app offers the
@@ -219,8 +227,10 @@ jobs:
           python3 tool/vjod_release_notes.py > notes.txt
           gh release create mac-latest --repo "$GITHUB_REPOSITORY" --title "VJOD Mac" --notes "Dernière version de VJOD pour Mac." --prerelease || true
           gh release upload mac-latest vjod-mac.dmg --repo "$GITHUB_REPOSITORY" --clobber
+          tail -n +2 notes.txt > nouveautes.txt
+          gh release upload mac-latest nouveautes.txt --repo "$GITHUB_REPOSITORY" --clobber || true
           gh release edit mac-latest --repo "$GITHUB_REPOSITORY" --title "VJOD $(head -1 notes.txt) (Mac)" --notes "commit ${GITHUB_SHA::7}
-          $(tail -n +2 notes.txt)" || true
+          Nouvelle version. Les nouveautés s'affichent dans l'appli." || true
 
   # VJOD for the iPad: an unsigned .ipa on its own release (ipad-latest), with
   # altstore.json, the AltStore source that offers each build as an update.
@@ -259,5 +269,4 @@ jobs:
           python3 tool/vjod_release_notes.py > notes.txt
           gh release create ipad-latest --repo "$GITHUB_REPOSITORY" --title "VJOD iPad" --notes "VJOD pour iPad, à installer avec AltStore." --prerelease || true
           gh release upload ipad-latest vjod-ipad.ipa altstore.json --repo "$GITHUB_REPOSITORY" --clobber
-          gh release edit ipad-latest --repo "$GITHUB_REPOSITORY" --title "VJOD $(head -1 notes.txt) (iPad)" --notes "Source AltStore : https://github.com/${GITHUB_REPOSITORY}/releases/download/ipad-latest/altstore.json
-          $(tail -n +2 notes.txt)" || true
+          gh release edit ipad-latest --repo "$GITHUB_REPOSITORY" --title "VJOD $(head -1 notes.txt) (iPad)" --notes "Source AltStore : https://github.com/${GITHUB_REPOSITORY}/releases/download/ipad-latest/altstore.json" || true

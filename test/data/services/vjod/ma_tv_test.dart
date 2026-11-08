@@ -7,7 +7,7 @@ import 'package:moonfin/data/services/vjod/ma_tv.dart';
 import 'package:moonfin/data/services/vjod/tv_sources.dart';
 
 void main() {
-  const server = TvSourcesServer(url: 'https://h.example/iptv-checker', key: 'KEY');
+  const server = TvSourcesServer(url: 'https://h.example/checker', key: 'KEY');
   final t0 = DateTime(2026, 10, 28, 20, 0);
   int s(DateTime t) => t.millisecondsSinceEpoch ~/ 1000;
 
@@ -89,11 +89,11 @@ void main() {
   test('live and replay addresses carry the key', () {
     final client = MaTvClient(server: server);
     const ch = MaTvChannel(id: 'tf1', number: 1, name: 'TF1');
-    expect(client.liveUri(ch).toString(), startsWith('https://h.example/iptv-checker/tv/play/tf1.ts?'));
+    expect(client.liveUri(ch).toString(), startsWith('https://h.example/checker/tv/play/tf1.ts?'));
     expect(client.liveUri(ch).toString(), contains('k=KEY'));
     final p = MaTvProgram(title: 'JT', start: t0, end: t0.add(const Duration(minutes: 40)));
     final r = client.replayUri(ch, p)!;
-    expect(r.path, '/iptv-checker/tv/replay/tf1.ts');
+    expect(r.path, '/checker/tv/replay/tf1.ts');
     expect(r.queryParameters['start'], '${s(t0) - 120}');   // deux minutes d'avance
     expect(r.queryParameters['dur'], '47');
   });
