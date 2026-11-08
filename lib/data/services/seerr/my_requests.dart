@@ -1,3 +1,4 @@
+import '../vjod/ma_tv.dart';
 import 'seerr_api_models.dart';
 
 /// Where one of the viewer's requests stands, in the order the My Requests
@@ -12,10 +13,17 @@ class MyRequestEntry {
   /// Share of the download done, from 0 to 1, while [state] is downloading.
   final double? progress;
 
+  /// VJOD 5.9: when the download should end, and whether it is stuck, as
+  /// Radarr or Sonarr say it live (through Ma TV).
+  final DateTime? eta;
+  final bool stalled;
+
   const MyRequestEntry({
     required this.request,
     required this.state,
     this.progress,
+    this.eta,
+    this.stalled = false,
   });
 
   SeerrMedia get media => request.media!;
@@ -209,4 +217,52 @@ List<MyRequestEntry> promoteInLibrary(
   }
   promoted.sort((a, b) => a.state.index.compareTo(b.state.index));
   return promoted;
+}
+
+/// VJOD 5.9: the queue Radarr and Sonarr show live (through Ma TV) puts each
+/// request where it really is: downloading, how far, until when. Seerr only
+/// learns it at its next scan. A series sums the seasons it asked for.
+List<MyRequestEntry> applyLiveDownloads(
+  List<MyRequestEntry> entries,
+  List<MaTvDownload> downloads,
+) {
+  if (downloads.isEmpty) return entries;
+  return [
+    for (final e in entries)
+      if (e.state == MyRequestState.ready ||
+          e.state == MyRequestState.failed ||
+          e.state == MyRequestState.declined)
+        e
+      else
+        _live(e, downloads) ?? e,
+  ];
+}
+
+MyRequestEntry? _live(MyRequestEntry e, List<MaTvDownload> downloads) {
+  final tv = e.request.type == 'tv';
+  final tmdb = e.media.tmdbId;
+  final tvdb = e.media.tvdbId;
+  final seasons = {
+    for (final s in e.request.seasons ?? const []) s.seasonNumber,
+  };
+  final mine = [
+    for (final d in downloads)
+      if (d.isTv == tv &&
+          ((tmdb != null && d.tmdbId == tmdb) || (tvdb != null && d.tvdbId == tvdb)) &&
+          (!tv || seasons.isEmpty || d.season == null || seasons.contains(d.season)))
+        d,
+  ];
+  if (mine.isEmpty) return null;
+  final progress = mine.map((d) => d.progress).reduce((a, b) => a + b) / mine.length;
+  DateTime? eta;
+  for (final d in mine) {
+    if (d.eta != null && (eta == null || d.eta!.isAfter(eta))) eta = d.eta;
+  }
+  return MyRequestEntry(
+    request: e.request,
+    state: MyRequestState.downloading,
+    progress: progress,
+    eta: eta,
+    stalled: mine.any((d) => d.stalled),
+  );
 }
