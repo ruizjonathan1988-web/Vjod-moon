@@ -25,6 +25,11 @@ class JellyfinLiveTvApi implements LiveTvApi {
       'Fields': ?fields,
       'EnableTotalRecordCount': ?enableTotalRecordCount,
       'UserId': ?userId,
+      // Le serveur joint sinon le programme en cours à chaque chaîne : avec
+      // des milliers de chaînes, une réponse énorme que personne ne lit (le
+      // guide charge les programmes à part). Elle saturait la mémoire des
+      // petits boîtiers.
+      'AddCurrentProgram': false,
     });
     return response.data as Map<String, dynamic>;
   }
