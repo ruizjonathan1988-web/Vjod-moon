@@ -15,6 +15,9 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('5.4', [
+    'Fiche d\u2019une série → Supprimer : chaque saison se supprime de nouveau seule (« Seulement saison 2 »), sans passer par un épisode.',
+  ]),
   VjodRelease('5.3', [
     'Plus fluide : revenir dans VJOD ne recharge plus tout l\u2019Accueil (seulement « Continuer » et les prochains épisodes), sauf après un quart d\u2019heure.',
     '« À propos » montre la fluidité de chaque écran sur cet appareil, pour trouver ce qui rame.',
