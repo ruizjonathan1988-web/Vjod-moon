@@ -64,4 +64,22 @@ void main() {
       expect(relayQuery(r, position: const Duration(seconds: 30)).containsKey('start'), isFalse);
     });
   });
+
+  group('replay et enregistrements dans le navigateur (Ma TV 3.73)', () {
+    test('un replay passe par le relais, avec son début, sa durée et ses capacités', () {
+      final r = IptvCastRequest.fromPlayUrl(
+        'https://ava88.zen.usbx.me/iptv-checker/tv/replay/france5.ts?start=1794077143&dur=59&caps=h264%3Bmaxh%3D720&k=CLE',
+      )!;
+      expect(r.query, {'kind': 'replay', 'id': 'france5', 'ext': 'ts', 'at': '1794077143', 'dur': '59', 'caps': 'h264;maxh=720'});
+    });
+
+    test('un enregistrement aussi', () {
+      final r = IptvCastRequest.fromPlayUrl('https://ava88.zen.usbx.me/iptv-checker/tv/rec/e56d453c2072.ts?k=CLE')!;
+      expect(r.query, {'kind': 'rec', 'id': 'e56d453c2072', 'ext': 'ts'});
+    });
+
+    test('un replay sans début ni durée : rien', () {
+      expect(IptvCastRequest.fromPlayUrl('https://h.example.com/tv/replay/france5.ts'), isNull);
+    });
+  });
 }
