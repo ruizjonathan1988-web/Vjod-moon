@@ -6,6 +6,7 @@ import 'util/image_errors.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:get_it/get_it.dart';
+import 'package:go_router/go_router.dart' show ImperativeRouteMatch;
 import 'package:jellyfin_preference/jellyfin_preference.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:moonfin_design/moonfin_design.dart' show LiquidGlassWidgets;
@@ -1087,11 +1088,16 @@ void main() async {
   // VJOD 5.3: how smooth each screen is, shown in « À propos ».
   VjodSmoothness.start(() {
     try {
-      return appRouter.routerDelegate.currentConfiguration.uri.path;
+      // A pushed screen (a fiche, the search…) doesn't change the router's
+      // base address: the last match says which screen is on top.
+      final cfg = appRouter.routerDelegate.currentConfiguration;
+      final last = cfg.matches.isEmpty ? null : cfg.last;
+      if (last is ImperativeRouteMatch) return last.matches.uri.path;
+      return cfg.uri.path;
     } catch (_) {
       return '?';
     }
-  });
+  }, appRouter.routerDelegate);
 }
 
 /// Startup work that runs after the first frame. The internal order matters:
