@@ -12737,6 +12737,14 @@ class _DetailActionButtonState extends State<_DetailActionButton>
       ThemeRegistry.active.id == ThemeRegistry.vjodId ||
       ThemeRegistry.active.id == ThemeRegistry.ecrinId;
 
+  Widget _vjodLabel(Color fg, double fontSize) => Text(
+    widget.label,
+    maxLines: 1,
+    overflow: TextOverflow.ellipsis,
+    softWrap: false,
+    style: TextStyle(color: fg, fontWeight: FontWeight.w700, fontSize: fontSize),
+  );
+
   /// The mock-up's buttons: a word in a block, ivory for Play, dark grey for
   /// the rest, and an ivory ring on whichever has focus.
   Widget _buildVjodChild(
@@ -12818,19 +12826,16 @@ class _DetailActionButtonState extends State<_DetailActionButton>
             icon
           else ...[
             if (icon != null) ...[icon, SizedBox(width: 10 * u)],
-            Flexible(
-              child: Text(
-                widget.label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                softWrap: false,
-                style: TextStyle(
-                  color: fg,
-                  fontWeight: FontWeight.w700,
-                  fontSize: fontSize,
-                ),
+            // VJOD 4.50: in the scrolling row of buttons the width is
+            // unbounded, and a Flexible there left the IPTV « Regarder » button
+            // an empty ivory block in the browser. A plain cap does the job.
+            if (fullWidth)
+              Flexible(child: _vjodLabel(fg, fontSize))
+            else
+              ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: 420 * u),
+                child: _vjodLabel(fg, fontSize),
               ),
-            ),
           ],
         ],
       ),
