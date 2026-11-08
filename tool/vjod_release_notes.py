@@ -1,17 +1,36 @@
 """Prints VJOD's current version (first line) and its changes (« - » lines),
-read from lib/util/vjod_changes.dart, for the GitHub release (perso-apk.yml)."""
+read from lib/util/vjod_changes.dart, for the GitHub release (perso-apk.yml).
+With --since X (the version everyone has, perso-latest), the changes of every
+version after X are listed too, newest first: validating 5.0 over 4.12 tells
+the household everything that came since."""
 import re
 import sys
 
+
+def key(v):
+    return tuple(int(p) if p.isdigit() else 0 for p in v.split('.'))
+
+
 src = open('lib/util/vjod_changes.dart', encoding='utf-8').read()
-m = re.search(r"VjodRelease\('([0-9.]+)',\s*\[(.*?)\]\),", src, re.S)
-if not m:
+releases = [(m.group(1), m.group(2)) for m in re.finditer(r"VjodRelease\('([0-9.]+)',\s*\[(.*?)\]\),", src, re.S)]
+if not releases:
     sys.exit('no VjodRelease found')
-version, body = m.group(1), m.group(2)
-changes = [
-    s.replace("\\'", "'").replace('\\u2019', '’')
-    for s in re.findall(r"'((?:[^'\\]|\\.)*)'", body)
-]
+since = None
+if '--since' in sys.argv:
+    i = sys.argv.index('--since')
+    since = sys.argv[i + 1] if i + 1 < len(sys.argv) else None
+    if since and not re.fullmatch(r'[0-9.]+', since):
+        since = None
+
+
+def changes(body):
+    return [s.replace("\\'", "'").replace('\\u2019', '’') for s in re.findall(r"'((?:[^'\\]|\\.)*)'", body)]
+
+
+version = releases[0][0]
 print(version)
-for c in changes:
-    print('- ' + c)
+for v, body in releases:
+    if v != version and (since is None or key(v) <= key(since)):
+        continue
+    for c in changes(body):
+        print('- ' + (c if v == version else '%s · %s' % (v, c)))
