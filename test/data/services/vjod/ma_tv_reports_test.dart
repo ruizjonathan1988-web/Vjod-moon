@@ -70,6 +70,7 @@ void main() {
     final r = (await reports.pending()).last;
     expect(r.message.split('\n').first, err.toString());
     expect(r.message, contains('écran /search · during a hit test'));
+    expect(r.stack, startsWith('Où : écran /search'));
   });
 
   test('le même problème une seule fois par lancement', () async {

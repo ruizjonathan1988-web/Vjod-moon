@@ -25,6 +25,7 @@ import '../../../data/services/vjod/vjod_votes.dart';
 import '../../../preference/seerr_preferences.dart';
 import '../../../data/services/vjod/xtream_catalog.dart';
 import '../../../util/focus/dpad_keys.dart';
+import '../../../util/fullscreen_helper.dart';
 import '../../../util/system_ui.dart';
 import '../../navigation/destinations.dart';
 import '../../screensaver/screensaver_controller.dart';
@@ -125,6 +126,24 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
   bool _loading = true;
   String? _error;
   bool _controls = false;
+
+  // VJOD 4.49: on a computer (and in its browser) a mouse moves over the
+  // picture, the window goes full screen and the sound has a slider.
+  bool get _bigScreen => !PlatformDetection.isTV && PlatformDetection.useDesktopUi;
+  static double _volume = 100;
+  bool _volumeOpen = false;
+  bool _fullscreen = false;
+
+  Future<void> _toggleFullscreen() async {
+    final next = !(await FullscreenHelper.isFullscreen());
+    await FullscreenHelper.setFullscreen(next);
+    if (mounted) setState(() => _fullscreen = next);
+  }
+
+  Future<void> _setVolume(double v) async {
+    setState(() => _volume = v.clamp(0, 100).toDouble());
+    await _engine.setVolume(_volume);
+  }
   Timer? _hideTimer;
   Timer? _noPicture;
   Duration _pos = Duration.zero;
@@ -490,6 +509,7 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
           )
           .timeout(_openTimeout);
       unawaited(_engine.styleSubtitles(scale: _subScale, raised: _subRaised));
+      if (_bigScreen && _volume != 100) unawaited(_engine.setVolume(_volume));
       if (mounted && (_engine is MpvVodEngine || _engine is WebVodEngine)) setState(() => _loading = false);
     } catch (e) {
       if (!mounted || seq != _openSeq) return;
@@ -1063,9 +1083,15 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
       onKeyEvent: _onKey,
       child: Scaffold(
         backgroundColor: Colors.black,
-        body: GestureDetector(
+        body: MouseRegion(
+          onHover: (_) {
+            if (_bigScreen && !_controls) _showControls();
+          },
+          cursor: _bigScreen && !_controls ? SystemMouseCursors.none : MouseCursor.defer,
+          child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: () => _controls ? setState(() => _controls = false) : _showControls(),
+          onDoubleTap: _bigScreen ? () => unawaited(_toggleFullscreen()) : null,
           child: Stack(
             fit: StackFit.expand,
             children: [
@@ -1220,6 +1246,30 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
                               // Phones only: the TV and the web never show it.
                               if (iptvCastAvailable)
                                 _button(Icons.cast_rounded, 'Caster', () => unawaited(_cast())),
+                              if (_bigScreen)
+                                _button(
+                                  _volume <= 0 ? Icons.volume_off_rounded : Icons.volume_up_rounded,
+                                  'Volume',
+                                  () => setState(() => _volumeOpen = !_volumeOpen),
+                                ),
+                              if (_bigScreen && _volumeOpen)
+                                SizedBox(
+                                  width: 160,
+                                  child: Slider(
+                                    value: _volume,
+                                    max: 100,
+                                    onChanged: (v) {
+                                      unawaited(_setVolume(v));
+                                      _showControls();
+                                    },
+                                  ),
+                                ),
+                              if (_bigScreen)
+                                _button(
+                                  _fullscreen ? Icons.fullscreen_exit_rounded : Icons.fullscreen_rounded,
+                                  _fullscreen ? 'Quitter le plein écran' : 'Plein écran',
+                                  () => unawaited(_toggleFullscreen()),
+                                ),
                             ],
                           ),
                         ),
@@ -1229,6 +1279,7 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
                 ),
             ],
           ),
+        ),
         ),
       ),
     );
