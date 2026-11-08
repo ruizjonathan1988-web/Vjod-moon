@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 import 'package:moonfin_design/moonfin_design.dart';
@@ -231,8 +232,13 @@ class _FadeScalePageTransitionsBuilder extends PageTransitionsBuilder {
     BuildContext context,
     Animation<double> animation,
     Animation<double> secondaryAnimation,
-    Widget child,
+    Widget page,
   ) {
+    // VJOD 4.46, web: a page under the current one is not laid out, and when
+    // the browser window got focus back, Flutter measured its buttons to pick
+    // one and crashed (« RenderBox was not laid out », 30 reports). Such a
+    // page takes no focus until it is on top again.
+    final child = ExcludeFocus(excluding: kIsWeb && !route.isCurrent, child: page);
     final speed = GetIt.I.isRegistered<UserPreferences>()
         ? GetIt.I<UserPreferences>().get(UserPreferences.pageTransitionSpeed)
         : PageTransitionSpeed.medium;
