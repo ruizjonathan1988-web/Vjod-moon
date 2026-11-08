@@ -15,6 +15,9 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('5.6', [
+    '« À propos » › Fluidité des écrans : chaque écran est mesuré à part (les fiches, la recherche…), avec le temps qu\u2019il met à être prêt.',
+  ]),
   VjodRelease('5.5', [
     'Demander une série : plus aucune saison n\u2019est cochée d\u2019avance. Tu choisis les saisons (ou « Toutes les saisons » exprès), sinon rien ne part, pour ne plus tout télécharger par surprise.',
   ]),
