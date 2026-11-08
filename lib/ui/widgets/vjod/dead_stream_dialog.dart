@@ -76,17 +76,19 @@ Future<({bool ok, String message})> requestDeadStreamTitle(
       return (ok: false, message: 'Série introuvable sur Seerr.');
     }
     final season = item.type == 'Episode' ? item.parentIndexNumber : null;
+    // VJOD 5.5: never every season by surprise; without a season, the
+    // series' page lets the viewer choose.
+    if (season == null || season <= 0) {
+      return (ok: false, message: 'Choisis les saisons depuis la fiche de la série (Demander).');
+    }
     await repo.createRequest(
       mediaId: tmdb,
       mediaType: 'tv',
-      seasons: season != null && season > 0 ? [season] : null,
-      allSeasons: season == null || season <= 0,
+      seasons: [season],
     );
     return (
       ok: true,
-      message: season != null && season > 0
-          ? 'Saison $season demandée.'
-          : 'Série demandée.',
+      message: 'Saison $season demandée.',
     );
   } catch (_) {
     return (ok: false, message: 'La demande n’a pas pu partir. Réessayez depuis la fiche.');
