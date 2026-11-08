@@ -376,7 +376,14 @@ class _HomeShellState extends State<_HomeShell>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _viewModel.refresh(preserveExisting: true);
+      if (HomeViewModel.resumeNeedsFullRefresh(
+        lastFullLoad: _viewModel.lastFullLoadAt,
+        now: DateTime.now(),
+      )) {
+        _viewModel.refresh(preserveExisting: true);
+      } else {
+        unawaited(_viewModel.refreshResumeAndNextUp());
+      }
     } else if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden ||
         (state == AppLifecycleState.inactive &&

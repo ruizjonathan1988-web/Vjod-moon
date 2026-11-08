@@ -65,6 +65,7 @@ import 'util/platform_detection.dart';
 import 'util/web_tv_detect.dart';
 import 'util/web_tv_remote.dart';
 import 'util/process_exit_reporter.dart';
+import 'util/vjod_smoothness.dart';
 import 'util/system_ui.dart';
 import 'util/tv_image_cache_stub.dart'
     if (dart.library.io) 'util/tv_image_cache_io.dart';
@@ -1083,6 +1084,14 @@ void main() async {
 
   StartupTimeline.mark('Initialisation terminée');
   runApp(const MoonfinApp());
+  // VJOD 5.3: how smooth each screen is, shown in « À propos ».
+  VjodSmoothness.start(() {
+    try {
+      return appRouter.routerDelegate.currentConfiguration.uri.path;
+    } catch (_) {
+      return '?';
+    }
+  });
 }
 
 /// Startup work that runs after the first frame. The internal order matters:

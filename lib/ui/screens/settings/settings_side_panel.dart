@@ -127,6 +127,7 @@ import '../detail/detail_buttons.dart';
 import '../playback/osd_buttons.dart';
 import '../syncplay/syncplay_screen.dart';
 import '../../../util/vjod_timings.dart';
+import '../../../util/vjod_smoothness.dart';
 import '../../../data/services/vjod/aura/aura_service.dart';
 import '../../widgets/vjod/aura_drawer.dart';
 
