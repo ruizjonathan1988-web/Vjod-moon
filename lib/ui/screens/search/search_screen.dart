@@ -138,6 +138,7 @@ class _SearchScreenState extends State<SearchScreen>
     );
     _vm.addListener(_onViewModelChanged);
     _vm.warmUpProvider();
+    _vm.warmUpChannels();
     _initSeerr();
     unawaited(_loadTvChannels());
 
