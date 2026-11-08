@@ -19,7 +19,7 @@ since = None
 if '--since' in sys.argv:
     i = sys.argv.index('--since')
     since = sys.argv[i + 1] if i + 1 < len(sys.argv) else None
-    if since and not re.fullmatch(r'[0-9.]+', since):
+    if not since or not re.fullmatch(r'[0-9.]+', since):
         since = None
 
 
