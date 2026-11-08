@@ -23,7 +23,7 @@ void main() {
 
   group('TV en direct', () {
     test('la chaîne et le profil, jamais la clé', () {
-      final q = liveRelayQuery('https://hote.example.com/iptv-checker/tv/play/fr-tf1.ts?u=papy&k=SECRET')!;
+      final q = liveRelayQuery('https://hote.example.com/checker/tv/play/fr-tf1.ts?u=papy&k=SECRET')!;
       expect(q, {'kind': 'live', 'id': 'fr-tf1', 'u': 'papy'});
       expect(q.values, isNot(contains('SECRET')));
     });
@@ -43,8 +43,8 @@ void main() {
   group('arrêt de la préparation', () {
     test('index.m3u8 devient stop, au même endroit', () {
       expect(
-        relayStopUri('https://hote.example.com/iptv-checker/tv/cast/abcDEF123_-xyz789012345/index.m3u8').toString(),
-        'https://hote.example.com/iptv-checker/tv/cast/abcDEF123_-xyz789012345/stop',
+        relayStopUri('https://hote.example.com/checker/tv/cast/abcDEF123_-xyz789012345/index.m3u8').toString(),
+        'https://hote.example.com/checker/tv/cast/abcDEF123_-xyz789012345/stop',
       );
     });
 
@@ -68,13 +68,13 @@ void main() {
   group('replay et enregistrements dans le navigateur (Ma TV 3.73)', () {
     test('un replay passe par le relais, avec son début, sa durée et ses capacités', () {
       final r = IptvCastRequest.fromPlayUrl(
-        'https://tv.maison.example/iptv-checker/tv/replay/france5.ts?start=1794077143&dur=59&caps=h264%3Bmaxh%3D720&k=CLE',
+        'https://tv.maison.example/checker/tv/replay/france5.ts?start=1794077143&dur=59&caps=h264%3Bmaxh%3D720&k=CLE',
       )!;
       expect(r.query, {'kind': 'replay', 'id': 'france5', 'ext': 'ts', 'at': '1794077143', 'dur': '59', 'caps': 'h264;maxh=720'});
     });
 
     test('un enregistrement aussi', () {
-      final r = IptvCastRequest.fromPlayUrl('https://tv.maison.example/iptv-checker/tv/rec/e56d453c2072.ts?k=CLE')!;
+      final r = IptvCastRequest.fromPlayUrl('https://tv.maison.example/checker/tv/rec/e56d453c2072.ts?k=CLE')!;
       expect(r.query, {'kind': 'rec', 'id': 'e56d453c2072', 'ext': 'ts'});
     });
 

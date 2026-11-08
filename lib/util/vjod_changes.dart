@@ -16,6 +16,7 @@ class VjodRelease {
 
 const vjodReleases = <VjodRelease>[
   VjodRelease('5.2', [
+    'Les messages d\u2019erreur de la TV parlent de « Ma TV » au lieu du nom de l\u2019outil de la seedbox.',
     'Rien ne change à l\u2019usage : la liste des nouveautés n\u2019est plus affichée sur la page publique des téléchargements, seulement dans l\u2019appli.',
   ]),
   VjodRelease('5.1', [
