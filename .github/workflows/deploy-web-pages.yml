@@ -34,7 +34,7 @@ jobs:
       - name: Build web
         run: |
           flutter pub get
-          flutter build web --wasm --release --base-href "/${{ github.event.repository.name }}/"
+          flutter build web --wasm --release --base-href "/${{ github.event.repository.name }}/" --dart-define=VJOD_SERVEUR=${{ secrets.VJOD_SERVEUR }}
 
       - name: Write Pages runtime config
         run: |
