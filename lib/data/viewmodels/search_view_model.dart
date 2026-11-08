@@ -105,6 +105,13 @@ class SearchViewModel extends ChangeNotifier {
   /// Starts downloading the provider's lists as soon as search opens.
   void warmUpProvider() => _providerCatalog()?.warmUp();
 
+  /// VJOD 4.47: the channel lineup is fetched when the search opens, not at
+  /// the first letter.
+  void warmUpChannels() {
+    if (_scopedParentId != null) return;
+    unawaited(_channelMatches('warm-up'));
+  }
+
   // All games across every game library, fetched once per session and filtered
   // client-side since the plugin exposes no search endpoint.
   Future<List<GameSearchResult>>? _allGamesFuture;
@@ -117,15 +124,13 @@ class SearchViewModel extends ChangeNotifier {
   // VJOD: short, the results already there narrow down at each letter.
   static const _debounceMs = 250;
   static const _resultLimit = 24;
-  static const _globalFetchLimit = 240;
+  // VJOD 4.47: 120 (was 240), the groups show 24 each.
+  static const _globalFetchLimit = 120;
   // Some servers answer a people search far slower than everything else, so
-  // the rest of the results only wait a moment for it and it's dropped if it
-  // takes too long.
-  static const _peopleGrace = Duration(seconds: 1);
+  // it's dropped if it takes too long.
   static const _peopleTimeout = Duration(seconds: 10);
-  static const _providerGrace = Duration(milliseconds: 1500);
-  // VJOD: the library's results don't wait for Seerr or the games longer
-  // than this; they come in after.
+  // VJOD: once the library has answered, the other sources (people, Seerr,
+  // games, IPTV, channels) get this long together; they come in after.
   static const _sideGrace = Duration(milliseconds: 400);
 
   // VJOD: the last searches, shown again at once (a letter erased, the
@@ -273,8 +278,11 @@ class SearchViewModel extends ChangeNotifier {
           ? Future.value(const <GameSearchResult>[])
           : _fetchGameResults(query);
       final providerFuture = _fetchProviderResults(query);
+      final channelsFuture = _scopedParentId != null
+          ? Future.value(const <AggregatedItem>[])
+          : _channelMatches(query);
 
-      final (groups, peopleFuture) = _scopedParentId != null
+      final (firstGroups, peopleFuture) = _scopedParentId != null
           ? (
               await Future.wait(
                 activeGroups.map((group) async {
@@ -301,19 +309,28 @@ class SearchViewModel extends ChangeNotifier {
                 Future.value(const <AggregatedItem>[]),
               );
             });
-      final seerrLate = await seerrFuture
-          .then<List<SeerrDiscoverItem>?>((found) => found)
-          .timeout(_sideGrace, onTimeout: () => null);
-      final gamesLate = await gamesFuture
-          .then<List<GameSearchResult>?>((found) => found)
-          .timeout(_sideGrace, onTimeout: () => null);
+      var groups = firstGroups;
+
+      // VJOD 4.47: the other sources are waited for together, a moment at
+      // most, instead of one after the other (up to 3 s more before). What
+      // comes later fills in below.
+      Future<T?> soon<T>(Future<T> f) =>
+          f.then<T?>((v) => v).timeout(_sideGrace, onTimeout: () => null);
+      final early = await Future.wait<Object?>([
+        soon(seerrFuture),
+        soon(gamesFuture),
+        soon(providerFuture),
+        soon(channelsFuture),
+        soon(peopleFuture),
+      ]);
+      final seerrLate = early[0] as List<SeerrDiscoverItem>?;
+      final gamesLate = early[1] as List<GameSearchResult>?;
+      final provider = early[2] as List<XtreamTitle>?;
+      final channelsEarly = early[3] as List<AggregatedItem>?;
+      var people = early[4] as List<AggregatedItem>?;
       final seerr = seerrLate ?? const <SeerrDiscoverItem>[];
       final games = gamesLate ?? const <GameSearchResult>[];
-      // The provider's first answer can mean downloading its whole
-      // catalogue, so the rest of the results only wait a moment for it.
-      final provider = await providerFuture
-          .then<List<XtreamTitle>?>((found) => found)
-          .timeout(_providerGrace, onTimeout: () => null);
+      if (channelsEarly != null) groups = _withChannels(groups, channelsEarly);
 
       // With nothing else to show, the results wait for people instead of
       // coming up empty.
@@ -322,11 +339,7 @@ class SearchViewModel extends ChangeNotifier {
           seerr.isNotEmpty ||
           games.isNotEmpty ||
           (provider?.isNotEmpty ?? false);
-      final people = hasOtherResults
-          ? await peopleFuture
-                .then<List<AggregatedItem>?>((found) => found)
-                .timeout(_peopleGrace, onTimeout: () => null)
-          : await peopleFuture;
+      if (people == null && !hasOtherResults) people = await peopleFuture;
 
       if (query != _query) return;
 
@@ -335,13 +348,26 @@ class SearchViewModel extends ChangeNotifier {
         throw serverFailed;
       }
 
-      _results = _withPeople(groups, people ?? const []);
+      var latestPeople = people ?? const <AggregatedItem>[];
+      _results = _withPeople(groups, latestPeople);
       _gameResults = games;
       _setCatalogResults(groups, provider ?? const [], seerr);
       _state = SearchState.ready;
       _remember(query);
       var lateProvider = provider ?? const <XtreamTitle>[];
       var lateSeerr = seerr;
+      if (channelsEarly == null) {
+        unawaited(
+          channelsFuture.then((found) {
+            if (found.isEmpty || run != _searchRun || query != _query) return;
+            groups = _withChannels(groups, found);
+            _results = _withPeople(groups, latestPeople);
+            _setCatalogResults(groups, lateProvider, lateSeerr);
+            _remember(query);
+            notifyListeners();
+          }),
+        );
+      }
       if (seerrLate == null) {
         unawaited(
           seerrFuture.then((found) {
@@ -378,6 +404,7 @@ class SearchViewModel extends ChangeNotifier {
         unawaited(
           peopleFuture.then((found) {
             if (found.isEmpty || run != _searchRun || query != _query) return;
+            latestPeople = found;
             _results = _withPeople(groups, found);
             _remember(query);
             notifyListeners();
@@ -432,16 +459,22 @@ class SearchViewModel extends ChangeNotifier {
           .timeout(_peopleTimeout),
       label: 'people search',
     ).then(_interleave).catchError((_) => <AggregatedItem>[]);
-    final channelsFuture = _channelMatches(query);
+    // VJOD 4.47: only the kinds the groups show, so the server searches less
+    // (no songs, photos or tracks it would then throw away).
+    final wanted = <String>{
+      for (final g in activeGroups)
+        for (final t in g.itemTypes)
+          if (t != 'Person' && t != 'LiveTvChannel') t,
+    }.toList();
     final perServerItems = await _searchEachServer(
       (repository) => repository.search(
         query,
+        includeItemTypes: wanted,
         parentId: _scopedParentId,
         limit: _globalFetchLimit,
       ),
       label: 'search',
     );
-    final channels = await channelsFuture;
 
     final grouped = <SearchResultGroup>[];
     for (final group in activeGroups) {
@@ -450,7 +483,8 @@ class SearchViewModel extends ChangeNotifier {
         continue;
       }
       if (group.itemTypes.contains('LiveTvChannel')) {
-        grouped.add(group.copyWith(items: channels));
+        // Filled in when the channel lineup answers (see _withChannels).
+        grouped.add(group.copyWith(items: const <AggregatedItem>[]));
         continue;
       }
       final matched = _interleave([
@@ -462,6 +496,15 @@ class SearchViewModel extends ChangeNotifier {
 
     return (grouped, peopleFuture);
   }
+
+  /// [groups] with the channels that match in the channel group.
+  static List<SearchResultGroup> _withChannels(
+    List<SearchResultGroup> groups,
+    List<AggregatedItem> channels,
+  ) => [
+    for (final g in groups)
+      if (g.itemTypes.contains('LiveTvChannel')) g.copyWith(items: channels) else g,
+  ];
 
   /// The groups that have something to show, with [people] in the People
   /// group.

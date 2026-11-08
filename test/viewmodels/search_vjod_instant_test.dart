@@ -65,6 +65,23 @@ void main() {
     return people;
   }
 
+  test('VJOD 4.47 : les résultats du serveur ne patientent pas plus de 0,4 s pour les autres sources', () {
+    fakeAsync((async) {
+      itemsFor('dune', [('Dune', 'Movie')]);
+      final people = peopleFor('dune');
+      final vm = SearchViewModel(SearchRepository(client), client);
+
+      vm.searchImmediate('dune');
+      async.elapse(const Duration(milliseconds: 450));
+      expect(vm.state, SearchState.ready);
+      expect(vm.results.expand((g) => g.items).map((i) => i.name), ['Dune']);
+
+      people.complete({'Items': []});
+      async.flushMicrotasks();
+      vm.dispose();
+    });
+  });
+
   test('VJOD : une lettre de plus filtre aussitôt, une recherche déjà faite revient tout de suite', () {
     fakeAsync((async) {
       itemsFor('ali', [('Alien', 'Movie'), ('Aladdin', 'Movie')]);
