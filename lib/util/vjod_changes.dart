@@ -15,6 +15,9 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('5.10', [
+    'Guide TV plus léger : la liste des chaînes ne charge plus le programme en cours de chacune (le guide le lit à part). Moins de mémoire et une ouverture plus rapide, surtout sur les petits boîtiers.',
+  ]),
   VjodRelease('5.9', [
     'En route plus à jour : à l\u2019ouverture, Seerr regarde tout de suite les téléchargements et la bibliothèque (sur le compte administrateur).',
     'La pastille d\u2019En route se met à jour toutes les 45 secondes, et ne compte plus un titre déjà arrivé dans la bibliothèque.',
