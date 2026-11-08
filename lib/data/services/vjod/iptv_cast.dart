@@ -24,11 +24,14 @@ import 'web_iptv.dart' show extensionOfUrl;
 /// What the player hands over: the Xtream play address split into its parts
 /// (`…/tv/xc/movie/vjod/KEY/123.mkv?q=1080&src=2`).
 class IptvCastRequest {
-  final String kind; // 'movie' or 'series'
+  final String kind; // 'movie', 'series', 'replay' or 'rec'
   final String id;
   final String extension;
   final String quality;
   final String source;
+
+  /// A replay's own parameters (`at`, `dur`, `caps`), passed on as they are.
+  final Map<String, String> extra;
 
   const IptvCastRequest({
     required this.kind,
@@ -36,12 +39,33 @@ class IptvCastRequest {
     required this.extension,
     this.quality = '',
     this.source = '',
+    this.extra = const {},
   });
 
   static IptvCastRequest? fromPlayUrl(String url) {
     final uri = Uri.tryParse(url);
     if (uri == null) return null;
     final parts = uri.pathSegments.where((p) => p.isNotEmpty).toList();
+    // VJOD 4.50 (Ma TV 3.73): a replay (`…/tv/replay/<channel>.ts?start=…&dur=…`)
+    // or a recording (`…/tv/rec/<id>.ts`), which the browser can't play as
+    // they are: Ma TV's relay serves them in HLS.
+    if (parts.length >= 3 && parts[parts.length - 3] == 'tv' &&
+        (parts[parts.length - 2] == 'replay' || parts[parts.length - 2] == 'rec')) {
+      final file = parts.last;
+      final id = file.endsWith('.ts') ? file.substring(0, file.length - 3) : file;
+      if (id.isEmpty) return null;
+      final replay = parts[parts.length - 2] == 'replay';
+      final q = uri.queryParameters;
+      if (replay && ((q['start'] ?? '').isEmpty || (q['dur'] ?? '').isEmpty)) return null;
+      return IptvCastRequest(
+        kind: replay ? 'replay' : 'rec',
+        id: id,
+        extension: 'ts',
+        extra: replay
+            ? {'at': q['start']!, 'dur': q['dur']!, if ((q['caps'] ?? '').isNotEmpty) 'caps': q['caps']!}
+            : const {},
+      );
+    }
     // kind / user / password / file, at the end of the address
     if (parts.length < 4) return null;
     final kind = parts[parts.length - 4];
@@ -65,6 +89,7 @@ class IptvCastRequest {
     if (extension.isNotEmpty) 'ext': extension,
     if (quality.isNotEmpty) 'q': quality,
     if (source.isNotEmpty) 'src': source,
+    ...extra,
   };
 }
 
