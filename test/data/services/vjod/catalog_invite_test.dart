@@ -3,7 +3,7 @@ import 'package:moonfin/data/services/deep_link_service.dart';
 import 'package:moonfin/data/services/vjod/catalog_invite.dart';
 
 void main() {
-  const url = 'https://ava88:p%40ss@zen.usbx.me/vjod/catalog.json.gz';
+  const url = 'https://tv:p%40ss@maison.example/vjod/catalog.json.gz';
 
   group('catalogue invitation', () {
     test('what is built is read back whole, login included', () {

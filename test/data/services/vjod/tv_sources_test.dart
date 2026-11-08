@@ -10,11 +10,11 @@ void main() {
 
   test('reads the Ma TV address IPTV Checker left in Jellyfin', () {
     final server = tvServerFromOverview(overview)!;
-    expect(server.url, 'https://ava88.zen.usbx.me/iptv-checker');
+    expect(server.url, 'https://tv.maison.example/iptv-checker');
     expect(server.key, 'abc_DEF-123');
     final uri = server.endpoint('/tv/api/channel', {'num': '1'});
     expect(uri.toString(),
-        'https://ava88.zen.usbx.me/iptv-checker/tv/api/channel?num=1&k=abc_DEF-123');
+        'https://tv.maison.example/iptv-checker/tv/api/channel?num=1&k=abc_DEF-123');
   });
 
   test('a pasted code and anything else', () {

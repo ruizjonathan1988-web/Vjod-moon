@@ -163,6 +163,7 @@ class _ServerSelectScreenState extends State<ServerSelectScreen> {
   /// VJOD: on a device with no server yet, the house Jellyfin, once (the
   /// web's forced address still wins).
   String? _homeServerToOffer() {
+    if (vjodHomeServerUrl.isEmpty) return null;
     final getIt = GetIt.instance;
     if (!getIt.isRegistered<UserPreferences>()) return null;
     final prefs = getIt<UserPreferences>();

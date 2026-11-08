@@ -15,6 +15,9 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('5.1', [
+    'Rien ne change à l\u2019usage : l\u2019adresse du serveur de la maison n\u2019est plus écrite dans le code public, la construction la donne elle-même.',
+  ]),
   VjodRelease('5.0', [
     'VJOD 5.0 rassemble tout ce qui est arrivé depuis la 4.12 : la liste complète suit, version par version.',
     'Le replay des chaînes (TF1, France 2, M6, Arte…) a son onglet, avec « Mes émissions », les nouveaux épisodes et la reprise où tu t\u2019étais arrêté.',

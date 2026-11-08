@@ -69,7 +69,7 @@ jobs:
       - name: APK telephone
         run: |
           set +e
-          bash tool/retry_net.sh build-phone.txt flutter build apk --release --flavor mobile-beta --dart-define=DISTRIBUTION_CHANNEL=apk --dart-define=VJOD_BUILD=$(TZ=Europe/Paris date +%Y-%m-%dT%H:%M) --dart-define=VJOD_COMMIT=${GITHUB_SHA::7}
+          bash tool/retry_net.sh build-phone.txt flutter build apk --release --flavor mobile-beta --dart-define=DISTRIBUTION_CHANNEL=apk --dart-define=VJOD_SERVEUR=${{ secrets.VJOD_SERVEUR }} --dart-define=VJOD_BUILD=$(TZ=Europe/Paris date +%Y-%m-%dT%H:%M) --dart-define=VJOD_COMMIT=${GITHUB_SHA::7}
           status=$?
           if [ $status -ne 0 ]; then
             grep -E "Error|error:|\.dart:[0-9]+|FAILURE|What went wrong" -A2 build-phone.txt | head -40 | while IFS= read -r line; do echo "::error::$line"; done
@@ -124,7 +124,7 @@ jobs:
           MOONFIN_TEST_ID_SUFFIX: .perso
         run: |
           set +e
-          bash tool/retry_net.sh build-tv.txt flutter build apk --release --flavor androidTv --dart-define=MOONFIN_FORCE_TV=true --dart-define=DISTRIBUTION_CHANNEL=android_tv_apk --dart-define=VJOD_BUILD=$(TZ=Europe/Paris date +%Y-%m-%dT%H:%M) --dart-define=VJOD_COMMIT=${GITHUB_SHA::7}
+          bash tool/retry_net.sh build-tv.txt flutter build apk --release --flavor androidTv --dart-define=MOONFIN_FORCE_TV=true --dart-define=DISTRIBUTION_CHANNEL=android_tv_apk --dart-define=VJOD_SERVEUR=${{ secrets.VJOD_SERVEUR }} --dart-define=VJOD_BUILD=$(TZ=Europe/Paris date +%Y-%m-%dT%H:%M) --dart-define=VJOD_COMMIT=${GITHUB_SHA::7}
           status=$?
           if [ $status -ne 0 ]; then
             grep -E "Error|error:|\.dart:[0-9]+|FAILURE|What went wrong" -A2 build-tv.txt | head -40 | while IFS= read -r line; do echo "::error::$line"; done
@@ -149,7 +149,7 @@ jobs:
         run: |
           set +e
           rm -f build/app/outputs/flutter-apk/*-release.apk
-          bash tool/retry_net.sh build-tv32.txt flutter build apk --release --flavor androidTv --target-platform android-arm --dart-define=MOONFIN_FORCE_TV=true --dart-define=DISTRIBUTION_CHANNEL=android_tv_apk --dart-define=VJOD_BUILD=$(TZ=Europe/Paris date +%Y-%m-%dT%H:%M) --dart-define=VJOD_COMMIT=${GITHUB_SHA::7}
+          bash tool/retry_net.sh build-tv32.txt flutter build apk --release --flavor androidTv --target-platform android-arm --dart-define=MOONFIN_FORCE_TV=true --dart-define=DISTRIBUTION_CHANNEL=android_tv_apk --dart-define=VJOD_SERVEUR=${{ secrets.VJOD_SERVEUR }} --dart-define=VJOD_BUILD=$(TZ=Europe/Paris date +%Y-%m-%dT%H:%M) --dart-define=VJOD_COMMIT=${GITHUB_SHA::7}
           status=$?
           if [ $status -ne 0 ]; then
             grep -E "Error|error:|FAILURE|What went wrong" -A2 build-tv32.txt | head -20 | while IFS= read -r line; do echo "::warning::$line"; done
@@ -201,7 +201,7 @@ jobs:
           DMG_CHANNEL: macos_dmg
         run: |
           set +e
-          export VJOD_DART_DEFINES="--dart-define=VJOD_BUILD=$(TZ=Europe/Paris date +%Y-%m-%dT%H:%M) --dart-define=VJOD_COMMIT=${GITHUB_SHA::7}"
+          export VJOD_DART_DEFINES="--dart-define=VJOD_SERVEUR=${{ secrets.VJOD_SERVEUR }} --dart-define=VJOD_BUILD=$(TZ=Europe/Paris date +%Y-%m-%dT%H:%M) --dart-define=VJOD_COMMIT=${GITHUB_SHA::7}"
           chmod +x build-macos.sh
           ./build-macos.sh > build-mac.txt 2>&1
           status=$?
@@ -242,7 +242,7 @@ jobs:
       - name: Fichier iPad
         run: |
           set +e
-          export VERSION=$(python3 tool/vjod_release_notes.py | head -1) BUILD_NUM=$GITHUB_RUN_NUMBER
+          export VERSION=$(python3 tool/vjod_release_notes.py | head -1) BUILD_NUM=$GITHUB_RUN_NUMBER VJOD_SERVEUR='${{ secrets.VJOD_SERVEUR }}'
           ./tool/build_ipad.sh > build-ipad.txt 2>&1
           status=$?
           tail -40 build-ipad.txt
