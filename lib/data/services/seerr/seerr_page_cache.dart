@@ -12,6 +12,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
+import '../../../util/vjod_light.dart';
 
 /// How a kept answer is used.
 enum SeerrCacheUse { none, serve, serveAndRefresh }
@@ -115,6 +116,11 @@ class SeerrPageCache {
   /// Reads what the last session kept, once.
   static Future<void> ensureLoaded() {
     if (_loaded) return Future.value();
+    // Small device (5.11): kept in memory only, no file to read or write.
+    if (VjodLight.on) {
+      _loaded = true;
+      return Future.value();
+    }
     return _loading ??= () async {
       try {
         final f = await _file();
@@ -137,7 +143,7 @@ class SeerrPageCache {
   }
 
   static void _scheduleSave() {
-    if (kIsWeb) return;
+    if (kIsWeb || VjodLight.on) return;
     _saveTimer?.cancel();
     _saveTimer = Timer(const Duration(seconds: 5), () => unawaited(_save()));
   }
