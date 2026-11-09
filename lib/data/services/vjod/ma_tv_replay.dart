@@ -697,6 +697,16 @@ Future<Map<String, String>> replayLogos(List<ReplayChannel> channels) async {
 }
 
 
+/// True when [ReplayItem.aired] is the time the episode went out on air, so
+/// the IPTV recording of the channel at that time is this episode: only for
+/// the IPTV catch-up episodes, read from the TV guide.
+bool replayHasBroadcastTime(ReplayItem e) => e.isIptv;
+
+/// The order [playReplay] tries for an IPTV catch-up episode (VJOD 5.12):
+/// the recording first, the provider's VOD only when there's no recording
+/// (the VOD often lacks the latest episodes, « Ici tout commence »).
+const replayIptvOrder = ['iptv', 'vod'];
+
 /// Another way to watch an episode, for « Autres sources ».
 @immutable
 class ReplaySource {
@@ -775,6 +785,11 @@ class ReplaySources {
   /// The broadcast as the IPTV provider recorded it, when its catch-up of
   /// that channel goes back far enough.
   static Future<Uri?> iptv(ReplayItem e) async {
+    // VJOD 5.12: only for an IPTV catch-up episode. France Télévisions and
+    // Arte date an episode by when it was put online, not when it aired: the
+    // recording at that time was another show (Okoo instead of « La Fabrique
+    // du mensonge », « Beau geste » instead of « Novembre »).
+    if (!replayHasBroadcastTime(e)) return null;
     final aired = e.aired;
     if (aired == null) return null;
     try {

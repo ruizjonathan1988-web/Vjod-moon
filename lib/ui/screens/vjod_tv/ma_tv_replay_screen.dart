@@ -77,24 +77,28 @@ Future<void> playReplay(BuildContext context, ReplayItem item) async {
     return;
   }
   if (item.isIptv) {
-    // VJOD 4.32: the provider's VOD first when it has the series (no ads,
-    // the whole season), its recording of the broadcast otherwise.
-    final vod = await ReplaySources.vod(item).timeout(const Duration(seconds: 8), onTimeout: () => null);
-    if (!context.mounted) return;
-    if (vod != null) {
-      messenger?.hideCurrentSnackBar();
-      messenger?.showSnackBar(const SnackBar(content: Text('Trouvé dans la VOD de ton fournisseur, sans pub.'), duration: Duration(seconds: 3)));
-      unawaited(context.push(vod));
-      return;
-    }
+    // VJOD 5.12 (replayIptvOrder): the recording of the broadcast first, it is
+    // this very episode; the provider's VOD only when the recording is gone
+    // (the VOD is often behind: « Ici tout commence » lacked the last ones).
     final iptv = await ReplaySources.iptv(item);
     if (!context.mounted) return;
+    if (iptv != null) {
+      messenger?.hideCurrentSnackBar();
+      unawaited(context.push(Destinations.providerPlayer(url: '$iptv', title: _titleOf(item), watch: _watchOf(item), adSkip: true)));
+      return;
+    }
+    final vod = await ReplaySources.vod(item).timeout(const Duration(seconds: 8), onTimeout: () => null);
+    if (!context.mounted) return;
     messenger?.hideCurrentSnackBar();
-    if (iptv == null) {
+    if (vod == null) {
       messenger?.showSnackBar(const SnackBar(content: Text('Ton fournisseur ne garde plus cette émission.')));
       return;
     }
-    unawaited(context.push(Destinations.providerPlayer(url: '$iptv', title: _titleOf(item), watch: _watchOf(item), adSkip: true)));
+    messenger?.showSnackBar(const SnackBar(
+      content: Text('Plus en replay chez ton fournisseur : sa VOD prend le relais, l’épisode y est peut-être pas encore.'),
+      duration: Duration(seconds: 4),
+    ));
+    unawaited(context.push(vod));
     return;
   }
   final play = await MaTvReplay().playback(item);
