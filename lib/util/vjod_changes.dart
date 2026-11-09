@@ -15,6 +15,10 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('5.12', [
+    'Replay de France 2 à 5 et d\u2019Arte : quand la vidéo de la chaîne ne se lit pas ici, VJOD ouvre l\u2019appli de la chaîne au lieu d\u2019une autre émission enregistrée par ton fournisseur (Okoo à la place de « La Fabrique du mensonge »).',
+    'Replay des autres chaînes (TF1, M6…) : l\u2019émission enregistrée par ton fournisseur passe en premier ; sa VOD, souvent en retard (« Ici tout commence »), seulement si l\u2019enregistrement n\u2019est plus là.',
+  ]),
   VjodRelease('5.11', [
     'Petits appareils (box SFR, Fire TV, projecteurs, navigateur) : VJOD fait beaucoup moins de travail en arrière-plan, pour des menus plus fluides.',
     'Sur ces appareils, l\u2019Accueil ne se redessine plus à chaque rangée qui arrive, mais d\u2019un seul coup toutes les secondes et demie.',
