@@ -79,6 +79,7 @@ import '../../../util/parental_filter.dart';
 import '../../../util/seasonal_country.dart';
 import '../../../util/seerr_genre_art.dart';
 import '../../util/home_row_title_localizer.dart';
+import '../../../util/vjod_light.dart';
 
 class HomeViewModel extends ChangeNotifier {
   /// Cards in a merged row, matching what a single library row shows.
@@ -185,6 +186,22 @@ class HomeViewModel extends ChangeNotifier {
 
   /// Sections waiting to load, keyed by the id their row has on Home.
   final Map<String, HomeSectionConfig> _deferredSections = {};
+
+  /// VJOD 5.11: on a small device, Home is redrawn at most once per
+  /// [VjodLight.homeRowsBatch] while its rows arrive, not once per row (28
+  /// redraws in ten seconds saturated the SFR box).
+  Timer? _rowBatchTimer;
+
+  void _notifyRowArrived() {
+    if (!VjodLight.on) {
+      notifyListeners();
+      return;
+    }
+    _rowBatchTimer ??= Timer(VjodLight.homeRowsBatch, () {
+      _rowBatchTimer = null;
+      notifyListeners();
+    });
+  }
 
   /// Loads a section the way the last [load] did.
   Future<void> Function(HomeSectionConfig cfg)? _loadDeferredSection;
@@ -452,6 +469,7 @@ class HomeViewModel extends ChangeNotifier {
   void dispose() {
     _disposedVjod = true;
     _emptyRetry?.cancel();
+    _rowBatchTimer?.cancel();
     ForYouService.instance.requestedChanges.removeListener(notifyListeners);
     _ageGate?.removeListener(notifyListeners);
     TonightService.instance.answersChanged.removeListener(_onTonightAnswers);
@@ -939,7 +957,7 @@ class HomeViewModel extends ChangeNotifier {
           }
         }
         _rows = newRows;
-        notifyListeners();
+        _notifyRowArrived();
       }
 
       // The merged row is the one a viewer checks first, so it doesn't wait
@@ -971,6 +989,8 @@ class HomeViewModel extends ChangeNotifier {
       _tvChannels.update();
     } finally {
       _isLoading = false;
+      _rowBatchTimer?.cancel();
+      _rowBatchTimer = null;
       notifyListeners();
       if (_reloadRequestedWhileLoading) {
         final nextPreserveExisting = _pendingReloadPreserveExisting;

@@ -15,6 +15,12 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('5.11', [
+    'Petits appareils (box SFR, Fire TV, projecteurs, navigateur) : VJOD fait beaucoup moins de travail en arrière-plan, pour des menus plus fluides.',
+    'Sur ces appareils, l\u2019Accueil ne se redessine plus à chaque rangée qui arrive, mais d\u2019un seul coup toutes les secondes et demie.',
+    'Sur ces appareils, la fiche n\u2019est plus préparée d\u2019avance, les pages de Seerr ne sont plus enregistrées sur l\u2019appareil et la pastille En route se met à jour toutes les 5 minutes.',
+    'Réglages › Général › Performance : « Standard » garde tout sur un appareil puissant, « Réduit » allège n\u2019importe quel appareil.',
+  ]),
   VjodRelease('5.10', [
     'Guide TV plus léger : la liste des chaînes ne charge plus le programme en cours de chacune (le guide le lit à part). Moins de mémoire et une ouverture plus rapide, surtout sur les petits boîtiers.',
   ]),

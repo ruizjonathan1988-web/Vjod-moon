@@ -71,6 +71,7 @@ import '../../util/focus/input_mode_tracker.dart';
 import '../navigation/app_router.dart';
 import 'adaptive/sf_symbol.dart';
 import 'vjod/vjod_widgets.dart';
+import '../../util/vjod_light.dart';
 
 const _kToolbarHeightTV = 95.0;
 const _kToolbarHeightDesktop = 80.0;
@@ -196,8 +197,9 @@ class _TopToolbarState extends State<TopToolbar> with RouteAware {
     TopToolbar.vjodEnRouteCount.addListener(_onEnRouteCount);
     unawaited(_refreshEnRouteCount());
     _enRouteTimer = Timer.periodic(
-      // VJOD 5.9: every 45 s (was 2 min), so the badge keeps up.
-      const Duration(seconds: 45),
+      // VJOD 5.9: every 45 s (was 2 min), so the badge keeps up; every 5 min
+      // on a small device (5.11).
+      VjodLight.enRouteBadgeInterval(VjodLight.on),
       (_) => unawaited(_refreshEnRouteCount()),
     );
     // Guarded so a stale registration from a torn-down toolbar is a safe

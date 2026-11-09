@@ -114,6 +114,7 @@ import '../../widgets/vjod/vjod_whats_new.dart';
 import '../vjod_tv/ma_tv_replay_screen.dart' show openReplayCard, resumeReplay;
 import '../vjod_tv/ma_tv_widgets.dart' show MaTvColors;
 import '../../../data/services/vjod/ma_tv_replay.dart' show ReplayOrder;
+import '../../../util/vjod_light.dart';
 
 Color get _homeBackground => AppColorScheme.background;
 
@@ -2931,7 +2932,8 @@ class _ContentRowsState extends State<_ContentRows>
 
   void _onHomeRowTileFocused(AggregatedItem? item) {
     // VJOD 5.8: a poster that stays selected has its fiche asked for ahead.
-    if (PlatformDetection.isTV) {
+    // Not on a small device (5.11): the extra work there costs more than it saves.
+    if (PlatformDetection.isTV && !VjodLight.on) {
       final client = item == null ? null : _clientForItem(item);
       ItemPrefetch.selected(
         client == null ? null : item!.id,
