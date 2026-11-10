@@ -238,7 +238,18 @@ void main() {
       PlatformDetection.setTvMode(true);
       AudioCapabilityProbe.apply(_profile());
 
+      const platform = MethodChannel('org.moonfin.androidtv/platform');
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(platform, (_) async => _profile().toMap());
+      addTearDown(() => TestDefaultBinaryMessengerBinding
+          .instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(platform, null));
+
+      // VJOD 5.13: the first call waits for the native side to answer.
+      expect(AudioCapabilityProbe.listenForRouteChanges(), isNull);
+      await pumpEventQueue();
       final first = AudioCapabilityProbe.listenForRouteChanges();
+      expect(first, isNotNull);
       expect(AudioCapabilityProbe.listenForRouteChanges(), same(first));
 
       // The reported flap, end to end: the sink is reported gone and then
@@ -248,6 +259,25 @@ void main() {
 
       await _emit(_profile().toMap());
       expect(_snapshotRoute(), AudioRouteType.hdmi.name);
+    });
+  });
+
+  group('native channels not registered yet (VJOD 5.13)', () {
+    test('the platform channel is asked before listening', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      PlatformDetection.setTvMode(true);
+      const platform = MethodChannel('org.moonfin.androidtv/platform');
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      // Nothing registered: MissingPluginException, so no listening.
+      expect(await AudioCapabilityProbe.nativeAnswers(), isFalse);
+      messenger.setMockMethodCallHandler(platform, (_) async => null);
+      addTearDown(() => messenger.setMockMethodCallHandler(platform, null));
+      expect(await AudioCapabilityProbe.nativeAnswers(), isTrue);
+      // A handler that fails still means the channel is there.
+      messenger.setMockMethodCallHandler(
+          platform, (_) async => throw PlatformException(code: 'x'));
+      expect(await AudioCapabilityProbe.nativeAnswers(), isTrue);
     });
   });
 
