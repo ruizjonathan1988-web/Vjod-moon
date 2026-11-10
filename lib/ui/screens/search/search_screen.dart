@@ -390,11 +390,23 @@ class _SearchScreenState extends State<SearchScreen>
     }
   }
 
+  // VJOD 5.13: the hits are read a dozen times per frame (tabs, counts, the
+  // row itself) and every focus move rebuilds the screen, so they are worked
+  // out once per query and channel list.
+  List<MaTvChannel> _channelHitsCache = const [];
+  List<MaTvChannel>? _channelHitsSource;
+  String? _channelHitsQuery;
+
   List<MaTvChannel> get _channelHits {
     final all = _tvChannels;
     final q = _vm.query;
     if (all == null || normalizeChannelQuery(q).isEmpty) return const [];
-    return searchChannelHits(all, q);
+    if (!identical(all, _channelHitsSource) || q != _channelHitsQuery) {
+      _channelHitsSource = all;
+      _channelHitsQuery = q;
+      _channelHitsCache = searchChannelHits(all, q);
+    }
+    return _channelHitsCache;
   }
 
   bool get _hasChannels => _channelHits.isNotEmpty || _replayHits.isNotEmpty;

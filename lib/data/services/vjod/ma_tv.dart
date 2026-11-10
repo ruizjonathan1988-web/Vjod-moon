@@ -605,13 +605,16 @@ class MaTvMemory {
 /// next. At most [limit]; nothing for a single letter.
 List<MaTvChannel> searchChannelHits(List<MaTvChannel> all, String query, {int limit = 12}) {
   final q = normalizeChannelQuery(query);
-  if (q.length < 2 && int.tryParse(q) == null) return const [];
+  if (q.isEmpty || (q.length < 2 && int.tryParse(q) == null)) return const [];
   final byName = <MaTvChannel>[];
   final byShow = <MaTvChannel>[];
+  // VJOD 5.13: the query is worked out once, not once per channel, and each
+  // name only once (channelMatchesQuery did both again for every channel).
   for (final c in all) {
-    if (channelMatchesQuery(query, name: c.name, number: '${c.number}')) {
+    if (normalizeChannelQuery(c.name).contains(q) || '${c.number}' == q) {
       byName.add(c);
-    } else if (channelMatchesQuery(query, name: '', programTitles: [?c.now?.title, ?c.next?.title]) && q.length >= 3) {
+    } else if (q.length >= 3 &&
+        [?c.now?.title, ?c.next?.title].any((t) => normalizeChannelQuery(t).contains(q))) {
       byShow.add(c);
     }
   }

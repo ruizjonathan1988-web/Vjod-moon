@@ -25,4 +25,13 @@ void main() {
   test('an empty query matches everything', () {
     expect(channelMatchesQuery('  ', name: 'Arte'), isTrue);
   });
+
+  test('VJOD 5.13 : la normalisation garde exactement le même résultat', () {
+    expect(normalizeChannelQuery("L'Équipe 21"), 'lequipe21');
+    expect(normalizeChannelQuery('Œuvre Ç Ñ ÿ Æ'), 'oeuvrecnyae');
+    expect(normalizeChannelQuery('FR | TF1 HD ★'), 'frtf1hd');
+    expect(normalizeChannelQuery(''), '');
+    // Deux fois la même chaîne : la même réponse.
+    expect(normalizeChannelQuery('Ça marche'), normalizeChannelQuery('Ça marche'));
+  });
 }
