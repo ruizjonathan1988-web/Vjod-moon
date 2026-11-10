@@ -271,7 +271,7 @@ class AudioCapabilityProbe {
   }
 
   static StreamSubscription<dynamic> _listen(EventChannel channel) {
-    return _subscription = channel.receiveBroadcastStream().listen((event) {
+    final subscription = channel.receiveBroadcastStream().listen((event) {
       if (event is Map) {
         // A route flap can transiently enumerate to "nothing connected", or
         // to the box's phantom speaker. The guards inside apply keep either
@@ -284,7 +284,7 @@ class AudioCapabilityProbe {
         );
       }
     }, onError: (_) {});
-    return _subscription;
+    return _subscription = subscription;
   }
 
   /// Drops the subscription and any downgrade still waiting, so a test starts
