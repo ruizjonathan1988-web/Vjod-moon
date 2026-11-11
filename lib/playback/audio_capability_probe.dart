@@ -220,7 +220,58 @@ class AudioCapabilityProbe {
     final channel = _eventChannel;
     if (channel == null) return null;
     if (_subscription != null) return _subscription;
-    _subscription = channel.receiveBroadcastStream().listen((event) {
+    if (!_nativeReady) {
+      unawaited(_listenWhenNativeReady());
+      return null;
+    }
+    return _listen(channel);
+  }
+
+  // VJOD 5.13: when audio_service starts the app on its own engine and hands
+  // it to the Activity, Dart can run before MainActivity has registered its
+  // channels. Listening then failed with MissingPluginException, reported as
+  // a crash on the SFR box. The platform channel is asked first, a few times,
+  // and the route events are only listened to once it answers.
+  static bool _nativeReady = false;
+  static bool _waiting = false;
+  static const nativeTries = 6;
+  static const nativeRetry = Duration(seconds: 2);
+
+  static Future<void> _listenWhenNativeReady() async {
+    if (_waiting) return;
+    _waiting = true;
+    try {
+      for (var i = 0; i < nativeTries; i++) {
+        if (await nativeAnswers()) {
+          _nativeReady = true;
+          final channel = _eventChannel;
+          if (channel != null && _subscription == null) _listen(channel);
+          return;
+        }
+        await Future<void>.delayed(nativeRetry);
+      }
+    } finally {
+      _waiting = false;
+    }
+  }
+
+  /// Whether the native side has registered its channels on this engine.
+  static Future<bool> nativeAnswers() async {
+    final channel = _methodChannel;
+    if (channel == null) return false;
+    try {
+      await channel.invokeMethod<Object?>('audioCapabilities');
+      return true;
+    } on MissingPluginException {
+      return false;
+    } catch (_) {
+      // Any other answer means the handler is there.
+      return true;
+    }
+  }
+
+  static StreamSubscription<dynamic> _listen(EventChannel channel) {
+    final subscription = channel.receiveBroadcastStream().listen((event) {
       if (event is Map) {
         // A route flap can transiently enumerate to "nothing connected", or
         // to the box's phantom speaker. The guards inside apply keep either
@@ -233,7 +284,7 @@ class AudioCapabilityProbe {
         );
       }
     }, onError: (_) {});
-    return _subscription;
+    return _subscription = subscription;
   }
 
   /// Drops the subscription and any downgrade still waiting, so a test starts
@@ -241,6 +292,8 @@ class AudioCapabilityProbe {
   static void resetForTesting() {
     _subscription?.cancel();
     _subscription = null;
+    _nativeReady = false;
+    _waiting = false;
     _cancelPendingDowngrade();
   }
 }

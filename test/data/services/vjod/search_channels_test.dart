@@ -36,4 +36,21 @@ void main() {
     expect(searchChannelHits(all, 't'), isEmpty);
     expect(searchChannelHits(all, ''), isEmpty);
   });
+
+  // VJOD 5.13: the search froze a small box (ANR on /search). Ten thousand
+  // channels, three passes, has to stay quick even on a test machine.
+  test('dix mille chaînes : la recherche reste rapide', () {
+    final many = [
+      for (var i = 0; i < 10000; i++)
+        _c(i + 1, 'FR: Chaîne Régionale n°$i HD', 'Émission spéciale $i'),
+    ];
+    final watch = Stopwatch()..start();
+    for (final q in ['t', 'tf', 'tf1', 'tf1 h', 'regionale 99']) {
+      searchChannelHits(many, q);
+    }
+    watch.stop();
+    expect(watch.elapsedMilliseconds, lessThan(1500));
+    expect(searchChannelHits(many, 'regionale n 9999').single.number, 10000);
+    expect(searchChannelHits(many, 'speciale 42').first.number, 43);
+  });
 }
