@@ -15,6 +15,10 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('5.14', [
+    'Recherche : un film ou une série disponible en IPTV se trouve aussi dans « À demander », pour l\u2019avoir sur le serveur, sans pub et gardé.',
+    'Collections (Séries Disney+, Netflix, Prime Video…) : après les titres les plus connus, la suite du catalogue se charge au fur et à mesure qu\u2019on descend, au lieu de s\u2019arrêter vers 50 titres.',
+  ]),
   VjodRelease('5.13', [
     'Recherche sur la box SFR : taper un nom ne fige plus l\u2019écran (« L\u2019application ne répond pas »). Les chaînes sont cherchées une fois par mot, et non plus des dizaines de fois à chaque touche.',
     'Au démarrage, VJOD ne signale plus de plantage quand le son de la box n\u2019est pas encore prêt : il attend quelques secondes avant d\u2019écouter les changements de sortie audio.',

@@ -276,9 +276,10 @@ class SeerrBrowseViewModel extends ChangeNotifier {
         pageNum++;
       }
 
+      final shown = <int>{};
       _state = _state.copyWith(
         isLoading: false,
-        items: _vjodOrder(matches),
+        items: _vjodOrder([for (final m in matches) if (shown.add(m.id)) m]),
         currentPage: lastPage.page,
         totalPages: lastPage.totalPages,
       );
@@ -312,9 +313,12 @@ class SeerrBrowseViewModel extends ChangeNotifier {
         pageNum++;
       }
 
+      // A VJOD collection's rest repeats its well known titles: each once.
+      final shown = {for (final i in _state.items) i.id};
+      final fresh = [for (final m in matches) if (shown.add(m.id)) m];
       _state = _state.copyWith(
         isLoadingMore: false,
-        items: [..._state.items, ..._vjodOrder(matches)],
+        items: [..._state.items, ..._vjodOrder(fresh)],
         currentPage: lastPage.page,
         totalPages: lastPage.totalPages,
       );
@@ -446,7 +450,7 @@ class SeerrBrowseViewModel extends ChangeNotifier {
     if (filterType == vjodFilterType) {
       final collection = vjodCollectionById(filterId);
       if (collection == null) return const SeerrDiscoverPage();
-      return await VjodCollectionService.fetchPage(
+      return await VjodCollectionService.fetchBrowsePage(
             _repo,
             collection,
             page: page,

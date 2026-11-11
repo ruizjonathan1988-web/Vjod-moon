@@ -29,7 +29,8 @@ void main() {
       seerr: [_seerr(438631), _seerr(693134), _seerr(841)],
     );
     expect(r.provider.map((t) => t.tmdbId), ['693134']);
-    expect(r.seerr.map((s) => s.id), [841], reason: 'Dune 2 est en IPTV, Dune sur le serveur');
+    expect(r.seerr.map((s) => s.id), [693134, 841],
+        reason: 'Dune est sur le serveur ; Dune 2, en IPTV, se demande aussi (VJOD 5.14)');
   });
 
   test('Seerr dit « disponible » : traité comme sur le serveur', () {
