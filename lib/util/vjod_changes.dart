@@ -19,6 +19,7 @@ const vjodReleases = <VjodRelease>[
     'Recherche : un film ou une série disponible en IPTV se trouve aussi dans « À demander », pour l\u2019avoir sur le serveur, sans pub et gardé.',
     'Collections (Séries Disney+, Netflix, Prime Video…) : après les titres les plus connus, la suite du catalogue se charge au fur et à mesure qu\u2019on descend, au lieu de s\u2019arrêter vers 50 titres.',
     'Petites box : l\u2019animation de chargement d\u2019un film est plus légère (logo qui tourne à plat, texte sans dégradé).',
+    'IPTV : si le lecteur ExoPlayer fait planter l\u2019appli sur un appareil (le projecteur XGIMI), les chaînes et la VOD de ton fournisseur passent sur mpv pour de bon sur cet appareil. Avant, VJOD accusait par erreur le format du dernier film du serveur, et l\u2019IPTV replantait.',
   ]),
   VjodRelease('5.13', [
     'Recherche sur la box SFR : taper un nom ne fige plus l\u2019écran (« L\u2019application ne répond pas »). Les chaînes sont cherchées une fois par mot, et non plus des dizaines de fois à chaque touche.',

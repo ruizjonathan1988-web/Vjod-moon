@@ -39,6 +39,7 @@ import '../../../preference/preference_constants.dart';
 import '../../../util/platform_detection.dart';
 import '../../../platform/pip_service.dart';
 import '../../../data/services/vjod/background_playback.dart';
+import '../../../playback/media3_fallback.dart';
 
 /// Where each film was left, for this run of the app, so leaving by mistake
 /// and coming back picks up there.
@@ -230,7 +231,7 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
   Duration? _skipFrom;
   DateTime? _skipAt;
 
-  bool get _exoWanted => TvEngineChoice.exoAvailable && TvEngineChoice.value != 'mpv';
+  bool get _exoWanted => TvEngineChoice.exoWanted;
 
   @override
   void initState() {
@@ -260,6 +261,8 @@ class _ProviderPlayerScreenState extends State<ProviderPlayerScreen>
         : (PlatformDetection.isMacOS || PlatformDetection.isIOS)
         ? AetherVodEngine()
         : (_exoWanted ? ExoVodEngine() : MpvVodEngine());
+    // A crash from here on is ExoPlayer's in IPTV (VJOD 5.14).
+    if (_engine is ExoVodEngine) unawaited(Media3Fallback.instance.playing(Media3Fallback.iptvMark));
     _listen();
     unawaited(_open());
     if (widget.watch != null) {
