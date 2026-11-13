@@ -11,6 +11,7 @@ import '../../preference/user_preferences.dart';
 import '../services/vjod/channel_search.dart';
 import '../services/vjod/french_channels.dart';
 import '../services/vjod/recent_channels.dart';
+import '../../util/vjod_light.dart';
 
 class GuideChannel {
   final String id;
@@ -233,6 +234,63 @@ class LiveTvGuideViewModel extends ChangeNotifier {
   // plus any ensured-loaded set like favorites), so rows can show a placeholder
   // until their programs arrive.
   final Set<String> _programsLoadedIds = <String>{};
+
+  /// VJOD 5.15: how many channels keep their programs. Scrolling through
+  /// 12 000 channels used to keep every one, and each programme change
+  /// fetched all of them again (an ADT-3 closed for lack of memory in the
+  /// guide). Past this, the channels loaded longest ago let theirs go; their
+  /// rows load again when scrolled back to ([needsReload]).
+  static int programChannelCapFor(bool light) => light ? 300 : 1500;
+  int programChannelCap = programChannelCapFor(VjodLight.on);
+
+  /// Channels being loaded again after being let go.
+  final Set<String> _reloading = <String>{};
+
+  /// Records [ids] as just loaded (newest last) and lets the oldest go past
+  /// [programChannelCap], never one of [ids].
+  void _markLoaded(Iterable<String> ids) {
+    final fresh = ids.toList();
+    for (final id in fresh) {
+      _programsLoadedIds
+        ..remove(id)
+        ..add(id);
+    }
+    var excess = _programsLoadedIds.length - programChannelCap;
+    if (excess <= 0) return;
+    final keep = fresh.toSet();
+    final drop = <String>[];
+    for (final id in _programsLoadedIds) {
+      if (excess <= 0) break;
+      if (keep.contains(id)) continue;
+      drop.add(id);
+      excess--;
+    }
+    for (final id in drop) {
+      _programsLoadedIds.remove(id);
+      _programsByChannel.remove(id);
+    }
+  }
+
+  /// Whether the row of [channelId], at [index] in the list, lost its
+  /// programs to [programChannelCap] and should load them again.
+  /// [index] is the row's place in [filteredChannels]; it only stands for
+  /// the place in the whole lineup with the « All » filter and no search.
+  bool needsReload(String channelId, int index) =>
+      !_isCategory(_filter) &&
+      (_filter != GuideFilter.all || _search.isNotEmpty || index < _programsHighWater) &&
+      !_programsLoadedIds.contains(channelId) &&
+      !_reloading.contains(channelId);
+
+  /// Loads again the programs of channels let go (see [needsReload]).
+  Future<void> reloadPrograms(List<String> channelIds) async {
+    final ids = [for (final id in channelIds) if (_reloading.add(id)) id];
+    if (ids.isEmpty) return;
+    try {
+      await ensureProgramsForChannels(ids);
+    } finally {
+      _reloading.removeAll(ids);
+    }
+  }
 
   bool _loadingMore = false;
 
@@ -938,6 +996,7 @@ class LiveTvGuideViewModel extends ChangeNotifier {
     _programGeneration++;
     _programsByChannel.clear();
     _programsLoadedIds.clear();
+    _reloading.clear();
     _programsHighWater = 0;
     _processedBoundaries.clear();
     _resetCategory();
@@ -1031,7 +1090,7 @@ class LiveTvGuideViewModel extends ChangeNotifier {
     for (final id in ids) {
       _programsByChannel[id] = parsed[id] ?? <GuideProgram>[];
     }
-    _programsLoadedIds.addAll(ids);
+    _markLoaded(ids);
     _notifyListeners();
   }
 
@@ -1685,7 +1744,7 @@ class LiveTvGuideViewModel extends ChangeNotifier {
 
     // Mark every requested channel as loaded, even those with no programs, so
     // their rows stop showing the placeholder.
-    _programsLoadedIds.addAll(ids);
+    _markLoaded(ids);
     return true;
   }
 
