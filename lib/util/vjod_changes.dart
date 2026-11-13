@@ -15,6 +15,9 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('5.15', [
+    'Guide TV : il ne garde plus en mémoire les programmes de toutes les chaînes déjà parcourues (300 au plus sur une petite box, 1 500 ailleurs) et ne les recharge plus toutes à chaque changement d\u2019émission. Une chaîne lâchée recharge ses programmes quand on y revient.',
+  ]),
   VjodRelease('5.14', [
     'Recherche : un film ou une série disponible en IPTV se trouve aussi dans « À demander », pour l\u2019avoir sur le serveur, sans pub et gardé.',
     'Collections (Séries Disney+, Netflix, Prime Video…) : après les titres les plus connus, la suite du catalogue se charge au fur et à mesure qu\u2019on descend, au lieu de s\u2019arrêter vers 50 titres.',

@@ -944,12 +944,26 @@ class _LiveTvGuideScreenState extends State<LiveTvGuideScreen>
 
   // Called from row itemBuilders: as the guide scrolls toward the lazily-loaded
   // edge, request the next batch of programs (the VM guards against re-entry).
-  void _maybeLoadMore(int index) {
+  void _maybeLoadMore(int index, [List<GuideChannel>? channels]) {
     if (_vm.hasMorePrograms &&
         index + _kProgramPrefetchRows >= _vm.programsHighWater) {
       _vm.loadMorePrograms();
     }
+    // VJOD 5.15: a row whose programs were let go (the guide keeps a limited
+    // number of channels) asks for them again, gathered for one request.
+    if (channels != null && index < channels.length) {
+      final id = channels[index].id;
+      if (_vm.needsReload(id, index) && _reloadQueue.add(id) && _reloadQueue.length == 1) {
+        scheduleMicrotask(() {
+          final ids = _reloadQueue.toList();
+          _reloadQueue.clear();
+          if (mounted) unawaited(_vm.reloadPrograms(ids));
+        });
+      }
+    }
   }
+
+  final Set<String> _reloadQueue = <String>{};
 
   @override
   Widget build(BuildContext context) {
@@ -1432,7 +1446,7 @@ class _LiveTvGuideScreenState extends State<LiveTvGuideScreen>
       padding: const EdgeInsets.fromLTRB(8, 4, 8, 16),
       itemCount: channels.length,
       itemBuilder: (context, index) {
-        _maybeLoadMore(index);
+        _maybeLoadMore(index, channels);
         final channel = channels[index];
         final nowNext = _vm.nowNextForChannel(channel.id);
         final now = nowNext.now;
@@ -1858,7 +1872,7 @@ class _LiveTvGuideScreenState extends State<LiveTvGuideScreen>
                   itemCount: channels.length,
                   itemExtent: profile.rowHeight,
                   itemBuilder: (context, index) {
-                    _maybeLoadMore(index);
+                    _maybeLoadMore(index, channels);
                     return _buildChannelCell(channels[index], index);
                   },
                 ),
