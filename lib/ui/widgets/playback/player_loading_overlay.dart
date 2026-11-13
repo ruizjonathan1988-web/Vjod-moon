@@ -3,6 +3,7 @@ import 'package:get_it/get_it.dart';
 
 import '../../../preference/preference_constants.dart';
 import '../../../preference/user_preferences.dart';
+import '../../../util/vjod_light.dart';
 import 'loading_animation_widget.dart';
 
 class PlayerLoadingOverlay extends StatefulWidget {
@@ -130,21 +131,35 @@ class _PlayerLoadingOverlayState extends State<PlayerLoadingOverlay>
             opacity: _labelOpacity,
             child: ScaleTransition(
               scale: _labelScale,
-              child: ShaderMask(
-                blendMode: BlendMode.srcIn,
-                shaderCallback: (bounds) {
-                  return (image == LoadingAnimationImage.vjodLogo ? _vjodLabelGradient : _labelGradient).createShader(bounds);
-                },
-                child: Text(
-                  uppercaseLabel!,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: fontSize,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: letterSpacing,
-                  ),
-                ),
-              ),
+              // VJOD 5.14: on a small device, one plain colour instead of a
+              // gradient mask. The mask (a layer drawn apart) came out upside
+              // down on the Bbox 4K, the logo with it.
+              child: VjodLight.on
+                  ? Text(
+                      uppercaseLabel!,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: fontSize,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: letterSpacing,
+                        color: (image == LoadingAnimationImage.vjodLogo ? _vjodLabelGradient : _labelGradient).colors.first,
+                      ),
+                    )
+                  : ShaderMask(
+                      blendMode: BlendMode.srcIn,
+                      shaderCallback: (bounds) {
+                        return (image == LoadingAnimationImage.vjodLogo ? _vjodLabelGradient : _labelGradient).createShader(bounds);
+                      },
+                      child: Text(
+                        uppercaseLabel!,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: fontSize,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: letterSpacing,
+                        ),
+                      ),
+                    ),
             ),
           ),
         ],

@@ -27,6 +27,75 @@ abstract final class VjodCollectionService {
     return future;
   }
 
+  /// VJOD 5.14: a collection's page in « Voir tout ». Past its last page
+  /// (Séries Disney+ stopped near 50 titles: only those with 100 votes or
+  /// more), the same search goes on without the vote threshold, so the whole
+  /// catalogue follows, the best known first. Titles already shown are left
+  /// to the caller to skip.
+  static Future<SeerrDiscoverPage?> fetchBrowsePage(
+    SeerrRepository repo,
+    VjodCollection collection, {
+    int page = 1,
+  }) async {
+    final rest = relaxedCollection(collection);
+    if (rest == null) return fetchPage(repo, collection, page: page);
+    final first = await fetchPage(repo, collection, page: 1);
+    final strictPages = first == null ? 0 : (first.results.isEmpty ? 0 : first.totalPages);
+    if (page <= strictPages) {
+      final strict = page == 1 ? first : await fetchPage(repo, collection, page: page);
+      if (strict == null) return null;
+      final restFirst = await fetchPage(repo, rest, page: 1);
+      return SeerrDiscoverPage(
+        results: strict.results,
+        page: page,
+        totalPages: strictPages + (restFirst?.totalPages ?? 0),
+        totalResults: strict.totalResults + (restFirst?.totalResults ?? 0),
+      );
+    }
+    final more = await fetchPage(repo, rest, page: page - strictPages);
+    if (more == null) return null;
+    return SeerrDiscoverPage(
+      results: more.results,
+      page: page,
+      totalPages: strictPages + more.totalPages,
+      totalResults: more.totalResults,
+    );
+  }
+
+  /// [collection] without its threshold on the number of votes (a few still
+  /// asked, to leave out empty pages), or null when it has none to drop. A
+  /// minimum rating stays: it is what makes « Pépites » what they are.
+  static VjodCollection? relaxedCollection(VjodCollection collection) {
+    final q = collection.query;
+    if ((q.voteCountGte ?? 0) <= relaxedVoteCount) return null;
+    return VjodCollection(
+      id: '${collection.id}~suite',
+      family: collection.family,
+      titleFr: collection.titleFr,
+      titleEn: collection.titleEn,
+      query: VjodQuery(
+        mediaType: q.mediaType,
+        genre: q.genre,
+        keyword: q.keyword,
+        studio: q.studio,
+        network: q.network,
+        language: q.language,
+        voteAverageGte: q.voteAverageGte,
+        voteCountGte: relaxedVoteCount,
+        runtimeGte: q.runtimeGte,
+        runtimeLte: q.runtimeLte,
+        dateGte: q.dateGte,
+        dateLte: q.dateLte,
+        status: q.status,
+        sortBy: q.sortBy,
+      ),
+    );
+  }
+
+  /// The few votes a title still needs once a collection goes past its
+  /// well known ones.
+  static const relaxedVoteCount = 5;
+
   static const _lifetime = Duration(minutes: 30);
   static final Map<String, ({DateTime at, Future<SeerrDiscoverPage?> page})>
   _cache = {};

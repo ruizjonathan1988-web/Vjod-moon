@@ -5,6 +5,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../preference/preference_constants.dart';
+import '../../../util/vjod_light.dart';
 
 /// Extension helpers to map loading animation enums to layout properties.
 extension LoadingAnimationSizeX on LoadingAnimationSize {
@@ -311,6 +312,18 @@ class _VjodLogoAnimationState extends State<VjodLogoAnimation>
           final angle = turn * math.pi;
           final mirror = math.cos(angle) < 0;
           final glint = ((v - 0.6) / 0.35).clamp(0.0, 1.0);
+          // VJOD 5.14: on a small device, a flat turn (the logo narrows and
+          // widens again) without the shine. The 3D turn and the shine drawn
+          // inside it came out upside down on the Bbox 4K while a film loaded.
+          if (vjodFlatLogoTurn(VjodLight.on)) {
+            return Center(
+              child: Transform(
+                alignment: Alignment.center,
+                transform: Matrix4.diagonal3Values(vjodLogoTurnWidth(angle), 1.0, 1.0),
+                child: child,
+              ),
+            );
+          }
           return Center(
             child: Transform(
               alignment: Alignment.center,
@@ -350,6 +363,14 @@ class _VjodLogoAnimationState extends State<VjodLogoAnimation>
     );
   }
 }
+
+/// The VJOD logo turns flat (no perspective, no shine) on a small device.
+bool vjodFlatLogoTurn(bool light) => light;
+
+/// The width of the flat turn at [angle] (0 to pi): full, a sliver at the
+/// half turn, full again; never 0, never negative, so never mirrored or
+/// upside down.
+double vjodLogoTurnWidth(double angle) => math.max(0.05, math.cos(angle).abs());
 
 /// 3D Y-axis spinning gradient Moonfin logo animation.
 class MoonfinLogoAnimation extends StatefulWidget {

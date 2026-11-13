@@ -33,6 +33,7 @@ import 'ma_tv_multiview_screen.dart';
 import 'ma_tv_recordings_screen.dart';
 import 'ma_tv_widgets.dart';
 import 'tv_engine.dart';
+import '../../../playback/media3_fallback.dart';
 
 enum _Overlay { none, guide, list, sources, replay }
 
@@ -260,7 +261,7 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     }
   }
 
-  bool get _useExo => TvEngineChoice.exoAvailable && TvEngineChoice.value != 'mpv';
+  bool get _useExo => TvEngineChoice.exoWanted;
 
   /// The engine for [ch]: mpv when chosen, or when ExoPlayer brought no
   /// picture for this channel earlier in the session.
@@ -271,6 +272,8 @@ class _MaTvPlayerScreenState extends State<MaTvPlayerScreen> with ImmersiveSyste
     if (AppleTvEngine.wanted) return _apple ??= _attach(AppleTvEngine());
     final mpv = !_useExo || (TvEngineChoice.value == 'auto' && _mpvChannels.contains(ch.id));
     if (mpv) return _mpv ??= _attach(MpvTvEngine());
+    // A crash from here on is ExoPlayer's in IPTV (VJOD 5.14).
+    unawaited(Media3Fallback.instance.playing(Media3Fallback.iptvMark));
     return _exo ??= _attach(ExoTvEngine());
   }
 
