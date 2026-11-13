@@ -29,6 +29,7 @@ import 'ma_tv_sports.dart';
 import 'tv_sources.dart';
 import '../../../util/vjod_log.dart';
 import '../../../util/vjod_timings.dart';
+import '../../../util/vjod_light.dart';
 
 class MaTvCategory {
   final String id;
@@ -338,7 +339,12 @@ class MaTvClient {
         if (x is Map) MaTvChannel.fromJson(Map<String, dynamic>.from(x)),
     ];
     _chanCache[category] = (at: DateTime.now(), chans: chans);
-    unawaited(VjodSnapshots.write(_snapKey('chans:$category'), json));
+    // VJOD 5.14: the whole lineup (12 000 channels with what's on) isn't
+    // kept on a small device: written out in one go on the main thread, and
+    // held a second time in memory, it froze the SFR box in search (700 MB).
+    if (!(category == 'all' && VjodLight.on)) {
+      unawaited(VjodSnapshots.write(_snapKey('chans:$category'), json));
+    }
     return chans;
   }
 

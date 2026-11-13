@@ -20,6 +20,22 @@ class Media3Fallback {
   static const avoidKey = 'vjod_media3_avoid';
   static const lastKey = 'vjod_media3_last_format';
 
+  /// VJOD 5.14: an IPTV player (Ma TV, a provider's film or series) on
+  /// ExoPlayer marks [lastKey] with this. Those players aren't the
+  /// [PlaybackManager]'s, so before, a crash there was blamed on the last
+  /// server film's format (the XGIMI crashed on IPTV and « h264/SDR/eac3 »
+  /// went to mpv instead), and the IPTV crashes went on.
+  static const iptvMark = 'iptv';
+
+  /// Kept when ExoPlayer crashed in an IPTV player on this device: IPTV then
+  /// plays on mpv in « Auto ». IPTV streams say little of their format, so
+  /// the whole of it moves, not one format.
+  static const iptvAvoidKey = 'vjod_media3_iptv_avoid';
+  bool _iptvAvoided = false;
+
+  /// Whether IPTV skips ExoPlayer on this device (see [iptvAvoidKey]).
+  bool get iptvAvoidsExo => _iptvAvoided;
+
   /// At most this many formats are remembered; the oldest go first.
   static const maxRemembered = 30;
 
@@ -39,6 +55,7 @@ class Media3Fallback {
     try {
       final prefs = await SharedPreferences.getInstance();
       _avoided = {...?prefs.getStringList(avoidKey)};
+      _iptvAvoided = prefs.getBool(iptvAvoidKey) ?? false;
       _loaded = true;
     } catch (_) {}
   }
@@ -81,6 +98,11 @@ class Media3Fallback {
       final prefs = await SharedPreferences.getInstance();
       final key = prefs.getString(lastKey);
       if (key == null || key.isEmpty) return null;
+      if (key == iptvMark) {
+        _iptvAvoided = true;
+        await prefs.setBool(iptvAvoidKey, true);
+        return 'IPTV';
+      }
       await avoid(key);
       return key;
     } catch (_) {

@@ -4,7 +4,9 @@
 // (Ma TV) and Seerr (everything that can be asked for). The same film used to
 // show up in all three rows. Now:
 // - on the server: in the server's rows only;
-// - otherwise at the IPTV provider: in « À regarder tout de suite (IPTV) »;
+// - at the IPTV provider: in « À regarder tout de suite (IPTV) », and also in
+//   « À demander » (VJOD 5.14): asked for, it comes to the server, without
+//   ads and kept, which the IPTV copy isn't;
 // - otherwise: in « À demander ».
 // People in Seerr's results (actors, directors) are kept as they are.
 
@@ -36,17 +38,9 @@ bool _isPerson(SeerrDiscoverItem item) => item.mediaType == 'person';
     for (final t in provider)
       if (t.tmdbId.isEmpty || !onServer.contains(t.tmdbId)) t,
   ];
-  final atProvider = {
-    for (final t in keptProvider)
-      if (t.tmdbId.isNotEmpty) t.tmdbId,
-  };
   final keptSeerr = [
     for (final item in seerr)
-      if (_isPerson(item) ||
-          (!_onServer(item) &&
-              !onServer.contains('${item.id}') &&
-              !atProvider.contains('${item.id}')))
-        item,
+      if (_isPerson(item) || (!_onServer(item) && !onServer.contains('${item.id}'))) item,
   ];
   return (provider: keptProvider, seerr: keptSeerr);
 }

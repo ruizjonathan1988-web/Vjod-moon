@@ -14,6 +14,7 @@ import '../services/seerr/seerr_api_models.dart';
 import '../services/vjod/provider_catalog_access.dart';
 import '../services/vjod/search_dedupe.dart';
 import '../services/vjod/xtream_catalog.dart';
+import '../services/vjod/ma_tv.dart' show MaTvClient;
 
 class SearchResultGroup {
   final String title;
@@ -545,11 +546,19 @@ class SearchViewModel extends ChangeNotifier {
   // since /LiveTv/Channels has no search parameter of its own.
   Future<List<AggregatedItem>>? _channelsFuture;
 
+  /// Whether Ma TV answers the channel search, so the server's own lineup
+  /// isn't loaded. Replaceable for tests.
+  Future<bool> Function() serverChannelsRedundant = () async => MaTvClient().isConfigured;
+
   Future<List<AggregatedItem>> _channelMatches(String query) async {
     // Channels come back wholesale rather than through a search the server
     // answers, so the folding it would have done has to happen here.
     final q = foldForSearch(query.trim());
     if (q.isEmpty || q.startsWith('studio:')) return const [];
+    // VJOD 5.14: with Ma TV, its row « Chaînes en direct » already finds the
+    // channels; the server's lineup is the same 12 000 channels, loaded a
+    // second time for nothing (700 MB on the SFR box when search froze).
+    if (await serverChannelsRedundant()) return const [];
     _channelsFuture ??= _searchEachServer(
       (repository) => repository.fetchLiveTvChannels(),
       label: 'channel lineup',

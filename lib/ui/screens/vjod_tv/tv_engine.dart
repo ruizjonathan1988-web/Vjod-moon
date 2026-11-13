@@ -28,12 +28,18 @@ import '../../../preference/user_preferences.dart';
 import '../../../util/platform_detection.dart';
 import '../../../util/vjod_text.dart';
 import '../../widgets/aether_video_view.dart';
+import '../../../playback/media3_fallback.dart';
 
 String _tn(String fr, String en, String ru, String zh) =>
     vjodTextNow(fr: fr, en: en, ru: ru, zh: zh);
 
 
 /// Which engine the viewer asked for: auto, exo or mpv.
+/// [choice] is the setting (auto, exo, mpv); [crashedHere] whether ExoPlayer
+/// crashed in IPTV on this device. « ExoPlayer » chosen stays ExoPlayer.
+bool tvExoWanted(String choice, bool crashedHere) =>
+    choice == 'exo' || (choice != 'mpv' && !crashedHere);
+
 class TvEngineChoice {
   static List<(String, String)> get options => [
     ('auto', _tn('Auto (ExoPlayer, sinon mpv)', 'Auto (ExoPlayer, else mpv)', 'Авто (ExoPlayer, иначе mpv)', '自动（ExoPlayer，否则 mpv）')),
@@ -61,6 +67,11 @@ class TvEngineChoice {
   /// Whether ExoPlayer can run here at all (Android only).
   static bool get exoAvailable =>
       PlatformDetection.isAndroid && GetIt.instance.isRegistered<Media3PlayerBackend>();
+
+  /// Whether IPTV starts on ExoPlayer: chosen, or « Auto » on a device where
+  /// it hasn't crashed in IPTV (VJOD 5.14, see [Media3Fallback.iptvMark]).
+  static bool get exoWanted =>
+      exoAvailable && tvExoWanted(value, Media3Fallback.instance.iptvAvoidsExo);
 }
 
 abstract class TvEngine {
