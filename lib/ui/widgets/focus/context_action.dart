@@ -128,6 +128,17 @@ List<ItemContextAction> contextActionsFor(
         );
       },
     ));
+    // An episode in a list plays on a touch (VJOD 5.16): its page is here.
+    if (type == 'Episode') {
+      actions.add(ItemContextAction(
+        icon: Icons.info_outline,
+        label: l10n.details,
+        onSelect: () async {
+          if (!context.mounted) return;
+          context.push(Destinations.item(item.id, serverId: item.serverId));
+        },
+      ));
+    }
 
     actions.add(ItemContextAction(
       icon: item.isPlayed
