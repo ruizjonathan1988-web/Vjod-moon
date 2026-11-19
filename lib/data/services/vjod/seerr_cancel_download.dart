@@ -91,7 +91,7 @@ class SeerrCancelDownload {
         lastError = 'HTTP ${r.statusCode}';
         return false;
       }
-      final j = jsonDecode(utf8.decode(r.bodyBytes));
+      final j = jsonDecode(utf8.decode(r.bodyBytes, allowMalformed: true));
       return j is Map &&
           (((j['downloads'] as num?) ?? 0) > 0 || ((j['removed'] as List?)?.isNotEmpty ?? false));
     } catch (e) {

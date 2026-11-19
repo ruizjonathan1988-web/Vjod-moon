@@ -56,7 +56,8 @@ void main() {
       expect(r.url.path, '/iptv/tv/api/seerr/cancel');
       expect(r.url.queryParameters['k'], 'K');
       sent = jsonDecode(r.body) as Map<String, dynamic>;
-      return http.Response('{"downloads":1,"removed":["Dune retiré de Radarr"],"kept":[]}', 200);
+      return http.Response.bytes(utf8.encode('{"downloads":1,"removed":["Dune retiré de Radarr"],"kept":[]}'), 200,
+          headers: {'content-type': 'application/json; charset=utf-8'});
     });
     expect(await SeerrCancelDownload.stop({'type': 'movie', 'tmdb': 42}), isTrue,
         reason: '${SeerrCancelDownload.lastError}');
