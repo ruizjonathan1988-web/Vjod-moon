@@ -18,6 +18,9 @@ class SeerrCancelDownload {
   SeerrCancelDownload._();
 
   static http.Client? httpClient;
+
+  /// The last failure, for the tests and the logs.
+  static Object? lastError;
   static TvSourcesServer? Function() serverOf = () => MaTvClient().server;
 
   /// What to tell Ma TV for these requests: the type, the ids, the seasons.
@@ -84,11 +87,15 @@ class SeerrCancelDownload {
               ? client.post(uri, headers: headers, body: encoded)
               : http.post(uri, headers: headers, body: encoded))
           .timeout(const Duration(seconds: 30));
-      if (r.statusCode != 200) return false;
+      if (r.statusCode != 200) {
+        lastError = 'HTTP ${r.statusCode}';
+        return false;
+      }
       final j = jsonDecode(utf8.decode(r.bodyBytes));
       return j is Map &&
           (((j['downloads'] as num?) ?? 0) > 0 || ((j['removed'] as List?)?.isNotEmpty ?? false));
-    } catch (_) {
+    } catch (e) {
+      lastError = e;
       return false;
     }
   }

@@ -58,7 +58,8 @@ void main() {
       sent = jsonDecode(r.body) as Map<String, dynamic>;
       return http.Response('{"downloads":1,"removed":["Dune retiré de Radarr"],"kept":[]}', 200);
     });
-    expect(await SeerrCancelDownload.stop({'type': 'movie', 'tmdb': 42}), isTrue);
+    expect(await SeerrCancelDownload.stop({'type': 'movie', 'tmdb': 42}), isTrue,
+        reason: '${SeerrCancelDownload.lastError}');
     expect(sent, {'type': 'movie', 'tmdb': 42});
     SeerrCancelDownload.httpClient = MockClient((r) async => http.Response('not found', 404));
     expect(await SeerrCancelDownload.stop({'type': 'movie', 'tmdb': 42}), isFalse);
