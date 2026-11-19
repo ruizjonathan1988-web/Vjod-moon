@@ -63,7 +63,11 @@ Future<void> _cancel(
 
   // Discover caches the rows that still list this request, so drop them before
   // the viewer lands back on one.
-  if (GetIt.instance.isRegistered<SeerrDiscoverViewModel>()) {
-    GetIt.instance<SeerrDiscoverViewModel>().refresh();
+  // Registered is not ready: an async singleton still being built throws when
+  // read (« not ready yet », VJOD 4.12), and then there is nothing to refresh.
+  final getIt = GetIt.instance;
+  if (getIt.isRegistered<SeerrDiscoverViewModel>() &&
+      getIt.isReadySync<SeerrDiscoverViewModel>()) {
+    getIt<SeerrDiscoverViewModel>().refresh();
   }
 }

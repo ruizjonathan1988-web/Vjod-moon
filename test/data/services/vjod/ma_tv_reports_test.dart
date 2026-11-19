@@ -92,4 +92,20 @@ void main() {
     expect(left, hasLength(MaTvReports.maxStored));
     expect(left.last.message, startsWith('erreur 39'));
   });
+
+  test('au démarrage, un bonjour donne la version de VJOD à Ma TV, une seule fois', () async {
+    final hellos = <Map<String, dynamic>>[];
+    reports.httpClient = MockClient((req) async {
+      expect(req.url.path, '/iptv/tv/api/hello');
+      expect(req.url.queryParameters['k'], 'SECRETKEY');
+      hellos.add(Map<String, dynamic>.from(jsonDecode(req.body) as Map));
+      return http.Response('{"ok":true}', 200);
+    });
+    expect(await reports.sayHello(), isTrue);
+    expect(await reports.sayHello(), isFalse);
+    expect(hellos, hasLength(1));
+    expect(hellos.first['app'], isNotEmpty);
+    expect(hellos.first['device'], isNotEmpty);
+    expect(jsonEncode(hellos).contains('SECRETKEY'), isFalse);
+  });
 }

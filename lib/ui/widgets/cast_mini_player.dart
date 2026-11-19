@@ -10,6 +10,7 @@ import '../../data/services/media_server_client_factory.dart';
 import '../../l10n/app_localizations.dart';
 import '../util/error_message.dart';
 import '../../util/audio_labels.dart';
+import '../navigation/app_router.dart';
 import 'overlay_sheet.dart';
 
 class CastMiniPlayer extends StatelessWidget {
@@ -129,9 +130,16 @@ class _CastMiniPlayerContentState extends State<_CastMiniPlayerContent> {
     final l10n = AppLocalizations.of(context);
     final stateVal = _castService.remoteStateNotifier.value;
     final positionTicks = _castService.remotePositionNotifier.value;
+    // The mini player sits above the app's navigator (MaterialApp builder), so
+    // its own context has no Navigator: the sheet opens on the router's
+    // (« Null check operator » on a tap, VJOD 5.13 and before).
+    final sheetContext = Navigator.maybeOf(context) != null
+        ? context
+        : appRouter.routerDelegate.navigatorKey.currentContext;
+    if (sheetContext == null) return;
 
     showFocusRestoringModalBottomSheet<void>(
-      context: context,
+      context: sheetContext,
       backgroundColor: AppColorScheme.surface,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheetState) => SafeArea(

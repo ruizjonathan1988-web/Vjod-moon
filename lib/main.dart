@@ -175,6 +175,7 @@ void _installCrashHandlers() {
     // to pick one, and one it can't measure throws. Nothing breaks (the page
     // goes on, nothing is focused), so it is not reported as a crash.
     if (isViewFocusMeasureError(details)) return;
+    if (isMissingOptionalChannel(details)) return;
     _captureCrash(details.exception, details.stack, during: _during(details));
   };
   WidgetsBinding.instance.platformDispatcher.onError = (error, stack) {
@@ -1004,6 +1005,7 @@ void main() async {
   // What waited on the device (a crash that closed the app last time) goes
   // to Ma TV once the app has settled.
   Timer(const Duration(seconds: 20), () => unawaited(MaTvReports.instance.flush()));
+  Timer(const Duration(seconds: 25), () => unawaited(MaTvReports.instance.sayHello()));
   // VJOD 4.20: how fast the services answer here, to the Ma TV page.
   Timer.periodic(const Duration(minutes: 5), (_) => unawaited(MaTvReports.instance.sendTimings()));
   // When the system runs the auto-download refresh task against this

@@ -96,7 +96,12 @@ class Media3Fallback {
     if (!isMedia3NativeCrash(exit)) return null;
     try {
       final prefs = await SharedPreferences.getInstance();
-      final key = prefs.getString(lastKey);
+      var key = prefs.getString(lastKey);
+      // The crash note names the screen: a crash in the IPTV film player is
+      // an IPTV crash even when the last format noted is an older Jellyfin
+      // one. Read the other way, the wrong format went to mpv and the IPTV
+      // player kept crashing (XGIMI, 7 times in VJOD 5.13).
+      if ((exit['state']?.toString() ?? '').contains('route=/player/iptv')) key = iptvMark;
       if (key == null || key.isEmpty) return null;
       if (key == iptvMark) {
         _iptvAvoided = true;

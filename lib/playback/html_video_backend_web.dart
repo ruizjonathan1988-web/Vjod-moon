@@ -32,6 +32,7 @@ class HtmlVideoBackend extends PlayerBackend {
   HtmlVideoBackend(this._prefs)
     : _viewType = 'moonfin-html-video-${_nextViewId++}' {
     _videoElement = _createVideoElement();
+    _host = _createHost();
     _registerViewFactory();
   }
 
@@ -42,6 +43,18 @@ class HtmlVideoBackend extends PlayerBackend {
   final String _viewType;
 
   late final web.HTMLVideoElement _videoElement;
+
+  /// What the platform view shows: the video and, over it, the subtitle lines
+  /// VJOD draws itself (VJOD 5.16). The browser's own cue drawing does not
+  /// follow the chosen size everywhere (Safari keeps the system caption size),
+  /// so text cues are read from a hidden track and drawn here instead.
+  late final web.HTMLDivElement _host;
+  late final web.HTMLDivElement _cueBox;
+  web.TextTrack? _drawnTrack;
+
+  /// iPhone / iPad full screen is the system player: only the browser's own
+  /// cue drawing shows there, so the track goes back to showing meanwhile.
+  bool _systemFullscreen = false;
   final List<({String url, web.HTMLTrackElement element})> _externalTracks = [];
   JSAny? _hlsController;
 
@@ -109,11 +122,103 @@ class HtmlVideoBackend extends PlayerBackend {
     return element;
   }
 
+  web.HTMLDivElement _createHost() {
+    final host = web.HTMLDivElement()
+      ..style.setProperty('position', 'relative')
+      ..style.setProperty('width', '100%')
+      ..style.setProperty('height', '100%')
+      ..style.setProperty('overflow', 'hidden')
+      ..style.setProperty('background-color', 'black');
+    _cueBox = web.HTMLDivElement()
+      ..style.setProperty('position', 'absolute')
+      ..style.setProperty('left', '4%')
+      ..style.setProperty('right', '4%')
+      ..style.setProperty('bottom', '4%')
+      ..style.setProperty('text-align', 'center')
+      ..style.setProperty('pointer-events', 'none')
+      ..style.setProperty('line-height', '1.3')
+      ..style.setProperty('white-space', 'pre-line')
+      ..style.setProperty('z-index', '2');
+    host.appendChild(_videoElement);
+    host.appendChild(_cueBox);
+    _videoElement.addEventListener(
+      'webkitbeginfullscreen',
+      ((web.Event _) => _setSystemFullscreen(true)).toJS,
+    );
+    _videoElement.addEventListener(
+      'webkitendfullscreen',
+      ((web.Event _) => _setSystemFullscreen(false)).toJS,
+    );
+    return host;
+  }
+
+  void _setSystemFullscreen(bool on) {
+    _systemFullscreen = on;
+    final track = _drawnTrack;
+    if (track != null) {
+      try {
+        track.mode = on ? 'showing' : 'hidden';
+      } catch (_) {}
+    }
+    _renderCues();
+  }
+
+  /// Shows [track]'s cues through the overlay: the track stays loaded and
+  /// sends its changes, the browser just does not draw it.
+  void _drawTrack(web.TextTrack? track) {
+    _drawnTrack = track;
+    if (track != null) {
+      try {
+        track.mode = _systemFullscreen ? 'showing' : 'hidden';
+      } catch (_) {}
+    }
+    _renderCues();
+  }
+
+  void _renderCues() {
+    final box = _cueBox;
+    while (box.firstChild != null) {
+      box.removeChild(box.firstChild!);
+    }
+    final track = _drawnTrack;
+    if (track == null || _systemFullscreen || _disposed) return;
+    final cues = track.activeCues;
+    if (cues == null || cues.length == 0) return;
+    final height = _videoElement.clientHeight;
+    final size = _subtitleFontSize ?? _referenceTextSize;
+    // At the default size a line is 5 % of the picture's height, about what
+    // browsers draw; 48, the maximum, makes it 12 %.
+    final px = ((height > 0 ? height : 540) * 0.05 * size / _referenceTextSize).clamp(10.0, 400.0);
+    box.style.setProperty('font-size', '${px.round()}px');
+    box.style.setProperty('bottom', '${(_subtitleVerticalOffset * 100).clamp(3.0, 90.0).toStringAsFixed(1)}%');
+    box.style.setProperty('color', _cssColor(_subtitleTextColor) ?? 'white');
+    box.style.setProperty('font-weight', (_subtitleFontWeight ?? 400) >= 600 ? 'bold' : 'normal');
+    final stroke = _cssColor(_subtitleStrokeColor);
+    box.style.setProperty('text-shadow', stroke == null
+        ? '0 0 0.12em rgba(0,0,0,0.9), 0 0 0.12em rgba(0,0,0,0.9)'
+        : '-0.04em -0.04em 0 $stroke, 0.04em -0.04em 0 $stroke, -0.04em 0.04em 0 $stroke, 0.04em 0.04em 0 $stroke');
+    final background = _cssColor(_subtitleBackgroundColor);
+    for (var i = 0; i < cues.length; i++) {
+      final cue = cues[i];
+      final line = web.HTMLDivElement();
+      final span = web.HTMLSpanElement()
+        ..style.setProperty('padding', background == null ? '0' : '0 0.25em')
+        ..style.setProperty('background-color', background ?? 'transparent');
+      if (cue.isA<web.VTTCue>()) {
+        // The browser's own VTT parser builds the nodes (italics, bold): no
+        // markup from the file goes in as is.
+        span.appendChild((cue as web.VTTCue).getCueAsHTML());
+      }
+      line.appendChild(span);
+      box.appendChild(line);
+    }
+  }
+
   void _registerViewFactory() {
     if (_registeredViewTypes.add(_viewType)) {
       ui_web.platformViewRegistry.registerViewFactory(
         _viewType,
-        (int _) => _videoElement,
+        (int _) => _host,
       );
     }
   }
@@ -549,6 +654,7 @@ class HtmlVideoBackend extends PlayerBackend {
   /// position outside the list just clears the screen.
   void _showTrackAt(int position) {
     _subtitleOverlay?.clear();
+    _drawTrack(null);
 
     try {
       final tracks = _videoElement.textTracks;
@@ -565,7 +671,7 @@ class HtmlVideoBackend extends PlayerBackend {
             _videoElement.appendChild(element);
           }
           element.setAttribute('default', '');
-          element.track.mode = 'showing';
+          _drawTrack(element.track);
         } else {
           element.removeAttribute('default');
           // Chromium turns on any subtitle track the page has never set a
@@ -602,7 +708,7 @@ class HtmlVideoBackend extends PlayerBackend {
     if (id <= 0 || id > tracks.length) return;
 
     _showTrackAt(-1);
-    tracks[id - 1].mode = 'showing';
+    _drawTrack(tracks[id - 1]);
   }
 
   @override
@@ -709,6 +815,7 @@ class HtmlVideoBackend extends PlayerBackend {
     }
     _applySubtitleAppearance();
     _forEachTextTrack(_positionCues);
+    _renderCues();
   }
 
   /// Appearance goes through a stylesheet, since `::cue` is the only hook the
@@ -789,7 +896,10 @@ class HtmlVideoBackend extends PlayerBackend {
     track.setProperty(_cueHookProperty.toJS, true.toJS);
     track.addEventListener(
       'cuechange',
-      ((web.Event _) => _positionCues(track)).toJS,
+      ((web.Event _) {
+        _positionCues(track);
+        _renderCues();
+      }).toJS,
     );
   }
 
@@ -868,6 +978,8 @@ class HtmlVideoBackend extends PlayerBackend {
     _subtitleOverlay = null;
     _subtitleStyleElement?.remove();
     _subtitleStyleElement = null;
+    _drawnTrack = null;
+    _host.remove();
     _detachHlsJsSource();
     _videoElement.pause();
     _videoElement.removeAttribute('src');
