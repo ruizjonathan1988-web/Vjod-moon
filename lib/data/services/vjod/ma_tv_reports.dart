@@ -273,6 +273,30 @@ class MaTvReports {
     }
   }
 
+  bool _helloSent = false;
+
+  /// VJOD 5.16: once per launch, which VJOD this device runs (Ma TV 3.90 and
+  /// after list the devices left on an old version). An older Ma TV answers
+  /// 404, which changes nothing.
+  Future<bool> sayHello() async {
+    if (_helloSent || !_allowed) return false;
+    final server = serverOf();
+    if (server == null) return false;
+    try {
+      final uri = server.endpoint('/tv/api/hello');
+      final body = jsonEncode(await _who());
+      final client = httpClient;
+      final res = await (client != null
+              ? client.post(uri, headers: {'Content-Type': 'application/json'}, body: body)
+              : http.post(uri, headers: {'Content-Type': 'application/json'}, body: body))
+          .timeout(const Duration(seconds: 10));
+      _helloSent = res.statusCode == 200 || res.statusCode == 404;
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
   int _timingsSent = -1;
 
   /// VJOD 4.20: how fast each service answers on this device, for the Ma TV

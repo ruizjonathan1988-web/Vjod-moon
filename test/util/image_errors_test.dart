@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:moonfin/util/image_errors.dart';
 
@@ -30,6 +31,24 @@ void main() {
       isViewFocusMeasureError(FlutterErrorDetails(
         exception: StateError('RenderBox was not laid out'),
         context: ErrorDescription('during performLayout()'),
+      )),
+      isFalse,
+    );
+  });
+
+  test('une box sans le canal natif du son n\'est pas un plantage', () {
+    expect(
+      isMissingOptionalChannel(FlutterErrorDetails(
+        exception: MissingPluginException(
+            'No implementation found for method listen on channel org.moonfin.androidtv/audioCapabilitiesEvents'),
+        library: 'services library',
+        context: ErrorDescription('while activating platform stream on channel org.moonfin.androidtv/audioCapabilitiesEvents'),
+      )),
+      isTrue,
+    );
+    expect(
+      isMissingOptionalChannel(FlutterErrorDetails(
+        exception: MissingPluginException('No implementation found for method play on channel autre'),
       )),
       isFalse,
     );

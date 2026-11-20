@@ -15,6 +15,15 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('5.16', [
+    'Version web : la taille des sous-titres choisie dans les réglages s\u2019applique aussi sur Safari, qui gardait sa propre taille. VJOD dessine lui-même les sous-titres texte (sauf en plein écran sur iPhone et iPad, où c\u2019est le lecteur du système).',
+    'Épisodes : toucher un épisode dans la liste le lance directement. Avant, ça ouvrait sa page, qui ressemblait à la liste et donnait l\u2019impression qu\u2019elle se rechargeait. Un appui long ouvre le menu, avec « Détails » pour la page de l\u2019épisode.',
+    'Chromecast : toucher le mini-lecteur pour ouvrir les commandes ne fait plus planter l\u2019appli.',
+    'Seerr : annuler une demande arrête vraiment le téléchargement. Avant, Seerr effaçait la demande mais Radarr ou Sonarr continuaient : avec Ma TV (IPTV Checker 3.91), le téléchargement en cours est retiré et le titre aussi, sauf si quelqu\u2019un d\u2019autre le demande encore. Ce qui est déjà téléchargé reste.',
+    'Seerr : annuler une demande avant que l\u2019écran Découvrir soit prêt ne fait plus planter l\u2019appli.',
+    '« Marquer comme vu » : quand Jellyfin refuse, un message s\u2019affiche au lieu d\u2019un plantage.',
+    'Au démarrage, VJOD dit sa version à Ma TV : la page État d\u2019IPTV Checker montre les appareils restés sur une vieille version.',
+  ]),
   VjodRelease('5.15', [
     'Guide TV : il ne garde plus en mémoire les programmes de toutes les chaînes déjà parcourues (300 au plus sur une petite box, 1 500 ailleurs) et ne les recharge plus toutes à chaque changement d\u2019émission. Une chaîne lâchée recharge ses programmes quand on y revient.',
   ]),

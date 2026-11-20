@@ -10,6 +10,7 @@ import '../services/seerr/for_you_service.dart';
 import '../services/seerr/seerr_api_models.dart';
 import '../services/seerr/seerr_download_progress.dart';
 import '../services/seerr/seerr_error.dart';
+import '../services/vjod/seerr_cancel_download.dart';
 
 /// Reads one flag out of Seerr's public settings.
 ///
@@ -716,10 +717,22 @@ class SeerrMediaDetailViewModel extends ChangeNotifier {
     _state = _state.copyWith(isRequesting: true, requestError: null, requestSuccess: null);
     notifyListeners();
 
+    // What Ma TV needs to stop the download once Seerr has let the request go:
+    // read before, since the reload drops the requests.
+    final stop = SeerrCancelDownload.forCancel(
+      all: _state.mediaInfo?.requests ?? const <SeerrRequest>[],
+      cancelled: requestIds.toSet(),
+      isMovie: _state.isMovie,
+      tmdbId: _state.tmdbId,
+      tvdbId: _state.mediaInfo?.tvdbId ?? _state.externalIds?.tvdbId,
+    );
     try {
       for (final id in requestIds) {
         await _repo.deleteRequest(id);
       }
+      // Seerr only deletes the request; Radarr / Sonarr would go on (VJOD 5.15
+      // and before): Ma TV stops the download. Without it nothing more happens.
+      if (stop != null) await SeerrCancelDownload.stop(stop);
       await _reloadDetails('Request cancelled');
     } catch (e) {
       _setRequestFailure(e);
