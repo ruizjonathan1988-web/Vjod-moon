@@ -15355,11 +15355,16 @@ class _EpisodeListCardState extends State<_EpisodeListCard>
     showContextMenu(context, widget.episode, onChanged: widget.onChanged);
   }
 
+  /// Touching an episode in a list plays it (VJOD 5.16), as on the
+  /// streaming apps: before, it opened the episode's page, which looked the
+  /// same from the list and seemed to reload. A long press opens the menu,
+  /// whose « Détails » still leads to the episode's page.
   void _open() {
     context.push(
       Destinations.item(
         widget.episode.id,
         serverId: widget.episode.serverId,
+        autoPlay: true,
         seasonContext: seasonContextParam(
           contextSeasonId: widget.contextSeasonId,
           episodeSeasonId: widget.episode.seasonId,
@@ -15594,11 +15599,16 @@ class DetailNextUpCard extends StatefulWidget {
 
 class DetailNextUpCardState extends State<DetailNextUpCard>
     with FocusStateMixin {
+  /// Touching an episode in a list plays it (VJOD 5.16), as on the
+  /// streaming apps: before, it opened the episode's page, which looked the
+  /// same from the list and seemed to reload. A long press opens the menu,
+  /// whose « Détails » still leads to the episode's page.
   void _open() {
     context.push(
       Destinations.item(
         widget.episode.id,
         serverId: widget.episode.serverId,
+        autoPlay: true,
         seasonContext: seasonContextParam(
           contextSeasonId: widget.contextSeasonId,
           episodeSeasonId: widget.episode.seasonId,
@@ -15834,11 +15844,16 @@ class DetailEpisodeCardState extends State<DetailEpisodeCard>
     showContextMenu(context, widget.episode, onChanged: widget.onChanged);
   }
 
+  /// Touching an episode in a list plays it (VJOD 5.16), as on the
+  /// streaming apps: before, it opened the episode's page, which looked the
+  /// same from the list and seemed to reload. A long press opens the menu,
+  /// whose « Détails » still leads to the episode's page.
   void _open() {
     context.push(
       Destinations.item(
         widget.episode.id,
         serverId: widget.episode.serverId,
+        autoPlay: true,
         seasonContext: seasonContextParam(
           contextSeasonId: widget.contextSeasonId,
           episodeSeasonId: widget.episode.seasonId,

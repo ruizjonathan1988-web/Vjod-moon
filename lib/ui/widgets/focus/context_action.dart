@@ -128,6 +128,17 @@ List<ItemContextAction> contextActionsFor(
         );
       },
     ));
+    // An episode in a list plays on a touch (VJOD 5.16): its page is here.
+    if (type == 'Episode') {
+      actions.add(ItemContextAction(
+        icon: Icons.info_outline,
+        label: l10n.details,
+        onSelect: () async {
+          if (!context.mounted) return;
+          context.push(Destinations.item(item.id, serverId: item.serverId));
+        },
+      ));
+    }
 
     actions.add(ItemContextAction(
       icon: item.isPlayed
@@ -137,7 +148,17 @@ List<ItemContextAction> contextActionsFor(
           ? l10n.contextMenuMarkUnwatched
           : l10n.contextMenuMarkWatched,
       onSelect: () async {
-        await mutations.setPlayed(item.id, isPlayed: !item.isPlayed);
+        // Jellyfin can refuse (400 on an item it will not mark): a message,
+        // not a crash (VJOD 5.9 and before).
+        try {
+          await mutations.setPlayed(item.id, isPlayed: !item.isPlayed);
+        } catch (e) {
+          if (!context.mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(describeError(e, l10n))),
+          );
+          return;
+        }
         onChanged?.call();
       },
     ));

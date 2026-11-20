@@ -31,6 +31,19 @@ void main() {
       expect(w.add(80, 5000), isFalse, reason: 'déjà basculé');
     });
 
+    test('un plantage dans le lecteur des films IPTV compte pour l\'IPTV, même si le dernier format noté est Jellyfin', () async {
+      SharedPreferences.setMockInitialValues({});
+      final f = Media3Fallback.instance;
+      await f.load();
+      await f.playing('hevc/SDR/eac3');
+      expect(
+        await f.afterExit({'reason': 'native crash', 'state': 'hc=media3-main v=hevc a=ac3 route=/player/iptv'}),
+        'IPTV',
+      );
+      expect(f.iptvAvoidsExo, isTrue);
+      expect(f.avoided, isNot(contains('hevc/SDR/eac3')));
+    });
+
     test('un plantage pendant un film : ce format passe sur mpv, et c\'est retenu', () async {
       SharedPreferences.setMockInitialValues({});
       final f = Media3Fallback.instance;
