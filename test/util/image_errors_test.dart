@@ -19,6 +19,20 @@ void main() {
     );
   });
 
+  test('une jaquette abimee (« Invalid image data ») n\'est pas un plantage', () {
+    // Remonte par platformDispatcher.onError, sans FlutterErrorDetails ni
+    // bibliotheque « image resource service » : il faut la reconnaitre au texte.
+    expect(isImageLoadException(Exception('Invalid image data')), isTrue);
+    expect(isImageLoadException(Exception('Could not instantiate image codec.')), isTrue);
+    expect(
+      isImageLoadError(FlutterErrorDetails(exception: Exception('Invalid image data'))),
+      isTrue,
+    );
+    // Une vraie erreur applicative reste un plantage.
+    expect(isImageLoadException(StateError('Null check operator used on a null value')), isFalse);
+    expect(isImageLoadException(Exception('seerr: request failed')), isFalse);
+  });
+
   test('le retour du focus dans la fenêtre du navigateur n\'est pas un plantage', () {
     expect(
       isViewFocusMeasureError(FlutterErrorDetails(
