@@ -27,6 +27,7 @@ import 'package:go_router/go_router.dart';
 import 'package:moonfin_design/moonfin_design.dart';
 import 'package:playback_core/playback_core.dart';
 import 'package:server_core/server_core.dart';
+import 'package:moonfin/util/state_mounted.dart';
 
 import '../../../data/models/aggregated_item.dart';
 import '../../../data/repositories/item_mutation_repository.dart';
@@ -4781,7 +4782,7 @@ class _BookAuthorDetailScreenState extends State<_BookAuthorDetailScreen> {
     });
     final profile = await _loadAuthorProfile(client, books);
 
-    setState(() {
+    setStateIfMounted(() {
       _data = _BookAuthorDetailData(
         authorName: widget.authorName,
         biography: profile.biography,
