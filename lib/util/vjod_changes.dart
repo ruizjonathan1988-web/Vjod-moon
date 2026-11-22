@@ -15,6 +15,9 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('5.17', [
+    'Une jaquette de film ou de chaîne abîmée ne fait plus planter l’appli : elle s’affiche en case vide, comme une affiche manquante. Surtout vu sur les Fire TV.',
+  ]),
   VjodRelease('5.16', [
     'Version web : la taille des sous-titres choisie dans les réglages s\u2019applique aussi sur Safari, qui gardait sa propre taille. VJOD dessine lui-même les sous-titres texte (sauf en plein écran sur iPhone et iPad, où c\u2019est le lecteur du système).',
     'Épisodes : toucher un épisode dans la liste le lance directement. Avant, ça ouvrait sa page, qui ressemblait à la liste et donnait l\u2019impression qu\u2019elle se rechargeait. Un appui long ouvre le menu, avec « Détails » pour la page de l\u2019épisode.',
