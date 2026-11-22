@@ -130,6 +130,7 @@ import '../../../util/vjod_timings.dart';
 import '../../../util/vjod_smoothness.dart';
 import '../../../data/services/vjod/aura/aura_service.dart';
 import '../../widgets/vjod/aura_drawer.dart';
+import 'package:moonfin/util/state_mounted.dart';
 
 part 'panel/settings_panel_infra.dart';
 part 'panel/settings_search_field.dart';
