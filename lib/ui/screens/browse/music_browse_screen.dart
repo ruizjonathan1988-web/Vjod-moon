@@ -6,6 +6,7 @@ import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:moonfin_design/moonfin_design.dart';
 import 'package:server_core/server_core.dart';
+import 'package:moonfin/util/state_mounted.dart';
 
 import '../../../data/models/aggregated_item.dart';
 import '../../../data/services/background_service.dart';
@@ -1256,7 +1257,7 @@ class _MusicRowVisibilityDialogState extends State<MusicRowVisibilityDialog> {
               onChanged: (val) async {
                 if (val) {
                   await _prefs.set(UserPreferences.audioSortOption, 'name');
-                  setState(() {});
+                  setStateIfMounted(() {});
                   widget.onChanged();
                 }
               },
@@ -1268,7 +1269,7 @@ class _MusicRowVisibilityDialogState extends State<MusicRowVisibilityDialog> {
               onChanged: (val) async {
                 if (val) {
                   await _prefs.set(UserPreferences.audioSortOption, 'release_year');
-                  setState(() {});
+                  setStateIfMounted(() {});
                   widget.onChanged();
                 }
               },
@@ -1280,7 +1281,7 @@ class _MusicRowVisibilityDialogState extends State<MusicRowVisibilityDialog> {
               onChanged: (val) async {
                 if (val) {
                   await _prefs.set(UserPreferences.audioSortOption, 'date_added');
-                  setState(() {});
+                  setStateIfMounted(() {});
                   widget.onChanged();
                 }
               },
@@ -1302,7 +1303,7 @@ class _MusicRowVisibilityDialogState extends State<MusicRowVisibilityDialog> {
               checked: showLatest,
               onChanged: (val) async {
                 await _prefs.set(UserPreferences.displayAudioLatest, val);
-                setState(() {});
+                setStateIfMounted(() {});
                 widget.onChanged();
               },
             ),
@@ -1311,7 +1312,7 @@ class _MusicRowVisibilityDialogState extends State<MusicRowVisibilityDialog> {
               checked: showLastPlayed,
               onChanged: (val) async {
                 await _prefs.set(UserPreferences.displayAudioLastPlayed, val);
-                setState(() {});
+                setStateIfMounted(() {});
                 widget.onChanged();
               },
             ),
@@ -1320,7 +1321,7 @@ class _MusicRowVisibilityDialogState extends State<MusicRowVisibilityDialog> {
               checked: showFavorites,
               onChanged: (val) async {
                 await _prefs.set(UserPreferences.displayAudioFavorites, val);
-                setState(() {});
+                setStateIfMounted(() {});
                 widget.onChanged();
               },
             ),
@@ -1329,7 +1330,7 @@ class _MusicRowVisibilityDialogState extends State<MusicRowVisibilityDialog> {
               checked: showPlaylists,
               onChanged: (val) async {
                 await _prefs.set(UserPreferences.displayAudioPlaylists, val);
-                setState(() {});
+                setStateIfMounted(() {});
                 widget.onChanged();
               },
             ),
@@ -1338,7 +1339,7 @@ class _MusicRowVisibilityDialogState extends State<MusicRowVisibilityDialog> {
               checked: showAlbumArtists,
               onChanged: (val) async {
                 await _prefs.set(UserPreferences.displayAudioAlbumArtists, val);
-                setState(() {});
+                setStateIfMounted(() {});
                 widget.onChanged();
               },
             ),
@@ -1347,7 +1348,7 @@ class _MusicRowVisibilityDialogState extends State<MusicRowVisibilityDialog> {
               checked: showArtists,
               onChanged: (val) async {
                 await _prefs.set(UserPreferences.displayAudioArtists, val);
-                setState(() {});
+                setStateIfMounted(() {});
                 widget.onChanged();
               },
             ),
@@ -1356,7 +1357,7 @@ class _MusicRowVisibilityDialogState extends State<MusicRowVisibilityDialog> {
               checked: showAlbums,
               onChanged: (val) async {
                 await _prefs.set(UserPreferences.displayAudioAlbums, val);
-                setState(() {});
+                setStateIfMounted(() {});
                 widget.onChanged();
               },
             ),

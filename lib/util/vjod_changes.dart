@@ -15,6 +15,9 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('5.18', [
+    'Moins de plantages discrets : quand on quitte une page pendant qu\u2019elle charge (fiche d\u2019un auteur, musique, listes externes, genres), l\u2019appli ne se met plus \u00e0 jour dans le vide. Elle v\u00e9rifie d\u2019abord que la page est encore ouverte.',
+  ]),
   VjodRelease('5.17', [
     'Une jaquette de film ou de chaîne abîmée ne fait plus planter l’appli : elle s’affiche en case vide, comme une affiche manquante. Surtout vu sur les Fire TV.',
   ]),

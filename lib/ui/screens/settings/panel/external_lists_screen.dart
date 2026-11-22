@@ -535,7 +535,7 @@ class _TmdbListsScreenState extends State<_TmdbListsScreen> {
                           );
                           if (!success) {
                             await prefs.set(UserPreferences.tmdbPopularMoviesEnabled, false);
-                            setState(() {});
+                            setStateIfMounted(() {});
                             return;
                           }
                         }
@@ -559,7 +559,7 @@ class _TmdbListsScreenState extends State<_TmdbListsScreen> {
                           );
                           if (!success) {
                             await prefs.set(UserPreferences.tmdbTopRatedMoviesEnabled, false);
-                            setState(() {});
+                            setStateIfMounted(() {});
                             return;
                           }
                         }
@@ -583,7 +583,7 @@ class _TmdbListsScreenState extends State<_TmdbListsScreen> {
                           );
                           if (!success) {
                             await prefs.set(UserPreferences.tmdbNowPlayingMoviesEnabled, false);
-                            setState(() {});
+                            setStateIfMounted(() {});
                             return;
                           }
                         }
@@ -607,7 +607,7 @@ class _TmdbListsScreenState extends State<_TmdbListsScreen> {
                           );
                           if (!success) {
                             await prefs.set(UserPreferences.tmdbUpcomingMoviesEnabled, false);
-                            setState(() {});
+                            setStateIfMounted(() {});
                             return;
                           }
                         }
@@ -631,7 +631,7 @@ class _TmdbListsScreenState extends State<_TmdbListsScreen> {
                           );
                           if (!success) {
                             await prefs.set(UserPreferences.tmdbPopularTvEnabled, false);
-                            setState(() {});
+                            setStateIfMounted(() {});
                             return;
                           }
                         }
@@ -655,7 +655,7 @@ class _TmdbListsScreenState extends State<_TmdbListsScreen> {
                           );
                           if (!success) {
                             await prefs.set(UserPreferences.tmdbTopRatedTvEnabled, false);
-                            setState(() {});
+                            setStateIfMounted(() {});
                             return;
                           }
                         }
@@ -679,7 +679,7 @@ class _TmdbListsScreenState extends State<_TmdbListsScreen> {
                           );
                           if (!success) {
                             await prefs.set(UserPreferences.tmdbAiringTodayTvEnabled, false);
-                            setState(() {});
+                            setStateIfMounted(() {});
                             return;
                           }
                         }
@@ -703,7 +703,7 @@ class _TmdbListsScreenState extends State<_TmdbListsScreen> {
                           );
                           if (!success) {
                             await prefs.set(UserPreferences.tmdbOnTheAirTvEnabled, false);
-                            setState(() {});
+                            setStateIfMounted(() {});
                             return;
                           }
                         }
@@ -727,7 +727,7 @@ class _TmdbListsScreenState extends State<_TmdbListsScreen> {
                           );
                           if (!success) {
                             await prefs.set(UserPreferences.tmdbTrendingMovieDailyEnabled, false);
-                            setState(() {});
+                            setStateIfMounted(() {});
                             return;
                           }
                         }
@@ -751,7 +751,7 @@ class _TmdbListsScreenState extends State<_TmdbListsScreen> {
                           );
                           if (!success) {
                             await prefs.set(UserPreferences.tmdbTrendingMovieWeeklyEnabled, false);
-                            setState(() {});
+                            setStateIfMounted(() {});
                             return;
                           }
                         }
@@ -775,7 +775,7 @@ class _TmdbListsScreenState extends State<_TmdbListsScreen> {
                           );
                           if (!success) {
                             await prefs.set(UserPreferences.tmdbTrendingTvDailyEnabled, false);
-                            setState(() {});
+                            setStateIfMounted(() {});
                             return;
                           }
                         }
@@ -799,7 +799,7 @@ class _TmdbListsScreenState extends State<_TmdbListsScreen> {
                           );
                           if (!success) {
                             await prefs.set(UserPreferences.tmdbTrendingTvWeeklyEnabled, false);
-                            setState(() {});
+                            setStateIfMounted(() {});
                             return;
                           }
                         }
@@ -823,7 +823,7 @@ class _TmdbListsScreenState extends State<_TmdbListsScreen> {
                           );
                           if (!success) {
                             await prefs.set(UserPreferences.tmdbTrendingAllWeeklyEnabled, false);
-                            setState(() {});
+                            setStateIfMounted(() {});
                             return;
                           }
                         }
@@ -1263,7 +1263,7 @@ class _CustomListsScreenState extends State<_CustomListsScreen> {
       configs[idx] = configs[idx].copyWith(enabled: enabled);
       await prefs.setHomeSectionsConfig(configs);
       _pushPersonalizationSync();
-      setState(() {});
+      setStateIfMounted(() {});
     }
   }
 
@@ -1295,7 +1295,7 @@ class _CustomListsScreenState extends State<_CustomListsScreen> {
       configs.removeWhere((c) => c.stableId == config.stableId);
       await prefs.setHomeSectionsConfig(configs);
       _pushPersonalizationSync();
-      setState(() {});
+      setStateIfMounted(() {});
     }
   }
 
