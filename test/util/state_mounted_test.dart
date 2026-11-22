@@ -7,7 +7,7 @@ import 'package:moonfin/util/state_mounted.dart';
 /// A tiny screen whose button runs [setStateIfMounted] after an await, so the
 /// test can unmount it mid-await and check nothing throws.
 class _Probe extends StatefulWidget {
-  const _Probe({required this.gate});
+  const _Probe({super.key, required this.gate});
   final Future<void> gate;
 
   @override
