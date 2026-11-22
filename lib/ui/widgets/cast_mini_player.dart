@@ -245,8 +245,15 @@ class _CastMiniPlayerContentState extends State<_CastMiniPlayerContent> {
         clientFactory.getClientIfExists(item.serverId) ??
             GetIt.instance<MediaServerClient>();
 
+    // Same as _showFullControls: the mini player sits above the navigator, so
+    // the sheet opens on the router's context when ours has none (VJOD 5.19).
+    final sheetContext = Navigator.maybeOf(context) != null
+        ? context
+        : appRouter.routerDelegate.navigatorKey.currentContext;
+    if (sheetContext == null) return;
+
     showFocusRestoringModalBottomSheet<void>(
-      context: context,
+      context: sheetContext,
       backgroundColor: AppColorScheme.surface,
       isScrollControlled: true,
       builder: (sheetCtx) => DraggableScrollableSheet(
