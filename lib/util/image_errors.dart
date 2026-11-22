@@ -1,13 +1,28 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-/// An image that could not be fetched or decoded (a missing poster): drawn as
-/// a blank, not a crash, so it stays out of the Ma TV reports.
+/// An image that could not be fetched or decoded (a missing or corrupt
+/// poster): drawn as a blank, not a crash, so it stays out of the Ma TV
+/// reports. Works on a raw exception, so it also catches the decode failures
+/// that surface asynchronously through platformDispatcher.onError, where there
+/// is no FlutterErrorDetails and no 'image resource service' library tag —
+/// e.g. « Exception: Invalid image data » on a corrupt poster (VJOD 5.17).
+bool isImageLoadException(Object exception) {
+  final type = exception.runtimeType.toString();
+  final text = exception.toString();
+  return type.contains('NetworkImageLoadException') ||
+      text.contains('ImageCodecException') ||
+      text.contains('Invalid image data') ||
+      text.contains('Invalid image dimensions') ||
+      text.contains('Failed to decode image') ||
+      text.contains('Could not instantiate image codec');
+}
+
+/// The FlutterError.onError form: the image service also tags its errors with
+/// a library name, which catches cases the message alone would miss.
 bool isImageLoadError(FlutterErrorDetails details) {
   if (details.library == 'image resource service') return true;
-  final type = details.exception.runtimeType.toString();
-  return type.contains('NetworkImageLoadException') ||
-      details.exception.toString().contains('ImageCodecException');
+  return isImageLoadException(details.exception);
 }
 
 /// « RenderBox was not laid out » while Flutter picks a button to focus as

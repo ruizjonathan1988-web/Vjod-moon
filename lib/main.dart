@@ -181,6 +181,9 @@ void _installCrashHandlers() {
   WidgetsBinding.instance.platformDispatcher.onError = (error, stack) {
     // Returning true marks the error handled, which drops the engine's print.
     debugPrint('Uncaught: $error\n$stack');
+    // A corrupt poster decoded off the main thread throws here, not through
+    // FlutterError.onError above: drawn as a blank, not reported as a crash.
+    if (isImageLoadException(error)) return true;
     _captureCrash(error, stack, during: _screen());
     return true;
   };
