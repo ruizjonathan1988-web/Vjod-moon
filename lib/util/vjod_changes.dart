@@ -15,6 +15,9 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('5.21', [
+    'Mes demandes : le pourcentage de téléchargement est le même sur la pastille et sur la fiche. Une release encore retenue (en attente d’être lancée) ne fausse plus le calcul.',
+  ]),
   VjodRelease('5.20', [
     '« En route » : quand un téléchargement doit se terminer après-demain, VJOD affiche la vraie date de fin (« fin le 26/11 vers 08:10 ») au lieu de dire « demain ».',
     'La notification « Prêt à regarder » s’affiche de nouveau, avec le bon titre : elle ne retrouvait plus le nom du film ou de la série et restait muette.',
