@@ -116,7 +116,7 @@ void main() {
         _request(1, status: SeerrRequest.statusPending, mediaStatus: null),
         _request(
           2,
-          downloads: const [SeerrDownloadingItem(size: 10, sizeLeft: 5)],
+          downloads: const [SeerrDownloadingItem(size: 10, sizeLeft: 5, downloadId: 'dl')],
         ),
         _request(
           3,
@@ -194,7 +194,7 @@ void main() {
         _request(
           3,
           tmdbId: 700,
-          downloads: const [SeerrDownloadingItem(size: 10, sizeLeft: 5)],
+          downloads: const [SeerrDownloadingItem(size: 10, sizeLeft: 5, downloadId: 'dl')],
         ),
       ], now: _now);
       final promoted = promoteInLibrary(

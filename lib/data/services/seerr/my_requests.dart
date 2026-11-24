@@ -85,10 +85,15 @@ double? downloadProgress(List<SeerrDownloadingItem>? items) {
   var size = 0;
   var left = 0;
   for (final item in items) {
+    final itemSize = item.size;
+    if (itemSize == null || itemSize <= 0) continue;
+    // Same rule as SeerrDownloadSummary.fromItems so the « Mes demandes »
+    // badge and the card show the same percentage: skip a release held back
+    // by a delay profile (no download id — Sonarr lists it once per episode
+    // with the full size, which would wildly inflate the total), and count
+    // each download once.
     final id = item.downloadId;
-    if (id != null && !seen.add(id)) continue;
-    final itemSize = item.size ?? 0;
-    if (itemSize <= 0) continue;
+    if (id == null || id.isEmpty || !seen.add(id)) continue;
     size += itemSize;
     left += (item.sizeLeft ?? 0).clamp(0, itemSize);
   }
