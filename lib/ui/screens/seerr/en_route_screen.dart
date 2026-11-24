@@ -542,6 +542,14 @@ String enRouteEtaLabel(DateTime eta, DateTime now) {
   if (left.inMinutes < 60) return 'fini dans ${left.inMinutes} min';
   final h = eta.hour.toString().padLeft(2, '0');
   final m = eta.minute.toString().padLeft(2, '0');
-  final sameDay = eta.year == now.year && eta.month == now.month && eta.day == now.day;
-  return sameDay ? 'fin vers $h:$m' : 'fin demain vers $h:$m';
+  // Compare by calendar day: a finish after tomorrow must show its real date,
+  // not « demain ». Normalise to midnight so the gap is a day count.
+  final today = DateTime(now.year, now.month, now.day);
+  final etaDay = DateTime(eta.year, eta.month, eta.day);
+  final daysAhead = etaDay.difference(today).inDays;
+  if (daysAhead <= 0) return 'fin vers $h:$m';
+  if (daysAhead == 1) return 'fin demain vers $h:$m';
+  final dd = eta.day.toString().padLeft(2, '0');
+  final mo = eta.month.toString().padLeft(2, '0');
+  return 'fin le $dd/$mo vers $h:$m';
 }

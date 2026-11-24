@@ -4173,6 +4173,12 @@ class HomeViewModel extends ChangeNotifier {
       final byKey = {
         for (final e in entries) e.key: e,
       };
+      // A request's own media carries no title (only a TMDB id and a status),
+      // so the "ready to watch" notice read an empty name and showed nothing.
+      // The real titles live in the enriched details, keyed by mediaType:id.
+      final titleByKey = {
+        for (final raw in enriched) '${raw.mediaType}:${raw.id}': raw.displayTitle,
+      };
       final items = <AggregatedItem>[];
       for (final raw in enriched) {
         final entry = byKey['${raw.mediaType}:${raw.id}'];
@@ -4199,7 +4205,7 @@ class HomeViewModel extends ChangeNotifier {
       if (ready.isNotEmpty) {
         onRequestsReady?.call([
           for (final e in ready)
-            e.media.title ?? e.media.name ?? '',
+            titleByKey[e.key] ?? e.media.title ?? e.media.name ?? '',
         ]..removeWhere((t) => t.isEmpty));
       }
       if (items.isEmpty) return [];
