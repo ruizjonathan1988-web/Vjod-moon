@@ -85,11 +85,8 @@ double? downloadProgress(List<SeerrDownloadingItem>? items) {
   var size = 0;
   var left = 0;
   for (final item in items) {
-    // Match SeerrDownloadSummary.fromItems: skip a release with no download
-    // id (held back by a delay profile, not downloading yet) and count each
-    // download once, so the « Mes demandes » badge and the card agree.
     final id = item.downloadId;
-    if (id == null || id.isEmpty || !seen.add(id)) continue;
+    if (id != null && !seen.add(id)) continue;
     final itemSize = item.size ?? 0;
     if (itemSize <= 0) continue;
     size += itemSize;

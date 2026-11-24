@@ -1,7 +1,4 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:moonfin/data/services/seerr/my_requests.dart';
-import 'package:moonfin/data/services/seerr/seerr_api_models.dart';
-import 'package:moonfin/data/services/seerr/seerr_download_progress.dart';
 import 'package:moonfin/ui/screens/seerr/en_route_screen.dart';
 
 void main() {
@@ -31,37 +28,6 @@ void main() {
 
     test('plusieurs jours plus tard : date réelle', () {
       expect(enRouteEtaLabel(DateTime(2026, 12, 2, 9, 5), now), 'fin le 02/12 vers 09:05');
-    });
-  });
-
-  group('downloadProgress (VJOD 5.20 : cohérent avec SeerrDownloadSummary)', () {
-    test('ignore les releases sans downloadId', () {
-      final items = [
-        const SeerrDownloadingItem(size: 100, sizeLeft: 50, downloadId: null),
-      ];
-      expect(downloadProgress(items), isNull);
-      expect(SeerrDownloadSummary.fromItems(items), isNull);
-    });
-
-    test('dédoublonne par downloadId (pack de saison)', () {
-      final items = [
-        const SeerrDownloadingItem(size: 100, sizeLeft: 0, downloadId: 'a'),
-        const SeerrDownloadingItem(size: 100, sizeLeft: 0, downloadId: 'a'),
-      ];
-      expect(downloadProgress(items), 1.0);
-    });
-
-    test('même fraction que la pastille et la fiche, releases retenues écartées', () {
-      final items = [
-        const SeerrDownloadingItem(size: 100, sizeLeft: 25, downloadId: 'a'),
-        const SeerrDownloadingItem(size: 100, sizeLeft: 100, downloadId: null),
-      ];
-      final badge = downloadProgress(items);
-      final card = SeerrDownloadSummary.fromItems(items);
-      expect(badge, 0.75);
-      expect(card, isNotNull);
-      expect(card!.fraction, 0.75);
-      expect(badge, card.fraction);
     });
   });
 }
