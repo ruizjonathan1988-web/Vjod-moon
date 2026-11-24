@@ -1,9 +1,31 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:moonfin/data/services/seerr/my_requests.dart';
 import 'package:moonfin/data/services/seerr/seerr_api_models.dart';
 import 'package:moonfin/data/services/seerr/seerr_download_progress.dart';
 
 void main() {
   const gb = 1000 * 1000 * 1000;
+
+  // VJOD 5.21 : la pastille « Mes demandes » (downloadProgress) et la fiche
+  // (SeerrDownloadSummary.fromItems) doivent donner le même pourcentage.
+  test('la pastille et la fiche s\'accordent, releases retenues écartées', () {
+    final items = [
+      const SeerrDownloadingItem(size: 100, sizeLeft: 25, downloadId: 'a'),
+      const SeerrDownloadingItem(size: 100, sizeLeft: 100, downloadId: null),
+      const SeerrDownloadingItem(size: 100, sizeLeft: 25, downloadId: 'a'),
+    ];
+    final badge = downloadProgress(items);
+    final card = SeerrDownloadSummary.fromItems(items);
+    expect(badge, 0.75);
+    expect(card!.fraction, 0.75);
+    expect(badge, card.fraction);
+  });
+
+  test('une release retenue seule : ni pastille ni barre', () {
+    const items = [SeerrDownloadingItem(size: 23, sizeLeft: 23)];
+    expect(downloadProgress(items), isNull);
+    expect(SeerrDownloadSummary.fromItems(items), isNull);
+  });
 
   // Sonarr's queue has one entry per episode, each with the whole pack's
   // size. A 9 episode pack at 75% read as 9 times its size.
