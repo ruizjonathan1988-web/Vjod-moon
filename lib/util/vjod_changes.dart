@@ -15,6 +15,12 @@ class VjodRelease {
 }
 
 const vjodReleases = <VjodRelease>[
+  VjodRelease('5.20', [
+    '« En route » : quand un téléchargement doit se terminer après-demain, VJOD affiche la vraie date de fin (« fin le 26/11 vers 08:10 ») au lieu de dire « demain ».',
+    'La notification « Prêt à regarder » s’affiche de nouveau, avec le bon titre : elle ne retrouvait plus le nom du film ou de la série et restait muette.',
+    'Édition des métadonnées (admin) : les noms séparés par « ; » n’enregistrent plus d’espace en trop.',
+    'Quelques traductions corrigées dans la partie admin (journaux et activité : « il y a 3 j » ; « Sessions » et « Actions »).',
+  ]),
   VjodRelease('5.19', [
     'Le mini-lecteur Cast ne plante plus quand on ouvre le choix de piste audio ou de sous-titres : la fen\u00eatre s\u2019ouvre correctement m\u00eame si le lecteur flotte au-dessus de l\u2019\u00e9cran.',
   ]),

@@ -552,8 +552,10 @@ class _AdminMetadataEditScreenState extends State<AdminMetadataEditScreen>
         decoration: adminInputDecoration(),
         onChanged: (v) {
           _item[key] = [
-            for (final name in v.trim().split(';'))
-              if (name.isNotEmpty) {'Name': name},
+            // Trim each name, not just the whole string: « Tom Hanks ; Meg
+            // Ryan » must not save « Meg Ryan » with a leading space.
+            for (final name in v.split(';'))
+              if (name.trim().isNotEmpty) {'Name': name.trim()},
           ];
           edited();
         },

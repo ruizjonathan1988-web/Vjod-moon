@@ -4418,7 +4418,7 @@
     "search": "Rechercher",
     "select": "Sélectionner",
     "send": "Envoyer",
-    "sessions": "Séances",
+    "sessions": "Sessions",
     "set": "Définir",
     "status": "Statut",
     "stop": "Arrêter",
@@ -4541,7 +4541,7 @@
     "sessionVolumeUp": "Vol +",
     "nowPlaying": "Lecture en cours",
     "volume": "Volume",
-    "actions": "Actes",
+    "actions": "Actions",
     "videoCodec": "Codec vidéo",
     "audioCodec": "Codec audio",
     "hwAccel": "Accél. matérielle",
@@ -5518,7 +5518,7 @@
             }
         }
     },
-    "adminLogsHoursAgo": "{hours}h il y a",
+    "adminLogsHoursAgo": "il y a {hours}h",
     "@adminLogsHoursAgo": {
         "placeholders": {
             "hours": {
@@ -5526,7 +5526,7 @@
             }
         }
     },
-    "adminLogsDaysAgo": "{days}d il y a",
+    "adminLogsDaysAgo": "il y a {days}j",
     "@adminLogsDaysAgo": {
         "placeholders": {
             "days": {
@@ -5877,7 +5877,7 @@
     "adminActivityToday": "Aujourd'hui",
     "adminActivityYesterday": "Hier",
     "adminActivityOlder": "Plus ancien",
-    "adminActivityDaysAgo": "{days}d il y a",
+    "adminActivityDaysAgo": "il y a {days}j",
     "@adminActivityDaysAgo": {
         "placeholders": {
             "days": {
@@ -5885,7 +5885,7 @@
             }
         }
     },
-    "adminActivityHoursAgo": "{hours}h il y a",
+    "adminActivityHoursAgo": "il y a {hours}h",
     "@adminActivityHoursAgo": {
         "placeholders": {
             "hours": {

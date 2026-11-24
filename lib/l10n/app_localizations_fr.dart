@@ -6116,7 +6116,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get send => 'Envoyer';
 
   @override
-  String get sessions => 'Séances';
+  String get sessions => 'Sessions';
 
   @override
   String get set => 'Définir';
@@ -7789,7 +7789,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get volume => 'Volume';
 
   @override
-  String get actions => 'Actes';
+  String get actions => 'Actions';
 
   @override
   String get videoCodec => 'Codec vidéo';
@@ -9560,12 +9560,12 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String adminLogsHoursAgo(int hours) {
-    return '${hours}h il y a';
+    return 'il y a ${hours}h';
   }
 
   @override
   String adminLogsDaysAgo(int days) {
-    return '${days}d il y a';
+    return 'il y a ${days}j';
   }
 
   @override
@@ -10506,12 +10506,12 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String adminActivityDaysAgo(int days) {
-    return '${days}d il y a';
+    return 'il y a ${days}j';
   }
 
   @override
   String adminActivityHoursAgo(int hours) {
-    return '${hours}h il y a';
+    return 'il y a ${hours}h';
   }
 
   @override
